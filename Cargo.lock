@@ -693,6 +693,7 @@ dependencies = [
  "hex",
  "oopz",
  "qrcode",
+ "rusqlite",
  "serde",
  "sha2",
  "tempfile",

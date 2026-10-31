@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 
+pub mod index;
 pub mod receive;
 pub mod session;
 

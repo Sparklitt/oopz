@@ -10,6 +10,7 @@ use oopz::{Backup, ChatMerge, Key};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::index::{BuildInfo, Hit, Index, Line, Stats};
 use crate::{AppError, Result};
 
 /// A file in the folder the person picked, and what kind of backup it looks like.
@@ -153,6 +154,8 @@ struct Checked {
     path: PathBuf,
     backup: Backup,
     summary: Summary,
+    /// Built on first use (Explore), removed with the backup.
+    index: Option<Index>,
 }
 
 /// The backups checked so far. Dropping it (or [`Session::forget`]) removes their decrypted copies.
@@ -202,7 +205,8 @@ impl Session {
             groups: chats.iter().filter(|c| c.is_group()).count() as u64,
             chat_list,
         };
-        self.checked.push((self.next_id, Checked { path: path.to_path_buf(), backup, summary: summary.clone() }));
+        self.checked
+            .push((self.next_id, Checked { path: path.to_path_buf(), backup, summary: summary.clone(), index: None }));
         Ok(summary)
     }
 
@@ -221,6 +225,44 @@ impl Session {
             .find(|(i, _)| *i == id)
             .map(|(_, c)| c)
             .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))
+    }
+
+    /// Builds the search index of a checked backup in `tmp`, once; later calls return the first build's numbers.
+    pub fn build_index(&mut self, id: u32, tmp: &Path) -> Result<BuildInfo> {
+        let checked = self
+            .checked
+            .iter_mut()
+            .find(|(i, _)| *i == id)
+            .map(|(_, c)| c)
+            .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))?;
+        if checked.index.is_none() {
+            checked.index = Some(Index::build(checked.backup.db(), tmp)?);
+        }
+        Ok(checked.index.as_ref().expect("just built").info)
+    }
+
+    fn index(&self, id: u32) -> Result<&Index> {
+        self.get(id)?.index.as_ref().ok_or_else(|| AppError::new("not_found", "the search index isn't built yet"))
+    }
+
+    pub fn search(&self, id: u32, query: &str, chat: Option<i64>, limit: u32) -> Result<Vec<Hit>> {
+        self.index(id)?.search(query, chat, limit)
+    }
+
+    pub fn stats(&self, id: u32, chat: Option<i64>) -> Result<Stats> {
+        self.index(id)?.stats(chat)
+    }
+
+    pub fn chat_len(&self, id: u32, chat: i64) -> Result<u64> {
+        self.index(id)?.chat_len(chat)
+    }
+
+    pub fn lines(&self, id: u32, chat: i64, from: u64, count: u32) -> Result<Vec<Line>> {
+        self.index(id)?.lines(chat, from, count)
+    }
+
+    pub fn position(&self, id: u32, message: i64) -> Result<Option<(i64, u64)>> {
+        self.index(id)?.position(message)
     }
 
     /// Merges a chat into a new copy of the target (decision 0006): the result is checked before it's written, both
@@ -362,8 +404,13 @@ mod tests {
         for secret in [fixture::BEN_JID, KEY_HEX, "Hola", "playa"] {
             assert!(!json.contains(secret), "{secret:?} in the summary");
         }
-        // Its decrypted copy is in `tmp`, and goes when it's forgotten.
-        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
+        // Its decrypted copy and its search index are in `tmp`, and go when it's forgotten.
+        assert_eq!(session.search(s.id, "hola", None, 10).unwrap_err().code, "not_found");
+        let info = session.build_index(s.id, tmp.path()).unwrap();
+        assert_eq!(info.messages, s.messages);
+        assert!(!session.search(s.id, "hola", Some(BEN_CHAT), 10).unwrap().is_empty());
+        assert_eq!(session.stats(s.id, Some(BEN_CHAT)).unwrap().messages, 18);
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 2);
         session.forget(s.id);
         assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 0);
     }
