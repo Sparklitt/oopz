@@ -72,15 +72,23 @@ fn looks_like_crypt15(path: &Path) -> bool {
 
 /// SHA-256 of a file, streamed, as lowercase hex: to show that an original is unchanged.
 pub fn sha256_file(path: &Path) -> Result<String> {
+    sha256_file_with(path, &mut |_| {})
+}
+
+/// [`sha256_file`], calling `progress(bytes read)` after each megabyte.
+fn sha256_file_with(path: &Path, progress: &mut dyn FnMut(u64)) -> Result<String> {
     let mut file = fs::File::open(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
+    let mut done = 0;
     loop {
         let n = file.read(&mut buf).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
         if n == 0 {
             break;
         }
         hasher.update(&buf[..n]);
+        done += n as u64;
+        progress(done);
     }
     Ok(hex::encode(hasher.finalize()))
 }
@@ -158,6 +166,19 @@ struct Checked {
     index: Option<Index>,
 }
 
+/// Builds a backup's search index on its own read-only connection to the decrypted copy.
+pub struct IndexJob {
+    source: PathBuf,
+}
+
+impl IndexJob {
+    pub fn run(&self, tmp: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<Index> {
+        let db = rusqlite::Connection::open_with_flags(&self.source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(oopz::Error::from)?;
+        Index::build_with(&db, tmp, progress)
+    }
+}
+
 /// The backups checked so far. Dropping it (or [`Session::forget`]) removes their decrypted copies.
 #[derive(Default)]
 pub struct Session {
@@ -169,10 +190,25 @@ impl Session {
     /// Opens `path` with `key_text` (64 hex digits, spaces allowed), decrypting it into `tmp` (a private folder),
     /// and keeps it open for a merge. The key is dropped, wiped, when this returns.
     pub fn check(&mut self, path: &Path, key_text: &str, tmp: &Path) -> Result<Summary> {
+        self.check_with(path, key_text, tmp, &mut |_, _| {})
+    }
+
+    /// [`Session::check`], calling `progress(done, total)` as it hashes the original (the first quarter) and opens it
+    /// (the rest). `total` stays the same during one check.
+    pub fn check_with(
+        &mut self,
+        path: &Path,
+        key_text: &str,
+        tmp: &Path,
+        progress: &mut dyn FnMut(u64, u64),
+    ) -> Result<Summary> {
         let key = Key::from_hex(key_text)?;
-        let sha256 = sha256_file(path)?;
         let bytes = fs::metadata(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?.len();
-        let backup = Backup::open_in(path, &key, tmp)?;
+        let total = 4 * bytes.max(1);
+        let sha256 = sha256_file_with(path, &mut |done| progress(done.min(bytes), total))?;
+        let backup = Backup::open_in_with(path, &key, tmp, &mut |done, of| {
+            progress(bytes + done.min(of) * 3 * bytes.max(1) / of.max(1), total)
+        })?;
         let health = backup.health()?;
         let first_ms = backup
             .db()
@@ -229,16 +265,41 @@ impl Session {
 
     /// Builds the search index of a checked backup in `tmp`, once; later calls return the first build's numbers.
     pub fn build_index(&mut self, id: u32, tmp: &Path) -> Result<BuildInfo> {
+        self.build_index_with(id, tmp, &mut |_, _| {})
+    }
+
+    /// [`Session::build_index`], calling `progress(done, total)` as [`Index::build_with`] does.
+    pub fn build_index_with(&mut self, id: u32, tmp: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<BuildInfo> {
+        if let Some(info) = self.index_built(id)? {
+            return Ok(info);
+        }
+        let index = self.index_job(id)?.run(tmp, progress)?;
+        self.keep_index(id, index)
+    }
+
+    /// The index's numbers, if it's built.
+    pub fn index_built(&self, id: u32) -> Result<Option<BuildInfo>> {
+        Ok(self.get(id)?.index.as_ref().map(|i| i.info))
+    }
+
+    /// What building a backup's index needs, so the build can run without holding the session (the app stays usable
+    /// meanwhile): [`IndexJob::run`], then [`Session::keep_index`].
+    pub fn index_job(&self, id: u32) -> Result<IndexJob> {
+        let path = self.get(id)?.backup.db().path().map(PathBuf::from);
+        let source = path.ok_or_else(|| AppError::new("not_found", "the backup's decrypted copy has no file"))?;
+        Ok(IndexJob { source })
+    }
+
+    /// Keeps an index built by an [`IndexJob`]. If one was kept meanwhile, that one stays and this one is removed;
+    /// if the backup was forgotten meanwhile, this one is removed and the answer is `not_found`.
+    pub fn keep_index(&mut self, id: u32, index: Index) -> Result<BuildInfo> {
         let checked = self
             .checked
             .iter_mut()
             .find(|(i, _)| *i == id)
             .map(|(_, c)| c)
             .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))?;
-        if checked.index.is_none() {
-            checked.index = Some(Index::build(checked.backup.db(), tmp)?);
-        }
-        Ok(checked.index.as_ref().expect("just built").info)
+        Ok(checked.index.get_or_insert(index).info)
     }
 
     fn index(&self, id: u32) -> Result<&Index> {
@@ -384,6 +445,33 @@ mod tests {
         }
         assert_eq!(find_backups(&db.join("msgstore.db.crypt15")).unwrap().len(), 1);
         assert_eq!(find_backups(fx.dir.path().join("nowhere").as_path()).unwrap_err().code, "not_found");
+    }
+
+    /// Progress only moves forward, keeps one total, and ends at it.
+    fn assert_progress(seen: &[(u64, u64)]) {
+        let (_, total) = *seen.last().expect("some progress");
+        assert!(seen.windows(2).all(|w| w[0].0 <= w[1].0 && w[0].1 == w[1].1), "{seen:?}");
+        assert!(seen.iter().all(|&(done, of)| done <= of));
+        assert_eq!(seen.last().unwrap().0, total, "{seen:?}");
+    }
+
+    #[test]
+    fn check_and_index_report_progress() {
+        let fx = fixture::build();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let mut seen = Vec::new();
+        let s = session.check_with(&fx.backup, KEY_HEX, tmp.path(), &mut |d, t| seen.push((d, t))).unwrap();
+        assert_progress(&seen);
+        seen.clear();
+        session.build_index_with(s.id, tmp.path(), &mut |d, t| seen.push((d, t))).unwrap();
+        assert_progress(&seen);
+
+        // A backup forgotten while its index was building keeps nothing.
+        let again = session.check(&fx.backup, KEY_HEX, tmp.path()).unwrap();
+        let index = session.index_job(again.id).unwrap().run(tmp.path(), &mut |_, _| {}).unwrap();
+        session.forget(again.id);
+        assert_eq!(session.keep_index(again.id, index).unwrap_err().code, "not_found");
     }
 
     #[test]

@@ -10,6 +10,7 @@ use oopz_app::receive::{self, Receiver};
 use oopz_app::session::{self, BackupFile, MergeOutcome, MergeRequest, Session, Summary};
 use oopz_app::{AppError, ReceiveStatus};
 use serde::{Deserialize, Serialize};
+use tauri::ipc::Channel;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
@@ -60,8 +61,8 @@ impl AppState {
         Ok(Self { session: Mutex::default(), receiver: Mutex::default(), tmp })
     }
 
-    pub fn check(&self, path: &Path, key: &str) -> Result<Summary, AppError> {
-        lock(&self.session).check(path, key, self.tmp.path())
+    pub fn check(&self, path: &Path, key: &str, progress: &mut dyn FnMut(u64, u64)) -> Result<Summary, AppError> {
+        lock(&self.session).check_with(path, key, self.tmp.path(), progress)
     }
 
     pub fn forget(&self, id: u32) {
@@ -107,8 +108,17 @@ impl AppState {
         Ok(info)
     }
 
-    pub fn build_index(&self, id: u32) -> Result<BuildInfo, AppError> {
-        lock(&self.session).build_index(id, self.tmp.path())
+    /// Builds a backup's search index without holding the session, so the other commands answer meanwhile.
+    pub fn build_index(&self, id: u32, progress: &mut dyn FnMut(u64, u64)) -> Result<BuildInfo, AppError> {
+        let job = {
+            let session = lock(&self.session);
+            if let Some(info) = session.index_built(id)? {
+                return Ok(info);
+            }
+            session.index_job(id)?
+        };
+        let index = job.run(self.tmp.path(), progress)?;
+        lock(&self.session).keep_index(id, index)
     }
 
     pub fn receive_status(&self) -> ReceiveStatus {
@@ -120,14 +130,31 @@ impl AppState {
     }
 }
 
+/// Progress for the UI's bar, in thousandths, sent only when it moves (a channel message per thousandth at most).
+fn per_mille(channel: &Channel<u16>) -> impl FnMut(u64, u64) + '_ {
+    let mut last = None;
+    move |done, total| {
+        let now = (done.min(total) * 1000 / total.max(1)) as u16;
+        if last != Some(now) {
+            last = Some(now);
+            let _ = channel.send(now);
+        }
+    }
+}
+
 #[tauri::command(async)]
 fn find_backups(path: PathBuf) -> Result<Vec<BackupFile>, AppError> {
     session::find_backups(&path)
 }
 
 #[tauri::command(async)]
-fn check_backup(state: State<'_, AppState>, path: PathBuf, key: Zeroizing<String>) -> Result<Summary, AppError> {
-    state.check(&path, &key)
+fn check_backup(
+    state: State<'_, AppState>,
+    path: PathBuf,
+    key: Zeroizing<String>,
+    progress: Channel<u16>,
+) -> Result<Summary, AppError> {
+    state.check(&path, &key, &mut per_mille(&progress))
 }
 
 #[tauri::command]
@@ -161,8 +188,8 @@ fn receive_stop(state: State<'_, AppState>) -> ReceiveStatus {
 }
 
 #[tauri::command(async)]
-fn build_index(state: State<'_, AppState>, id: u32) -> Result<BuildInfo, AppError> {
-    state.build_index(id)
+fn build_index(state: State<'_, AppState>, id: u32, progress: Channel<u16>) -> Result<BuildInfo, AppError> {
+    state.build_index(id, &mut per_mille(&progress))
 }
 
 #[tauri::command(async)]
@@ -238,10 +265,10 @@ mod tests {
         let (_cache, state) = state();
         let two = fixture::two_phones();
         let out = tempfile::tempdir().unwrap();
-        let source = state.check(&two.source, KEY_HEX).unwrap();
-        let target = state.check(&two.target, TARGET_KEY_HEX).unwrap();
+        let source = state.check(&two.source, KEY_HEX, &mut |_, _| {}).unwrap();
+        let target = state.check(&two.target, TARGET_KEY_HEX, &mut |_, _| {}).unwrap();
         assert_eq!(state.summaries().len(), 2);
-        assert_eq!(state.check(&two.target, KEY_HEX).unwrap_err().code, "wrong_key");
+        assert_eq!(state.check(&two.target, KEY_HEX, &mut |_, _| {}).unwrap_err().code, "wrong_key");
 
         // The form as the UI sends it, JSON with the key in it: the key goes no further than the merge.
         let json = format!(
@@ -257,7 +284,8 @@ mod tests {
         assert!(done.backup.starts_with(out.path()));
 
         // Explore: the index is built on demand, then search and stats answer.
-        let info = state.build_index(target.id).unwrap();
+        // While the index builds, the session answers other commands.
+        let info = state.build_index(target.id, &mut |_, _| assert_eq!(state.summaries().len(), 2)).unwrap();
         assert_eq!(info.messages, target.messages);
         assert!(lock(&state.session).stats(target.id, None).unwrap().messages > 0);
 

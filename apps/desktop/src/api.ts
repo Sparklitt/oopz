@@ -1,5 +1,5 @@
 // Typed calls to the Rust commands (apps/desktop/src-tauri/src/lib.rs). The shapes mirror crates/oopz-app.
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type BackupKind = "crypt15" | "crypt14" | "crypt12" | "not_crypt15";
 
@@ -108,10 +108,18 @@ export function isAppError(e: unknown): e is AppError {
   return typeof e === "object" && e !== null && "code" in e && "detail" in e;
 }
 
+/** A channel Rust sends progress on, in thousandths. */
+function progress(onProgress: (perMille: number) => void): Channel<number> {
+  const channel = new Channel<number>();
+  channel.onmessage = onProgress;
+  return channel;
+}
+
 export const api = {
   findBackups: (path: string) => invoke<BackupFile[]>("find_backups", { path }),
   /** The key goes to Rust for this one call; the caller clears its input right away. */
-  checkBackup: (path: string, key: string) => invoke<Summary>("check_backup", { path, key }),
+  checkBackup: (path: string, key: string, onProgress: (perMille: number) => void) =>
+    invoke<Summary>("check_backup", { path, key, progress: progress(onProgress) }),
   forgetBackup: (id: number) => invoke<void>("forget_backup", { id }),
   checkedBackups: () => invoke<Summary[]>("checked_backups"),
   mergeChat: (form: {
@@ -123,7 +131,8 @@ export const api = {
     out_parent: string;
     media: string | null;
   }) => invoke<MergeOutcome>("merge_chat", { form }),
-  buildIndex: (id: number) => invoke<BuildInfo>("build_index", { id }),
+  buildIndex: (id: number, onProgress: (perMille: number) => void) =>
+    invoke<BuildInfo>("build_index", { id, progress: progress(onProgress) }),
   search: (id: number, query: string, chat: number | null) => invoke<Hit[]>("search", { id, query, chat }),
   stats: (id: number, chat: number | null) => invoke<Stats>("stats", { id, chat }),
   chatLen: (id: number, chat: number) => invoke<number>("chat_len", { id, chat }),

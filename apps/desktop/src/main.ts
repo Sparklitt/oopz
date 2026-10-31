@@ -17,6 +17,8 @@ const state = {
   current: null as Summary | null,
   error: null as AppError | null,
   busy: false,
+  /** Thousandths done of the long step under way (opening, indexing), or null before the first report. */
+  progress: null as number | null,
   showPassword: false,
   chatLimit: 200,
   receive: null as { info: ReceiveInfo; status: ReceiveStatus } | null,
@@ -59,8 +61,21 @@ function go(step: Step) {
   window.scrollTo(0, 0);
 }
 
+/** A bar for the long step under way; `onProgress` moves it without re-rendering the screen. */
+let progressBar: HTMLProgressElement | null = null;
+function progressNode(label: string): Node {
+  progressBar = h("progress", { max: "1000", "aria-label": label });
+  if (state.progress !== null) progressBar.value = state.progress;
+  return h("p", {}, label, progressBar);
+}
+function onProgress(perMille: number) {
+  state.progress = perMille;
+  if (progressBar) progressBar.value = perMille;
+}
+
 async function run<T>(work: () => Promise<T>): Promise<T | undefined> {
   state.busy = true;
+  state.progress = null;
   state.error = null;
   render();
   try {
@@ -279,7 +294,7 @@ function key(): Child[] {
   const submit = async () => {
     const value = input.value;
     input.value = ""; // The key leaves the page now; Rust wipes it after this one call.
-    const summary = await run(() => api.checkBackup(f.path, value));
+    const summary = await run(() => api.checkBackup(f.path, value, onProgress));
     if (summary) {
       state.summaries = await api.checkedBackups();
       state.current = summary;
@@ -298,7 +313,7 @@ function key(): Child[] {
       h("form", { onsubmit: (e) => { e.preventDefault(); void submit(); } }, input),
       h("p", {}, count),
       h("p", {}, t.keyNever),
-      state.busy && h("p", {}, t.keyOpening, h("progress", {})),
+      state.busy && progressNode(t.keyOpening),
       h(
         "div",
         { class: "row" },
@@ -492,7 +507,7 @@ function explore(): Child[] {
   const statsBox = h("div", {});
   const results = h("div", { class: "list" });
   const viewerBox = h("div", {});
-  const status = h("p", {}, explorer.built && explorer.forId === s.id ? `${t.exploreBuilt} (${fmt(explorer.built.messages)} ${t.messages}, ${(explorer.built.millis / 1000).toFixed(1)} s)` : t.exploreBuilding);
+  const status = explorer.built && explorer.forId === s.id ? h("p", {}, `${t.exploreBuilt} (${fmt(explorer.built.messages)} ${t.messages}, ${(explorer.built.millis / 1000).toFixed(1)} s)`) : progressNode(t.exploreBuilding);
   const chats: [number, string][] = [[0, t.wholeBackup], ...s.chat_list.map((c): [number, string] => [c.number, `${c.number} · ${t.who[c.kind]} ••••${c.ending} · ${fmt(c.messages)}`])];
   const showStats = async () => {
     const st = await api.stats(s.id, explorer.chat).catch(() => null);
@@ -540,8 +555,16 @@ function explore(): Child[] {
     if (!(explorer.built && explorer.forId === s.id)) {
       if (explorer.building) return; // run() re-renders while it builds: start it once.
       explorer.building = true;
-      const built = await run(() => api.buildIndex(s.id)).finally(() => (explorer.building = false));
-      if (!built) return;
+      // Not run(): the build doesn't make the app busy, so other screens stay usable while it runs.
+      state.progress = null;
+      const built = await api
+        .buildIndex(s.id, onProgress)
+        .catch((e: unknown) => {
+          state.error = isAppError(e) ? e : { code: "io", detail: String(e) };
+          return undefined;
+        })
+        .finally(() => (explorer.building = false));
+      if (!built) return render();
       explorer.built = built;
       explorer.forId = s.id;
       render(); // Again, now with the index: shows the stats.

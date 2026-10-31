@@ -95,9 +95,9 @@ Spanish (the app follows the system language; a button switches it).
 8. **Done.** Where the result is; keep everything until you're sure; start again (closes and wipes the decrypted
    copies).
 
-Planned on top: a progress bar during opening (the library already reports progress), the "what's missing" view
-comparing two checked backups chat by chat (messages in one and not the other, by `key_id`), and the "restore from
-an older own backup" mode once [0008](decisions/0008-restore-a-chat-from-an-older-own-backup.md) is built.
+Opening a backup and building its search index show a progress bar (thousandths sent over a Tauri channel, only
+when they change). Planned on top: the "what's missing" view comparing two checked backups chat by chat (messages
+in one and not the other, by `key_id`), and the "restore from an older own backup" mode once [0008](decisions/0008-restore-a-chat-from-an-older-own-backup.md) is built.
 
 ## 4. Getting a backup off phone 1
 
@@ -368,12 +368,12 @@ needs a browser tab.
 - `crates/oopz-app`: find backups (folder, `Databases/` subfolder or file; current first; crypt14/12 and incomplete
   copies named), check (counts, dates, masked chat list, SHA-256 of the original, soundness), merge into a new
   `oopz-result-N` folder with media (the original's hash checked before and after), the Wi-Fi receive page, the
-  search index, search, stats, the chat viewer's pages. 12 unit tests, synthetic data only.
+  search index, search, stats, the chat viewer's pages. 13 unit tests, synthetic data only.
 - `apps/desktop`: the Tauri 2 shell (14 commands, 2 tests through the same state the commands use) and the web UI:
   Welcome → Get backup (folder, file, Wi-Fi QR with live progress) → Key (masked, cleared once sent, password panel)
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
   on phone 2 (guided checklist) → Done. English and Spanish.
-- **Not yet**: progress bars while opening and indexing; free-space checks; the "what's missing" comparison; group
+- **Not yet**: free-space checks; the "what's missing" comparison; group
   merges; restoring from an older own backup (0008); the HTML export; signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
 - **Not yet verified by hand**: the window itself (the build, the commands and the web UI's types are checked; the
@@ -432,15 +432,15 @@ cd apps/desktop/src-tauri && cargo fmt --check && cargo clippy -j 2 --all-target
 cd apps/desktop && pnpm check
 ```
 
-CI (not changed yet): add a job on `ubuntu-latest` that installs the Linux packages above, runs the shell's checks and
-`pnpm check`; later the release job builds installers on the three systems with `tauri-apps/tauri-action`. Installer
+CI: the `desktop` job (`ubuntu-latest`) installs the Linux packages above, builds the UI (`pnpm build`, which
+type-checks it) and runs the shell's checks; later the release job builds installers on the three systems with `tauri-apps/tauri-action`. Installer
 signing (Windows Authenticode, Apple notarization) needs certificates and is left for the release decision.
 
 ## 12. Milestones
 
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
-2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars; free-space checks; the
-   index build in the background; a CI job for the shell and the UI.
+2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks; the
+   index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
 3. "What's missing" between two backups; restore from an older own backup (0008); the HTML export.
 4. Release builds and signed installers (decision on publishing).
 5. Android (Tauri 2 mobile), the same `oopz-app`.
