@@ -103,6 +103,14 @@ impl AppState {
         Ok(page)
     }
 
+    /// Wipes what this run decrypted: Tauri exits without dropping its managed state, so this runs on its exit event.
+    /// Dropping the session closes and removes each copy and index (closed first: Windows can't delete open files).
+    pub fn close(&self) {
+        *lock(&self.session) = Session::default();
+        drop(lock(&self.receiver).take());
+        let _ = std::fs::remove_dir_all(self.tmp.path());
+    }
+
     /// Only a folder this run made, so a page can't ask the app to open just anything.
     pub fn made(&self, folder: &Path) -> Result<(), AppError> {
         if lock(&self.made).iter().any(|m| m == folder) {
@@ -298,8 +306,13 @@ pub fn run() {
             chat_lines,
             message_position,
         ])
-        .run(tauri::generate_context!())
-        .expect("oopz couldn't start its window");
+        .build(tauri::generate_context!())
+        .expect("oopz couldn't start its window")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                app.state::<AppState>().close();
+            }
+        });
 }
 
 #[cfg(test)]
@@ -362,6 +375,11 @@ mod tests {
 
         state.forget(source.id);
         assert_eq!(state.summaries().len(), 1);
+
+        // Closing the app leaves nothing it decrypted behind.
+        state.close();
+        assert!(!state.tmp.path().exists());
+        assert!(state.summaries().is_empty());
         assert_eq!(state.merge(&form).unwrap_err().code, "not_found");
     }
 
