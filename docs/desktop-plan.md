@@ -382,8 +382,8 @@ the person's messages and isn't encrypted. The app itself never needs a browser 
   right); WCAG AA contrast in light and dark. Like a desktop app: no web page menu on right-click and no
   selecting labels (both kept where there is text to copy), the window's size and place remembered, and "Show folder"
   next to each result (only folders this run made).
-- `.github/workflows/desktop-build.yml`: unsigned installers for the three systems, by hand, as run artifacts with
-  checksums; publishes nothing.
+- `.github/workflows/desktop-build.yml`: unsigned installers for the three systems, by hand as run artifacts with
+  checksums, or from a tag `vX.Y.Z` as a draft GitHub Release with provenance (decision 0010).
 - **Not yet**: group
   merges; restoring from an older own backup (0008); signed installers (0010); Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
