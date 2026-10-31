@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest something oops could do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        oops works only on a person's own backups, with their own key and consent, offline, and never prints message
+        text, media, numbers or keys. Ideas that fit those rules are very welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: The command or behaviour you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Rules
+      options:
+        - label: This works on one's own backups with one's own key, and does not get around anyone's encryption.
+          required: true
+        - label: This issue contains no real backup, key, media, message text or phone number.
+          required: true

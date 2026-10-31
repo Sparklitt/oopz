@@ -1,0 +1,62 @@
+name: Bug report
+description: oops did something wrong or unexpected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!CAUTION]
+        > **Never attach real backups, keys, media, screenshots of chats or phone numbers**, yours or anyone else's.
+        > This issue is public. Paste only oops's own output (counts and masked ids by design) and, if it helps, table
+        > and column names from `oops tables`.
+
+        Found a security problem (a key, message text or number in the output, an original modified)? Don't open an
+        issue: report it privately as described in [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what oops did instead.
+      placeholder: "I ran `oops chats --backup msgstore.db.crypt15` and expected ..., but ..."
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: oops's output
+      description: Copy it as printed. Remove file names that contain anything personal.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: oops version
+      description: "`oops --version`, or the commit you built from."
+      placeholder: "oops 0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: backup-format
+    attributes:
+      label: Backup format and WhatsApp version
+      description: The backup file's extension and the WhatsApp version that made it (Settings → Help → App info).
+      placeholder: "crypt15, WhatsApp 2.24.x"
+    validations:
+      required: true
+  - type: checkboxes
+    id: synthetic
+    attributes:
+      label: Privacy
+      options:
+        - label: This issue contains no real backup, key, media, message text or phone number.
+          required: true
