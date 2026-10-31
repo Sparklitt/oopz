@@ -162,6 +162,8 @@ No. Without its key a crypt15 backup cannot be opened, and oopz will never try.
 - [x] `restore`: a lost one-to-one chat, checked before it is written.
 - [ ] **`view`**: an offline HTML viewer of your own backup, with stats (coming).
 - [ ] **`check`**: a backup health report you can keep (coming).
+- [ ] **Desktop app** (Tauri 2, English and Spanish): step by step from the phone to a merged backup, with stats
+  and fast search; a first version is in [`apps/desktop`](apps/desktop) ([plan](docs/desktop-plan.md)).
 - [ ] Release binaries for Linux, macOS and Windows.
 
 ## Contributing
