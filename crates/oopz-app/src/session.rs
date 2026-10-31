@@ -159,6 +159,20 @@ pub struct MergeRequest<'a> {
     pub media: Option<&'a Path>,
 }
 
+/// What two backups' copies of a chat have in common, matched by WhatsApp's message id (`key_id`), never by time or
+/// text. Counts and dates only.
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+pub struct Missing {
+    pub both: u64,
+    /// Messages only in the first backup's chat, and the dates of the first and last of them.
+    pub only_a: u64,
+    pub only_a_first_ms: Option<i64>,
+    pub only_a_last_ms: Option<i64>,
+    pub only_b: u64,
+    pub only_b_first_ms: Option<i64>,
+    pub only_b_last_ms: Option<i64>,
+}
+
 /// What a merge wrote and checked.
 #[derive(Debug, Clone, Serialize)]
 pub struct MergeOutcome {
@@ -346,6 +360,25 @@ impl Session {
 
     pub fn position(&self, id: u32, message: i64) -> Result<Option<(i64, u64)>> {
         self.index(id)?.position(message)
+    }
+
+    /// "What's missing": chat `chat_a` of backup `a` against chat `chat_b` of backup `b` (the same chat, as each
+    /// phone or each day's backup keeps it). Works for one's own older backup and for the other person's.
+    pub fn missing(&self, a: u32, chat_a: i64, b: u32, chat_b: i64) -> Result<Missing> {
+        let ids_a = self.get(a)?.backup.key_ids(chat_a)?;
+        let ids_b = self.get(b)?.backup.key_ids(chat_b)?;
+        let set_a: std::collections::HashSet<&str> = ids_a.iter().map(|(k, _)| k.as_str()).collect();
+        let set_b: std::collections::HashSet<&str> = ids_b.iter().map(|(k, _)| k.as_str()).collect();
+        let mut out = Missing { both: set_a.intersection(&set_b).count() as u64, ..Missing::default() };
+        // Oldest first, so the first one seen is the earliest. A time of 0 is unknown, not 1970.
+        let span = |ids: &[(String, i64)], other: &std::collections::HashSet<&str>| {
+            let only: Vec<i64> = ids.iter().filter(|(k, _)| !other.contains(k.as_str())).map(|&(_, t)| t).collect();
+            let dated = only.iter().copied().filter(|&t| t > 0);
+            (only.len() as u64, dated.clone().min(), dated.max())
+        };
+        (out.only_a, out.only_a_first_ms, out.only_a_last_ms) = span(&ids_a, &set_b);
+        (out.only_b, out.only_b_first_ms, out.only_b_last_ms) = span(&ids_b, &set_a);
+        Ok(out)
     }
 
     /// Merges a chat into a new copy of the target (decision 0006): the result is checked before it's written, both
@@ -580,7 +613,12 @@ mod tests {
             media: Some(&two.source_media),
         };
 
+        // What's missing, before: what the merge will add and skip.
+        let before = session.missing(source.id, SOURCE_CHAT, target.id, TARGET_CHAT).unwrap();
+
         let done = session.merge(&req).unwrap();
+        assert_eq!((before.only_a, before.both), (done.added, done.already_there), "{before:?}");
+        assert!(before.only_a_first_ms <= before.only_a_last_ms && before.only_a_first_ms.is_some());
         assert!(done.original_untouched);
         assert!(done.added > 0 && done.already_there > 0, "{done:?}");
         assert!(!done.checks.is_empty());
@@ -595,6 +633,10 @@ mod tests {
         let merged = again.check(&done.backup, TARGET_KEY_HEX, tmp.path()).unwrap();
         let chat = merged.chat_list.iter().find(|c| c.number == TARGET_CHAT).unwrap();
         assert_eq!(chat.messages, done.target_before + done.added);
+        // And after, nothing in the source's chat is missing from the result.
+        let source_again = again.check(&two.source, KEY_HEX, tmp.path()).unwrap();
+        let after = again.missing(source_again.id, SOURCE_CHAT, merged.id, TARGET_CHAT).unwrap();
+        assert_eq!((after.only_a, after.only_b), (0, before.only_b), "{after:?}");
 
         // A second merge goes into a new folder, never over the first.
         let second = session.merge(&MergeRequest { media: None, ..req }).unwrap();

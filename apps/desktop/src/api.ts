@@ -47,6 +47,17 @@ export interface MergeOutcome {
   original_untouched: boolean;
 }
 
+/** Two backups' copies of a chat, matched by WhatsApp's message id. */
+export interface Missing {
+  both: number;
+  only_a: number;
+  only_a_first_ms: number | null;
+  only_a_last_ms: number | null;
+  only_b: number;
+  only_b_first_ms: number | null;
+  only_b_last_ms: number | null;
+}
+
 export interface ReceiveInfo {
   url: string;
   qr_svg: string;
@@ -133,6 +144,8 @@ export const api = {
     out_parent: string;
     media: string | null;
   }) => invoke<MergeOutcome>("merge_chat", { form }),
+  missing: (a: number, chatA: number, b: number, chatB: number) =>
+    invoke<Missing>("missing", { a, chatA, b, chatB }),
   buildIndex: (id: number, onProgress: (perMille: number) => void) =>
     invoke<BuildInfo>("build_index", { id, progress: progress(onProgress) }),
   search: (id: number, query: string, chat: number | null) => invoke<Hit[]>("search", { id, query, chat }),

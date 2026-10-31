@@ -96,8 +96,9 @@ Spanish (the app follows the system language; a button switches it).
    copies).
 
 Opening a backup and building its search index show a progress bar (thousandths sent over a Tauri channel, only
-when they change). Planned on top: the "what's missing" view comparing two checked backups chat by chat (messages
-in one and not the other, by `key_id`), and the "restore from an older own backup" mode once [0008](decisions/0008-restore-a-chat-from-an-older-own-backup.md) is built.
+when they change). "What's missing" (built): on the Merge screen, "Compare" counts the messages
+in both chats, only in the source (what the merge adds) and only in the target, with their dates, matched by
+`key_id`. Planned on top: the "restore from an older own backup" mode once [0008](decisions/0008-restore-a-chat-from-an-older-own-backup.md) is built.
 
 ## 4. Getting a backup off phone 1
 
@@ -373,7 +374,7 @@ needs a browser tab.
   Welcome → Get backup (folder, file, Wi-Fi QR with live progress) → Key (masked, cleared once sent, password panel)
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
   on phone 2 (guided checklist) → Done. English and Spanish.
-- **Not yet**: the "what's missing" comparison; group
+- **Not yet**: group
   merges; restoring from an older own backup (0008); the HTML export; signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
 - **Not yet verified by hand**: the window itself (the build, the commands and the web UI's types are checked; the
@@ -441,6 +442,6 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
 2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
-3. "What's missing" between two backups; restore from an older own backup (0008); the HTML export.
+3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export.
 4. Release builds and signed installers (decision on publishing).
 5. Android (Tauri 2 mobile), the same `oopz-app`.

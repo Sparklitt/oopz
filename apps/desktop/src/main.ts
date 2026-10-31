@@ -1,7 +1,7 @@
 // The oopz desktop UI: one screen per step, rendered from `state`. It only shows results and sends commands; the
 // work happens in Rust (crates/oopz-app). Text from files (names) is always set as text, never as HTML.
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, isAppError, type AppError, type BackupFile, type BuildInfo, type Hit, type Line, type MergeOutcome, type ReceiveInfo, type ReceiveStatus, type Stats, type Summary } from "./api";
+import { api, isAppError, type AppError, type BackupFile, type BuildInfo, type Hit, type Line, type MergeOutcome, type Missing, type ReceiveInfo, type ReceiveStatus, type Stats, type Summary } from "./api";
 import { initialLang, strings, type Lang, type Strings } from "./i18n";
 
 type Work = "open" | "index";
@@ -25,6 +25,8 @@ const state = {
   receive: null as { info: ReceiveInfo; status: ReceiveStatus } | null,
   merge: { source: 0, sourceChat: 0, target: 0, targetChat: 0, out: "", media: "" },
   outcome: null as MergeOutcome | null,
+  /** "What's missing" for the chats picked on the merge screen; cleared when the picks change. */
+  missing: null as Missing | null,
   phoneChecks: [] as boolean[],
 };
 
@@ -646,12 +648,27 @@ function merge(): Child[] {
     if (outcome) state.outcome = outcome;
     render();
   };
+  const compare = async () => {
+    const found = await run(() => api.missing(m.source, m.sourceChat, m.target, m.targetChat));
+    if (found) state.missing = found;
+    render();
+  };
+  const span = (first: number | null, last: number | null) => (first ? ` (${date(first)} – ${date(last)})` : "");
+  const mi = state.missing;
   const o = state.outcome;
   return [
     h("h1", {}, t.mergeTitle),
     h("p", { class: "lead" }, t.mergeLead),
-    field(t.source, select(m.source, names, (v) => { m.source = v; render(); }), h("div", {}, t.chat), select(m.sourceChat, sourceChats, (v) => (m.sourceChat = v))),
-    field(t.target, select(m.target, names, (v) => { m.target = v; render(); }), h("div", {}, t.chat), select(m.targetChat, targetChats, (v) => (m.targetChat = v))),
+    field(t.source, select(m.source, names, (v) => { m.source = v; state.missing = null; render(); }), h("div", {}, t.chat), select(m.sourceChat, sourceChats, (v) => { m.sourceChat = v; state.missing = null; render(); })),
+    field(t.target, select(m.target, names, (v) => { m.target = v; state.missing = null; render(); }), h("div", {}, t.chat), select(m.targetChat, targetChats, (v) => { m.targetChat = v; state.missing = null; render(); })),
+    h(
+      "div",
+      { class: "card" },
+      h("button", { class: "ghost small", disabled: state.busy || !m.sourceChat || !m.targetChat || m.source === m.target, onclick: () => void compare() }, t.compare),
+      mi && h("p", {}, `${fmt(mi.both)} ${t.inBoth}`),
+      mi && h("p", {}, `${fmt(mi.only_a)} ${t.onlySource}${span(mi.only_a_first_ms, mi.only_a_last_ms)}`),
+      mi && h("p", {}, `${fmt(mi.only_b)} ${t.onlyTarget}${span(mi.only_b_first_ms, mi.only_b_last_ms)}`),
+    ),
     field(t.targetKey, keyInput),
     folderField(t.outFolder, m.out, (v) => (m.out = v), false),
     folderField(t.mediaFolder, m.media, (v) => (m.media = v), true),

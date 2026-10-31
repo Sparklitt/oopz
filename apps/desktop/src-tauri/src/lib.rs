@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use oopz_app::index::{BuildInfo, Hit, Line, Stats};
 use oopz_app::receive::{self, Receiver};
-use oopz_app::session::{self, BackupFile, MergeOutcome, MergeRequest, Session, Summary};
+use oopz_app::session::{self, BackupFile, MergeOutcome, MergeRequest, Missing, Session, Summary};
 use oopz_app::{AppError, ReceiveStatus};
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
@@ -176,6 +176,11 @@ fn merge_chat(state: State<'_, AppState>, form: MergeForm) -> Result<MergeOutcom
 }
 
 #[tauri::command(async)]
+fn missing(state: State<'_, AppState>, a: u32, chat_a: i64, b: u32, chat_b: i64) -> Result<Missing, AppError> {
+    lock(&state.session).missing(a, chat_a, b, chat_b)
+}
+
+#[tauri::command(async)]
 fn receive_start(state: State<'_, AppState>, parent: PathBuf) -> Result<ReceiveInfo, AppError> {
     state.receive_start(&parent, None)
 }
@@ -234,6 +239,7 @@ pub fn run() {
             forget_backup,
             checked_backups,
             merge_chat,
+            missing,
             receive_start,
             receive_status,
             receive_stop,
