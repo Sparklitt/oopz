@@ -403,7 +403,7 @@ function check(): Child[] {
 
 // ---- Explore: stats, search and a virtualized chat viewer over the backup's local index ----
 
-const explorer = { built: null as BuildInfo | null, forId: 0, chat: null as number | null, building: false };
+const explorer = { built: null as BuildInfo | null, forId: 0, chat: null as number | null, building: false, saved: "" };
 
 /** Builds a snippet's text nodes, matched words in <mark>; never parsed as HTML. */
 function snippetNodes(snippet: string): Node[] {
@@ -528,6 +528,21 @@ function explore(): Child[] {
     viewerBox.replaceChildren(h("h2", {}, `${t.viewer} · ${chat}`), viewer(s.id, chat, len, at));
     viewerBox.scrollIntoView({ behavior: "smooth" });
   };
+  const saveExport = async () => {
+    const dir = await pickFolder();
+    if (!dir) return;
+    const chat = explorer.chat;
+    const heading = chats.find(([n]) => n === (chat ?? 0))?.[1] ?? t.wholeBackup;
+    const saved = await run(() =>
+      api.exportPage(s.id, chat, {
+        lang: state.lang, heading, messages: t.messages, sent: t.fromMe, received: t.fromOthers, dates: t.dates,
+        by_month: t.byMonth, by_hour: t.byHour, by_kind: t.byKind, audio_minutes: t.audioMinutes, senders: t.senders,
+        you: t.you, note: t.exportNote, kinds: t.kinds,
+      }, dir),
+    );
+    if (saved) explorer.saved = saved;
+    render();
+  };
   let seq = 0;
   let timer: number | undefined;
   const search = h("input", {
@@ -588,6 +603,16 @@ function explore(): Child[] {
     h("p", { class: "note" }, t.screenOnly),
     h("div", { class: "card" }, h("label", {}, t.exploreScope, " ", scope), h("div", { class: "row" }, search), results,
       explorer.chat !== null && h("div", { class: "row" }, h("button", { class: "ghost small", onclick: () => void openViewer(explorer.chat!, 0) }, t.openViewer))),
+    explorer.built && explorer.forId === s.id &&
+      h(
+        "div",
+        { class: "card" },
+        h("h2", {}, t.exportTitle),
+        h("p", {}, t.exportLead),
+        h("p", { class: "note" }, t.exportNote),
+        h("div", { class: "row" }, h("button", { class: "ghost", disabled: state.busy, onclick: () => void saveExport() }, t.exportButton)),
+        explorer.saved && h("p", { class: "ok" }, `✓ ${t.exportSaved}: `, h("code", {}, explorer.saved)),
+      ),
     viewerBox,
     statsBox,
     h("div", { class: "row" }, h("button", { class: "ghost", onclick: () => go("check") }, t.back)),

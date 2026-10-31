@@ -2407,6 +2407,7 @@ dependencies = [
  "fs4",
  "getrandom 0.4.3",
  "hex",
+ "jiff",
  "oopz",
  "qrcode",
  "rusqlite",

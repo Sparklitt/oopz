@@ -14,7 +14,8 @@ key, see what is inside, search it, merge a lost chat, put the result on the oth
 - **Offline.** No account, no cloud, no telemetry. The one network feature, the Wi-Fi receive page, listens on the
   local network only, only while the person has it open, and stops by itself.
 - **No message text, numbers or keys in logs, errors or tests.** The app does show the person's own messages on
-  their own screen (search, chat viewer); that text never goes to a log or a file outside the app's private cache.
+  their own screen (search, chat viewer); that text never goes to a log or a file outside the app's private cache,
+  except a web page the person asks to save (section 8.3).
 - **No home-made cryptography.** The app adds no cryptographic primitive; decryption stays in `crates/oopz`
   ([0004](decisions/0004-whatsapp-backup-decryption.md)).
 
@@ -360,9 +361,12 @@ took 59 ms at the end of a 37,000-message chat, so each message stores its posit
 
 ### 8.3 HTML viewer as an export only
 
-The README's planned `oopz view` (an offline HTML file of one's own backup) becomes an **export** from the app
-("Save this chat as a web page"), generated from the same index, for keeping or printing. The app itself never
-needs a browser tab.
+The README's planned `oopz view` (an offline HTML file of one's own backup) becomes an **export** from the app (built,
+`crates/oopz-app/src/export.rs`): on Explore, "Save as a web page" writes a new `oopz-export-N.html` in a folder the
+person picks, with the stats of what is shown (the whole backup, or a chat) and, for a chat, all its messages by day,
+for keeping or printing. One file, light and dark, no scripts or outside resources (a Content-Security-Policy forbids
+them), every value escaped, ids masked; the words come from the UI's `i18n.ts`. The screen and the page say it holds
+the person's messages and isn't encrypted. The app itself never needs a browser tab.
 
 ## 9. What runs today
 
@@ -375,7 +379,7 @@ needs a browser tab.
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
   on phone 2 (guided checklist) → Done. English and Spanish.
 - **Not yet**: group
-  merges; restoring from an older own backup (0008); the HTML export; signed installers and release builds; Android.
+  merges; restoring from an older own backup (0008); signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
 - **Not yet verified by hand**: the window itself (the build, the commands and the web UI's types are checked; the
   screens haven't been clicked through on Windows, macOS or Linux yet).
@@ -442,6 +446,6 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
 2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
-3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export.
+3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export (done).
 4. Release builds and signed installers (decision on publishing).
 5. Android (Tauri 2 mobile), the same `oopz-app`.

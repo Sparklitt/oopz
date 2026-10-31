@@ -702,6 +702,7 @@ dependencies = [
  "fs4",
  "getrandom",
  "hex",
+ "jiff",
  "oopz",
  "qrcode",
  "rusqlite",

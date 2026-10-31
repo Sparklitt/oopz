@@ -1,6 +1,6 @@
 # 0009: A desktop app, with Tauri 2
 
-Status: accepted (2026-10-31); first version built, local only
+Status: accepted (2026-10-31); first version built, local only; point 5 changed 2026-10-31 (the web page export)
 
 0007 said "CLI first. A UI later, if ever." The people who lose a chat are mostly not terminal users: they need to be
 walked through getting a backup off a phone, typing a key, checking it and putting a result back. The full plan,
@@ -26,7 +26,11 @@ with the screens, the ways to move files and every edge case, is [docs/desktop-p
 5. **Search** uses SQLite FTS5 from rusqlite's bundled SQLite (`unicode61`, accents removed), not tantivy: no new
    dependency, the index is one private SQLite file deleted with the backup's decrypted copy, and it measures about
    1 ms per query on a million synthetic messages. The app shows the person's own message text on their screen
-   (search, viewer); it never goes to a log, an error or a file outside the app's private cache.
+   (search, viewer); it never goes to a log, an error or a file outside the app's private cache, with one exception:
+   **"Save as a web page"**, only when the person asks, to a folder they pick, as a new file that never replaces
+   another, with the warning on screen and in the file that it holds their messages and isn't encrypted. The page is
+   self-contained (no scripts, no outside resources, a Content-Security-Policy that forbids them), every value
+   escaped, numbers masked like the app.
 6. **Password-protected backups** (key in WhatsApp's server-side vault) are explained, not opened: oopz never talks to
    WhatsApp's servers as if it were the app. It walks the person through switching to a 64-digit key inside WhatsApp
    and making a fresh backup.

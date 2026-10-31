@@ -362,6 +362,19 @@ impl Session {
         self.index(id)?.position(message)
     }
 
+    /// Saves a checked backup's stats (and, with `chat`, that chat's messages) as a web page in a new file in `out_dir`,
+    /// only when the person asks ([`crate::export`]).
+    pub fn export(
+        &self,
+        id: u32,
+        chat: Option<i64>,
+        labels: &crate::export::Labels,
+        out_dir: &Path,
+    ) -> Result<PathBuf> {
+        let checked = self.get(id)?;
+        crate::export::write(self.index(id)?, &checked.summary.name, chat, labels, out_dir)
+    }
+
     /// "What's missing": chat `chat_a` of backup `a` against chat `chat_b` of backup `b` (the same chat, as each
     /// phone or each day's backup keeps it). Works for one's own older backup and for the other person's.
     pub fn missing(&self, a: u32, chat_a: i64, b: u32, chat_b: i64) -> Result<Missing> {

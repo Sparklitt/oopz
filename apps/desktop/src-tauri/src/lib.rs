@@ -176,6 +176,17 @@ fn merge_chat(state: State<'_, AppState>, form: MergeForm) -> Result<MergeOutcom
 }
 
 #[tauri::command(async)]
+fn export_page(
+    state: State<'_, AppState>,
+    id: u32,
+    chat: Option<i64>,
+    labels: oopz_app::export::Labels,
+    out_dir: PathBuf,
+) -> Result<PathBuf, AppError> {
+    lock(&state.session).export(id, chat, &labels, &out_dir)
+}
+
+#[tauri::command(async)]
 fn missing(state: State<'_, AppState>, a: u32, chat_a: i64, b: u32, chat_b: i64) -> Result<Missing, AppError> {
     lock(&state.session).missing(a, chat_a, b, chat_b)
 }
@@ -240,6 +251,7 @@ pub fn run() {
             checked_backups,
             merge_chat,
             missing,
+            export_page,
             receive_start,
             receive_status,
             receive_stop,
@@ -297,6 +309,16 @@ mod tests {
         let info = state.build_index(target.id, &mut |_, _| assert_eq!(state.summaries().len(), 2)).unwrap();
         assert_eq!(info.messages, target.messages);
         assert!(lock(&state.session).stats(target.id, None).unwrap().messages > 0);
+
+        // The export's words as the UI sends them (type codes as JSON keys): a new page in the folder picked.
+        let labels: oopz_app::export::Labels = serde_json_from(
+            r#"{"lang":"es","heading":"chat","messages":"mensajes","sent":"enviados","received":"recibidos",
+               "dates":"fechas","by_month":"por mes","by_hour":"por hora","by_kind":"por tipo",
+               "audio_minutes":"minutos","senders":"quién","you":"Tú","note":"sin cifrar",
+               "kinds":{"0":"texto","1":"foto"}}"#,
+        );
+        let page = lock(&state.session).export(target.id, Some(TARGET_CHAT), &labels, out.path()).unwrap();
+        assert!(std::fs::read_to_string(&page).unwrap().contains("lang=\"es\""));
 
         state.forget(source.id);
         assert_eq!(state.summaries().len(), 1);

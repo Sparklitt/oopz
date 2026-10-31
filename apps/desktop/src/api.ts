@@ -47,6 +47,24 @@ export interface MergeOutcome {
   original_untouched: boolean;
 }
 
+/** The export page's words, from i18n.ts. */
+export interface ExportLabels {
+  lang: string;
+  heading: string;
+  messages: string;
+  sent: string;
+  received: string;
+  dates: string;
+  by_month: string;
+  by_hour: string;
+  by_kind: string;
+  audio_minutes: string;
+  senders: string;
+  you: string;
+  note: string;
+  kinds: Record<number, string>;
+}
+
 /** Two backups' copies of a chat, matched by WhatsApp's message id. */
 export interface Missing {
   both: number;
@@ -144,6 +162,9 @@ export const api = {
     out_parent: string;
     media: string | null;
   }) => invoke<MergeOutcome>("merge_chat", { form }),
+  /** Saves stats (and a chat's messages) as a web page in a new file in `outDir`; returns its path. */
+  exportPage: (id: number, chat: number | null, labels: ExportLabels, outDir: string) =>
+    invoke<string>("export_page", { id, chat, labels, outDir }),
   missing: (a: number, chatA: number, b: number, chatB: number) =>
     invoke<Missing>("missing", { a, chatA, b, chatB }),
   buildIndex: (id: number, onProgress: (perMille: number) => void) =>
