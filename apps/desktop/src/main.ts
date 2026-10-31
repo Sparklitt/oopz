@@ -94,7 +94,9 @@ function icon(name: IconName, cls = "icon"): SVGSVGElement {
 
 const fmt = (n: number) => n.toLocaleString(state.lang);
 const date = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(state.lang) : "–");
-const mb = (bytes: number) => `${(bytes / 1e6).toLocaleString(state.lang, { maximumFractionDigits: 1 })} MB`;
+// Under 1 MB in kB, so a small file doesn't read "0 MB".
+const mb = (bytes: number) =>
+  bytes > 0 && bytes < 1e6 ? `${Math.max(1, Math.round(bytes / 1e3)).toLocaleString(state.lang)} kB` : `${(bytes / 1e6).toLocaleString(state.lang, { maximumFractionDigits: 1 })} MB`;
 
 /** The screen's title, its one-line explanation, and (optionally) the file it is about. */
 function head(title: string, lead?: Child, about?: string): Node {
@@ -134,7 +136,12 @@ function field(id: string, label: Child, control: Node, hint?: Child): Node {
   return h("div", { class: "field" }, h("label", { for: id }, label), control, hint && h("p", { class: "hint", id: hintId }, hint));
 }
 
+/** The merge form's key field outlives a render (picking a folder re-renders the form), never the screen: it is
+ *  emptied when sent and when the person leaves Merge. The key stays in this field only, never in `state`. */
+let mergeKey: HTMLInputElement | undefined;
+
 function go(step: Step) {
+  if (step !== "merge" && mergeKey) mergeKey.value = "";
   state.step = step;
   state.error = null;
   render();
@@ -486,7 +493,7 @@ function check(): Screen {
         "div",
         { class: "stats" },
         stat(fmt(s.messages), t.messages),
-        stat(fmt(s.chats), t.chats, `${fmt(s.one_to_one)} ${t.oneToOne}, ${fmt(s.groups)} ${t.groups}`),
+        stat(fmt(s.chats), t.chats, `${fmt(s.one_to_one)} ${t.oneToOne}, ${fmt(s.groups)} ${s.groups === 1 ? t.group : t.groups}`),
         stat(date(s.last_ms), t.lastMessage, `${t.from} ${date(s.first_ms)}`),
         stat(mb(s.bytes), t.fileSize),
       ),
@@ -696,7 +703,7 @@ function explore(): Screen {
         if (mine !== seq) return; // A newer search has started.
         const ms = Math.round(performance.now() - started);
         results.replaceChildren(
-          search.value.trim() ? h("p", { class: "hint" }, `${fmt(hits.length)} ${t.searchHits} · ${ms} ms ${hits.length === 200 ? t.searchMore : ""}`) : "",
+          search.value.trim() ? h("p", { class: "hint" }, `${fmt(hits.length)} ${hits.length === 1 ? t.searchHit : t.searchHits} · ${ms} ms ${hits.length === 200 ? t.searchMore : ""}`) : "",
           ...hits.map((hit) =>
             h(
               "div",
@@ -709,8 +716,14 @@ function explore(): Screen {
       }, 80);
     },
   });
+  // Filled here, not by render(): picking a chat mustn't rebuild the search box under the person's typing.
+  const viewerRow = h("div", { class: "row" });
+  const showViewerButton = () =>
+    viewerRow.replaceChildren(...(explorer.chat === null ? [] : [h("button", { class: "secondary small", onclick: () => void openViewer(explorer.chat!, 0) }, t.openViewer)]));
+  showViewerButton();
   const scope = select(explorer.chat ?? 0, chats, (v) => {
     explorer.chat = v || null;
+    showViewerButton();
     void showStats();
     search.dispatchEvent(new Event("input"));
   });
@@ -750,7 +763,7 @@ function explore(): Screen {
           h("div", { class: "field grow" }, h("span", { class: "label", "aria-hidden": "true" }, t.searchLabel), h("div", { class: "search" }, icon("search"), search)),
         ),
         results,
-        explorer.chat !== null && h("div", { class: "row" }, h("button", { class: "secondary small", onclick: () => void openViewer(explorer.chat!, 0) }, t.openViewer)),
+        viewerRow,
       ),
       viewerBox,
       statsBox,
@@ -791,7 +804,7 @@ function merge(): Screen {
   if (!sourceChats.some(([n]) => n === m.sourceChat)) m.sourceChat = sourceChats[0]?.[0] ?? 0;
   if (!targetChats.some(([n]) => n === m.targetChat)) m.targetChat = targetChats[0]?.[0] ?? 0;
   const names: [number, string][] = backups.map((b) => [b.id, `${b.name} (${fmt(b.messages)} ${t.messages})`]);
-  const keyInput = h("input", { class: "key", type: "password", autocomplete: "off", spellcheck: "false" });
+  const keyInput = (mergeKey ??= h("input", { class: "key", type: "password", autocomplete: "off", spellcheck: "false" }));
   const folderField = (id: string, label: string, hint: string, value: string, set: (v: string) => void, optional: boolean) =>
     h(
       "div",
@@ -822,6 +835,7 @@ function merge(): Screen {
     );
     if (outcome) state.outcome = outcome;
     render();
+    if (outcome) window.scrollTo(0, 0); // The outcome is shown above the form.
   };
   const compare = async () => {
     const found = await run(() => api.missing(m.source, m.sourceChat, m.target, m.targetChat));

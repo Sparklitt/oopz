@@ -276,9 +276,7 @@ fn build_into(source: &Connection, db: &mut Connection, progress: &mut dyn FnMut
         let mut seen = HashMap::new();
         while let Some(r) = rows.next()? {
             let raw: String = r.get(1)?;
-            let user = raw.split_once('@').map_or(raw.as_str(), |(u, _)| u);
-            let ending: String = user.chars().rev().take(3).collect::<Vec<_>>().into_iter().rev().collect();
-            seen.insert(r.get::<_, i64>(0)?, ending);
+            seen.insert(r.get::<_, i64>(0)?, masked_ending(&raw));
         }
         for (row, ending) in seen {
             insert.execute(params![row, ending])?;
@@ -320,6 +318,13 @@ fn fts_query(query: &str) -> Option<String> {
     let mut out: Vec<String> = rest.iter().map(|w| format!("\"{w}\"")).collect();
     out.push(if last.chars().count() > 1 { format!("\"{last}\"*") } else { format!("\"{last}\"") });
     Some(out.join(" "))
+}
+
+/// The last 3 characters of an id's number: `user[.agent][:device]@server` keeps `user` only, so a device id
+/// (`10000000001.0:0@s.whatsapp.net`) ends like its number, not `0:0`.
+fn masked_ending(raw: &str) -> String {
+    let user = raw.split(['@', '.', ':']).next().unwrap_or_default();
+    user.chars().rev().take(3).collect::<Vec<_>>().into_iter().rev().collect()
 }
 
 #[cfg(test)]
@@ -385,6 +390,13 @@ mod tests {
         let group = index.stats(Some(GROUP_CHAT)).unwrap();
         assert!(group.senders.iter().all(|(ending, _)| ending.chars().count() <= 3));
         assert!(!format!("{all:?}{group:?}").contains(fixture::BEN_JID));
+    }
+
+    #[test]
+    fn a_device_id_ends_like_its_number() {
+        assert_eq!(masked_ending("10000000001.0:0@s.whatsapp.net"), "001");
+        assert_eq!(masked_ending("10000000002:1@s.whatsapp.net"), "002");
+        assert_eq!(masked_ending("120000000000000001@g.us"), "001");
     }
 
     #[test]
