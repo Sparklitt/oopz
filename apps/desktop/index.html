@@ -3,14 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>oopz</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <header class="top">
-      <div class="brand"><span class="dot"></span>oopz</div>
+      <div class="brand"><span class="dot" aria-hidden="true"></span>oopz</div>
       <nav id="steps" aria-label="Steps"></nav>
-      <button id="lang" class="ghost small" type="button">ES</button>
+      <button id="lang" class="ghost small" type="button" title="English / Español">ES</button>
     </header>
     <main id="app" aria-live="polite"></main>
     <script type="module" src="/src/main.ts"></script>
