@@ -323,6 +323,19 @@ mod tests {
         url.trim_start_matches("http://").split('/').next().unwrap().to_owned()
     }
 
+    /// A stopped page answers no more. Its port may already be another test's page, or one closing (tests run in
+    /// parallel and the OS reuses a freed port), so one connection may open and even answer, but never as this page:
+    /// nothing comes back, or its token is refused.
+    fn assert_gone(url: &str) {
+        let Ok(mut stream) = TcpStream::connect(addr_of(url)) else { return };
+        let ask = format!("GET {} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", path_of(url));
+        let mut line = String::new();
+        if stream.write_all(ask.as_bytes()).is_err() || BufReader::new(stream).read_line(&mut line).is_err() {
+            return;
+        }
+        assert!(line.is_empty() || line.contains(" 404 "), "still answering after it stopped: {line}");
+    }
+
     fn path_of(url: &str) -> String {
         format!("/{}", url.trim_start_matches("http://").split_once('/').unwrap().1)
     }
@@ -397,7 +410,7 @@ mod tests {
         wait_until_stopped(&rx);
         assert_eq!(rx.status().stopped, Some("done"));
         drop(rx);
-        assert!(TcpStream::connect(addr_of(&url)).is_err(), "still listening after it stopped");
+        assert_gone(&url);
     }
 
     #[test]
