@@ -5,8 +5,10 @@
 
 use serde::Serialize;
 
+pub mod receive;
 pub mod session;
 
+pub use receive::{ReceiveStatus, Receiver};
 pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Session, Summary};
 
 /// An error for the UI: a stable `code` it words in the person's language, and an English detail. Never holds a key.
