@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="oops: your own chat backups, open, check, recover. Offline.">
+  <style>.bg{fill:#FFF7EE}.bg2{fill:#FFE9D6}.mark{stroke:#23244F}.ink{fill:#23244F}.coral{fill:#F2604F}.coraltext{fill:#F2604F}.amber{fill:#F7A928}.amberstroke{stroke:#F7A928}.card{fill:#FFFFFF;stroke:#E4D9CC;stroke-width:2}.bar{fill:#D9D2E6}.ghost{stroke:#6B6C8F}.chip{fill:#23244F}.chiptext{fill:#FFF7EE}@media (prefers-color-scheme: dark){.bg{fill:#15162E}.bg2{fill:#1F2042}.mark{stroke:#F6F0E7}.ink{fill:#F6F0E7}.coral{fill:#FF7565}.coraltext{fill:#FF7565}.amber{fill:#FFB940}.amberstroke{stroke:#FFB940}.card{fill:#26284F;stroke:#34366A;stroke-width:2}.bar{fill:#4A4C80}.ghost{stroke:#A9AACB}.chip{fill:#F6F0E7}.chiptext{fill:#15162E}}</style>
+  <rect class="bg" width="1280" height="640"/>
+  <circle class="bg2" cx="1040" cy="300" r="250"/>
+  <circle class="bg2" cx="150" cy="590" r="120"/>
+
+  <!-- wordmark: drawn with strokes, so it looks the same without any font -->
+  <g class="mark" fill="none" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="186" cy="262" r="54"/>
+    <circle cx="326" cy="262" r="54"/>
+    <circle cx="466" cy="262" r="54"/>
+    <path d="M412 262 V392"/>
+    <path d="M638 222 C626 204 600 198 580 202 C556 207 546 226 556 243 C566 260 602 262 622 274
+             C644 288 642 312 622 322 C600 333 566 330 550 308"/>
+  </g>
+  <circle class="coral" cx="696" cy="304" r="17"/>
+
+  <text class="ink" x="132" y="470" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="38" font-weight="700">Your own chat backups —</text>
+  <text class="ink" x="132" y="518" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="38" font-weight="700">open, check, recover. <tspan class="coraltext">Offline.</tspan></text>
+
+  <g font-family="Inter, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" font-size="19" font-weight="600">
+    <rect class="chip" x="132" y="552" width="88" height="36" rx="18"/>
+    <text class="chiptext" x="176" y="576" text-anchor="middle">Rust</text>
+    <rect class="chip" x="232" y="552" width="132" height="36" rx="18"/>
+    <text class="chiptext" x="298" y="576" text-anchor="middle">AGPL-3.0</text>
+    <rect class="chip" x="376" y="552" width="182" height="36" rx="18"/>
+    <text class="chiptext" x="467" y="576" text-anchor="middle">no network, ever</text>
+  </g>
+
+  <!-- motif: a chat whose lost message comes back -->
+  <g>
+    <rect class="card" x="830" y="150" width="270" height="70" rx="26"/>
+    <rect class="bar" x="858" y="172" width="170" height="10" rx="5"/>
+    <rect class="bar" x="858" y="192" width="110" height="10" rx="5"/>
+
+    <rect class="ghost" x="900" y="250" width="290" height="74" rx="26" fill="none" stroke-width="3" stroke-dasharray="10 9"/>
+    <rect class="coral" x="880" y="262" width="290" height="74" rx="26"/>
+    <rect fill="#FFFFFF" opacity=".9" x="910" y="286" width="190" height="10" rx="5"/>
+    <rect fill="#FFFFFF" opacity=".7" x="910" y="306" width="120" height="10" rx="5"/>
+
+    <rect class="card" x="830" y="370" width="230" height="70" rx="26"/>
+    <rect class="bar" x="858" y="392" width="140" height="10" rx="5"/>
+    <rect class="bar" x="858" y="412" width="90" height="10" rx="5"/>
+
+    <circle class="amber" cx="1170" cy="262" r="34"/>
+    <g fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1157 256 H1176 C1186 256 1192 263 1192 271 C1192 279 1186 285 1176 285 H1164"/>
+      <path d="M1166 246 L1156 256 L1166 266"/>
+    </g>
+    <g class="amberstroke" fill="none" stroke-width="5" stroke-linecap="round">
+      <path d="M1222 218 L1234 206"/><path d="M1228 240 H1246"/><path d="M1212 202 V186"/>
+    </g>
+  </g>
+</svg>
