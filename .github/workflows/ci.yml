@@ -51,6 +51,41 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked --workspace --all-targets
 
+  # The desktop app (docs/desktop-plan.md, section 11): the web UI, then the Tauri shell, its own Cargo workspace. The
+  # shell embeds the built UI (`dist/`, not committed), so the UI is built first.
+  desktop:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: cargo fmt --check
+        working-directory: apps/desktop/src-tauri
+      - run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: apps/desktop/src-tauri
+      - run: cargo test --locked
+        working-directory: apps/desktop/src-tauri
+
   # Release binaries: disabled until the maintainers decide to publish them. To enable, uncomment this job and the
   # `tags` trigger below `on:` (push: tags: ["v*"]), then push a tag such as v0.1.0. It needs `contents: write`.
   #
