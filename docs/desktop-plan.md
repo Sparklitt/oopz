@@ -12,7 +12,8 @@ key, see what is inside, search it, merge a lost chat, put the result on the oth
 - **Originals are never modified.** Every result is a new folder; originals are hashed (SHA-256) when checked and
   again after a merge, and the screen says so.
 - **Offline.** No account, no cloud, no telemetry. The one network feature, the Wi-Fi receive page, listens on the
-  local network only, only while the person has it open, and stops by itself.
+  local network only, only while the person has it open, and stops by itself. The update check goes online only if
+  the person switches it on or clicks it ([0011](decisions/0011-an-opt-in-update-check.md)).
 - **No message text, numbers or keys in logs, errors or tests.** The app does show the person's own messages on
   their own screen (search, chat viewer); that text never goes to a log or a file outside the app's private cache,
   except a web page the person asks to save (section 8.3).

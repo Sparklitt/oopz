@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="Licence: AGPL-3.0-or-later" src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue"></a>
   <img alt="Rust 1.89+" src="https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey">
-  <img alt="No network" src="https://img.shields.io/badge/network-none-success">
+  <img alt="Network: an opt-in update check only" src="https://img.shields.io/badge/network-opt--in%20update%20check%20only-success">
 </p>
 
 oopz is a small command-line tool for WhatsApp's end-to-end encrypted Android backups (`*.crypt15`). It tells you
@@ -51,7 +51,8 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 >   own key, knowing what you will do with it.
 > - **Originals are never modified.** Backups and `Media/` folders are only read; every result is a new file or
 >   folder, and oopz refuses to overwrite an existing one. Work on a copy anyway.
-> - **Offline.** oopz makes no network connections.
+> - **Offline.** oopz makes no network connections. The one exception is the desktop app's update check, off unless
+>   you switch it on or click "Check for updates": it asks GitHub whether a newer oopz exists, and sends nothing else.
 > - **Counts and masked ids only.** Its output never contains message text, media, phone numbers or keys.
 > - **Keys** are read from a hidden prompt (or one line of stdin per key, `oopz … < keyfile`), never from an argument
 >   or an environment variable, and wiped from memory after use.
@@ -155,7 +156,9 @@ account owner decides and accepts that risk. This is not legal advice.
 <details>
 <summary><b>Does it upload anything?</b></summary>
 
-No. oopz makes no network connections at all, has no telemetry, and prints only counts and masked ids.
+No. oopz has no telemetry and never uploads backups, keys or results. The command line makes no network connections
+at all. The desktop app goes online only to check for updates, and only if you switch that on or click "Check for
+updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)).
 </details>
 
 <details>

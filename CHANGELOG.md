@@ -15,6 +15,7 @@ follow [Semantic Versioning](https://semver.org/).
   search as you type, a chat viewer, save as a web page), see what's missing between two backups, merge a lost
   one-to-one chat into a new copy, and the steps to put it on the phone. Originals are never changed; nothing leaves
   the computer.
+- An update check in the desktop app, off unless switched on; updates are signed and installed only on a click.
 - `oopz backups`, `chats`, `types`, `tables`, `chat-facts`: check and inspect one's own crypt15 backups (counts and
   masked ids only).
 - `oopz restore`: restore a lost one-to-one chat from the other person's backup, mirrored, checked before it is

@@ -5,6 +5,8 @@ name: Desktop installers
 # `vX.Y.Z` also makes a DRAFT GitHub Release from them, with one SHA256SUMS.txt, build provenance (artifact
 # attestations) and the CHANGELOG's notes for that version; a person reviews and publishes it. The installers are
 # unsigned (decided for the first release: Windows SmartScreen and macOS Gatekeeper warn; the README says what to do).
+# The updater's files are signed with the updater key (decision 0011), and the release gets the `latest.json` that
+# installed copies read when the person asks them to check for updates.
 
 on:
   workflow_dispatch:
@@ -54,14 +56,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # `tauri build` runs `pnpm build` first (beforeBuildCommand), then cargo with the shell's Cargo.lock.
       - run: pnpm tauri build ${{ matrix.args }} -- --locked
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Collect installers and checksums
         shell: bash
         run: |
           mkdir -p ../../out
           find src-tauri/target -path '*/release/bundle/*' -type f \
-            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' \) \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' \
+               -o -name '*.app.tar.gz' -o -name '*.sig' \) \
             -exec cp {} ../../out/ \;
           cd ../../out
+          # The macOS update is named oopz.app.tar.gz; give it the version like the other files.
+          if [ -f oopz.app.tar.gz ]; then
+            version=$(jq -r .version ../apps/desktop/src-tauri/tauri.conf.json)
+            mv oopz.app.tar.gz "oopz_${version}_universal.app.tar.gz"
+            mv oopz.app.tar.gz.sig "oopz_${version}_universal.app.tar.gz.sig"
+          fi
           ls -la
           if command -v sha256sum >/dev/null; then sha256sum * > SHA256SUMS-${{ matrix.name }}.txt; else shasum -a 256 * > SHA256SUMS-${{ matrix.name }}.txt; fi
       - uses: actions/upload-artifact@v4
@@ -87,6 +99,37 @@ jobs:
           pattern: oopz-desktop-*
           path: out
           merge-multiple: true
+      - name: Notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The CHANGELOG's section for this version, without its heading.
+          awk -v h="## [$version]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
+          test -s notes.md
+      - name: The updater's latest.json
+        working-directory: out
+        run: |
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          platforms='{}'
+          add() { # add <platform key> <file>: the file's URL and the text of its .sig
+            platforms=$(jq --arg k "$1" --arg url "$base/$2" --rawfile sig "$2.sig" '. + {($k): {url: $url, signature: $sig}}' <<<"$platforms")
+          }
+          # Keys are {os}-{arch}-{installer}, with {os}-{arch} as the fallback the updater tries next.
+          for sig in *.sig; do
+            f="${sig%.sig}"
+            case "$f" in
+              *.AppImage) add linux-x86_64-appimage "$f"; add linux-x86_64 "$f" ;;
+              *.deb) add linux-x86_64-deb "$f" ;;
+              *.rpm) add linux-x86_64-rpm "$f" ;;
+              *-setup.exe) add windows-x86_64-nsis "$f"; add windows-x86_64 "$f" ;;
+              *_en-US.msi) add windows-x86_64-msi "$f" ;;
+              *_universal.app.tar.gz) for k in darwin-aarch64 darwin-x86_64 darwin-aarch64-app darwin-x86_64-app; do add "$k" "$f"; done ;;
+            esac
+          done
+          # One per system at least, or installed copies of that system would never see this release.
+          for k in linux-x86_64 windows-x86_64 darwin-aarch64; do jq -e --arg k "$k" 'has($k)' <<<"$platforms" >/dev/null; done
+          jq -n --arg v "${GITHUB_REF_NAME#v}" --rawfile notes ../notes.md --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson platforms "$platforms" '{version: $v, notes: $notes, pub_date: $date, platforms: $platforms}' > latest.json
+          jq '.platforms | keys' latest.json
       - name: One checksum file
         working-directory: out
         run: |
@@ -101,7 +144,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # The CHANGELOG's section for this version, without its heading.
-          awk -v h="## [$version]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
-          test -s notes.md
           gh release create "$GITHUB_REF_NAME" out/* --draft --verify-tag --title "oopz $version" --notes-file notes.md
