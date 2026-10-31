@@ -34,7 +34,7 @@ clap = { version = "4", features = ["derive"] }
 jiff = "0.2"
 # SQLite built from source (FTS3/FTS5 included, as WhatsApp's tables need). oopz never needs SQLCipher: the backup is
 # decrypted by crypt15.rs, not by SQLite.
-rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
+rusqlite = { version = "0.41", features = ["bundled", "fallible_uint"] }
 tempfile = "3"
 thiserror = "2"
 # docs/decisions/0009: the desktop app's logic (results for the UI, the Wi-Fi receive page and its QR code).
