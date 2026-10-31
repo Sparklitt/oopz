@@ -1,0 +1,458 @@
+//! What the app has open: backups checked with their owner's key (decrypted into private temporary copies, removed
+//! when forgotten), and the merge of a chat from one into a new copy of another. Keys are taken for one call and
+//! never kept: oopz asks again when it needs one.
+
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+use oopz::{Backup, ChatMerge, Key};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+
+use crate::{AppError, Result};
+
+/// A file in the folder the person picked, and what kind of backup it looks like.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct BackupFile {
+    pub path: PathBuf,
+    pub name: String,
+    pub bytes: u64,
+    /// `crypt15` (oopz opens it), `crypt14` or `crypt12` (older: their key file is only readable with root, so oopz
+    /// doesn't open them), `not_crypt15` (named like one, but its header doesn't read).
+    pub kind: &'static str,
+}
+
+/// The `*.crypt15`, `*.crypt14` and `*.crypt12` files in `path` (a backup file, a `Databases/` folder, or the folder
+/// holding `Databases/`), the current backup first, then the dated ones newest first. Only reads.
+pub fn find_backups(path: &Path) -> Result<Vec<BackupFile>> {
+    let mut candidates = Vec::new();
+    if path.is_file() {
+        candidates.push(path.to_path_buf());
+    } else {
+        for dir in [path.to_path_buf(), path.join("Databases")] {
+            let Ok(entries) = fs::read_dir(&dir) else { continue };
+            for entry in entries {
+                let p = entry.map_err(|e| AppError::io(format!("reading {}", dir.display()), e))?.path();
+                if p.is_file() {
+                    candidates.push(p);
+                }
+            }
+        }
+    }
+    let mut found = Vec::new();
+    for p in candidates {
+        let name = p.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let kind = match p.extension().and_then(|e| e.to_str()) {
+            Some("crypt15") if looks_like_crypt15(&p) => "crypt15",
+            Some("crypt15") => "not_crypt15",
+            Some("crypt14") => "crypt14",
+            Some("crypt12") => "crypt12",
+            _ => continue,
+        };
+        let bytes = fs::metadata(&p).map_err(|e| AppError::io(format!("reading {name}"), e))?.len();
+        found.push(BackupFile { path: p, name, bytes, kind });
+    }
+    if found.is_empty() {
+        return Err(AppError::new("not_found", format!("no WhatsApp backups in {}", path.display())));
+    }
+    // `msgstore.db.crypt15` is the newest; `msgstore-YYYY-MM-DD.1.db.crypt15` sort by their date, newest first.
+    found.sort_by(|a, b| {
+        let current = |f: &BackupFile| !f.name.starts_with("msgstore-");
+        current(b).cmp(&current(a)).then_with(|| b.name.cmp(&a.name))
+    });
+    Ok(found)
+}
+
+fn looks_like_crypt15(path: &Path) -> bool {
+    let mut head = Vec::with_capacity(512);
+    fs::File::open(path).and_then(|f| f.take(512).read_to_end(&mut head)).is_ok() && oopz::crypt15::looks_like(&head)
+}
+
+/// SHA-256 of a file, streamed, as lowercase hex: to show that an original is unchanged.
+pub fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = fs::File::open(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 20];
+    loop {
+        let n = file.read(&mut buf).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex::encode(hasher.finalize()))
+}
+
+/// What a checked backup holds: counts, dates and masked ids.
+#[derive(Debug, Clone, Serialize)]
+pub struct Summary {
+    /// This session's number for the backup, for the merge.
+    pub id: u32,
+    pub name: String,
+    pub bytes: u64,
+    /// Of the original file when it was checked; the merge checks it again.
+    pub sha256: String,
+    /// SQLite's quick check passed.
+    pub sound: bool,
+    /// What SQLite found wrong (table and page names, never values), empty when sound.
+    pub problems: String,
+    pub chats: u64,
+    pub messages: u64,
+    pub first_ms: Option<i64>,
+    pub last_ms: Option<i64>,
+    pub one_to_one: u64,
+    pub groups: u64,
+    pub chat_list: Vec<ChatRow>,
+}
+
+/// A chat, as the Check screen shows it: never its whole number.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ChatRow {
+    pub number: i64,
+    /// `contact`, `contact_lid`, `group`, `broadcast` or `other`.
+    pub kind: &'static str,
+    /// The last 3 characters of its id.
+    pub ending: String,
+    pub messages: u64,
+    pub last_ms: Option<i64>,
+}
+
+/// Merge `source_chat` of checked backup `source` into `target_chat` of checked backup `target`, writing a new
+/// folder in `out_parent`; with `media` (a copy of the source phone's `Media/` folder), the files the result needs.
+pub struct MergeRequest<'a> {
+    pub source: u32,
+    pub source_chat: i64,
+    pub target: u32,
+    pub target_chat: i64,
+    /// Asked again: oopz never keeps a key.
+    pub target_key: &'a str,
+    pub out_parent: &'a Path,
+    pub media: Option<&'a Path>,
+}
+
+/// What a merge wrote and checked.
+#[derive(Debug, Clone, Serialize)]
+pub struct MergeOutcome {
+    /// The new folder, laid out like WhatsApp's: `Databases/msgstore.db.crypt15` and, with media, `Media/`.
+    pub folder: PathBuf,
+    pub backup: PathBuf,
+    pub sha256: String,
+    pub target_before: u64,
+    pub already_there: u64,
+    pub added: u64,
+    /// The checks the result passed before it was written (decision 0006).
+    pub checks: Vec<String>,
+    pub media_copied: Option<u64>,
+    pub media_missing: Option<u64>,
+    /// The target's original file hashes the same as when it was checked, after the merge.
+    pub original_untouched: bool,
+}
+
+struct Checked {
+    path: PathBuf,
+    backup: Backup,
+    summary: Summary,
+}
+
+/// The backups checked so far. Dropping it (or [`Session::forget`]) removes their decrypted copies.
+#[derive(Default)]
+pub struct Session {
+    checked: Vec<(u32, Checked)>,
+    next_id: u32,
+}
+
+impl Session {
+    /// Opens `path` with `key_text` (64 hex digits, spaces allowed), decrypting it into `tmp` (a private folder),
+    /// and keeps it open for a merge. The key is dropped, wiped, when this returns.
+    pub fn check(&mut self, path: &Path, key_text: &str, tmp: &Path) -> Result<Summary> {
+        let key = Key::from_hex(key_text)?;
+        let sha256 = sha256_file(path)?;
+        let bytes = fs::metadata(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?.len();
+        let backup = Backup::open_in(path, &key, tmp)?;
+        let health = backup.health()?;
+        let first_ms = backup
+            .db()
+            .query_row("SELECT min(timestamp) FROM message WHERE timestamp > 0", [], |r| r.get(0))
+            .map_err(oopz::Error::from)?;
+        let chats = backup.chats()?;
+        let chat_list: Vec<ChatRow> = chats
+            .iter()
+            .map(|c| ChatRow {
+                number: c.row_id,
+                kind: kind(c),
+                ending: c.ending(),
+                messages: c.messages,
+                last_ms: c.last_ms,
+            })
+            .collect();
+        self.next_id += 1;
+        let summary = Summary {
+            id: self.next_id,
+            name: path.file_name().unwrap_or_default().to_string_lossy().into_owned(),
+            bytes,
+            sha256,
+            sound: health.check == "ok",
+            problems: if health.check == "ok" { String::new() } else { health.check },
+            chats: health.chats,
+            messages: health.messages,
+            first_ms,
+            last_ms: health.last_ms,
+            one_to_one: chats.iter().filter(|c| c.is_one_to_one()).count() as u64,
+            groups: chats.iter().filter(|c| c.is_group()).count() as u64,
+            chat_list,
+        };
+        self.checked.push((self.next_id, Checked { path: path.to_path_buf(), backup, summary: summary.clone() }));
+        Ok(summary)
+    }
+
+    pub fn summaries(&self) -> Vec<Summary> {
+        self.checked.iter().map(|(_, c)| c.summary.clone()).collect()
+    }
+
+    /// Closes a checked backup and removes its decrypted copy.
+    pub fn forget(&mut self, id: u32) {
+        self.checked.retain(|(i, _)| *i != id);
+    }
+
+    fn get(&self, id: u32) -> Result<&Checked> {
+        self.checked
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map(|(_, c)| c)
+            .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))
+    }
+
+    /// Merges a chat into a new copy of the target (decision 0006): the result is checked before it's written, both
+    /// originals are only read, and the target's original is hashed again afterwards.
+    pub fn merge(&self, req: &MergeRequest<'_>) -> Result<MergeOutcome> {
+        if req.source == req.target {
+            return Err(AppError::new("unsupported", "the source and the target are the same backup"));
+        }
+        let source = self.get(req.source)?;
+        let target = self.get(req.target)?;
+        let target_key = Key::from_hex(req.target_key)?;
+        let original =
+            fs::read(&target.path).map_err(|e| AppError::io(format!("reading {}", target.path.display()), e))?;
+        if hex::encode(Sha256::digest(&original)) != target.summary.sha256 {
+            return Err(AppError::new("changed", "the target backup changed since it was checked; check it again"));
+        }
+        let merged = ChatMerge {
+            source: &source.backup,
+            source_chat: req.source_chat,
+            target: &original,
+            target_key: &target_key,
+            target_chat: req.target_chat,
+        }
+        .run()?;
+        drop(original);
+
+        let folder = new_folder(req.out_parent)?;
+        let databases = folder.join("Databases");
+        fs::create_dir(&databases).map_err(|e| AppError::io(format!("creating {}", databases.display()), e))?;
+        let backup = databases.join("msgstore.db.crypt15");
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&backup)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, &merged.backup))
+            .map_err(|e| AppError::io(format!("writing {}", backup.display()), e))?;
+        let sha256 = sha256_file(&backup)?;
+        if sha256 != hex::encode(Sha256::digest(&merged.backup)) {
+            return Err(AppError::new("io", "the written backup doesn't read back the same; the disk may be failing"));
+        }
+        let (mut media_copied, mut media_missing) = (None, None);
+        if let Some(media) = req.media {
+            let report = oopz::copy_media(&merged.media, media, &folder.join("Media"))?;
+            media_copied = Some(report.copied);
+            media_missing = Some(report.missing);
+        }
+        let r = &merged.report;
+        Ok(MergeOutcome {
+            folder,
+            backup,
+            sha256,
+            target_before: r.target_before,
+            already_there: r.already_there,
+            added: r.added,
+            checks: r.checks.iter().map(|(name, value)| format!("{name}: {value}")).collect(),
+            media_copied,
+            media_missing,
+            original_untouched: sha256_file(&target.path)? == target.summary.sha256,
+        })
+    }
+}
+
+fn kind(chat: &oopz::Chat) -> &'static str {
+    match chat.jid().rsplit_once('@').map(|(_, server)| server) {
+        Some("s.whatsapp.net") => "contact",
+        Some("lid") => "contact_lid",
+        Some("g.us") => "group",
+        Some("broadcast") => "broadcast",
+        _ => "other",
+    }
+}
+
+/// `oopz-result-N` in `parent`, the first N that doesn't exist: never an existing folder.
+fn new_folder(parent: &Path) -> Result<PathBuf> {
+    for n in 1..1000 {
+        let folder = parent.join(format!("oopz-result-{n}"));
+        match fs::create_dir(&folder) {
+            Ok(()) => return Ok(folder),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(AppError::io(format!("creating {}", folder.display()), e)),
+        }
+    }
+    Err(AppError::new("exists", "too many oopz-result folders here; choose another folder"))
+}
+
+#[cfg(test)]
+mod tests {
+    use oopz::fixture::{self, BEN_CHAT, KEY_HEX, SOURCE_CHAT, TARGET_CHAT, TARGET_KEY_HEX};
+
+    use super::*;
+
+    #[test]
+    fn finds_backups_current_first_and_names_old_formats() {
+        let fx = fixture::build();
+        let dir = fx.dir.path().join("WhatsApp");
+        let db = dir.join("Databases");
+        fs::create_dir_all(&db).unwrap();
+        fs::copy(&fx.backup, db.join("msgstore.db.crypt15")).unwrap();
+        fs::copy(&fx.backup, db.join("msgstore-2026-10-29.1.db.crypt15")).unwrap();
+        fs::copy(&fx.backup, db.join("msgstore-2026-10-30.1.db.crypt15")).unwrap();
+        fs::write(db.join("msgstore-2021-01-01.1.db.crypt14"), b"old").unwrap();
+        fs::write(db.join("broken.crypt15"), b"").unwrap();
+        fs::write(db.join("notes.txt"), b"not a backup").unwrap();
+
+        // The WhatsApp folder or its Databases folder, the same list.
+        for path in [&dir, &db] {
+            let found = find_backups(path).unwrap();
+            let names: Vec<_> = found.iter().map(|f| (f.name.as_str(), f.kind)).collect();
+            assert_eq!(
+                names,
+                [
+                    ("msgstore.db.crypt15", "crypt15"),
+                    ("broken.crypt15", "not_crypt15"),
+                    ("msgstore-2026-10-30.1.db.crypt15", "crypt15"),
+                    ("msgstore-2026-10-29.1.db.crypt15", "crypt15"),
+                    ("msgstore-2021-01-01.1.db.crypt14", "crypt14"),
+                ]
+            );
+        }
+        assert_eq!(find_backups(&db.join("msgstore.db.crypt15")).unwrap().len(), 1);
+        assert_eq!(find_backups(fx.dir.path().join("nowhere").as_path()).unwrap_err().code, "not_found");
+    }
+
+    #[test]
+    fn check_summarises_counts_and_masked_ids_only() {
+        let fx = fixture::build();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let s = session.check(&fx.backup, KEY_HEX, tmp.path()).unwrap();
+        assert!(s.sound, "{}", s.problems);
+        assert_eq!((s.chats, s.one_to_one, s.groups), (2, 1, 1));
+        let ben = s.chat_list.iter().find(|c| c.number == BEN_CHAT).unwrap();
+        assert_eq!((ben.kind, ben.ending.as_str(), ben.messages), ("contact", "001", 18));
+        assert!(s.first_ms.unwrap() <= s.last_ms.unwrap());
+        assert_eq!(s.sha256, sha256_file(&fx.backup).unwrap());
+
+        // What the UI receives, as JSON: never a whole number, the key or a message's text.
+        let json = format!("{s:?}");
+        for secret in [fixture::BEN_JID, KEY_HEX, "Hola", "playa"] {
+            assert!(!json.contains(secret), "{secret:?} in the summary");
+        }
+        // Its decrypted copy is in `tmp`, and goes when it's forgotten.
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
+        session.forget(s.id);
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn check_names_a_wrong_key_a_bad_key_and_damage() {
+        let fx = fixture::build();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let err = |s: &mut Session, path: &Path, key: &str| s.check(path, key, tmp.path()).unwrap_err();
+        assert_eq!(err(&mut session, &fx.backup, TARGET_KEY_HEX).code, "wrong_key");
+        assert_eq!(err(&mut session, &fx.backup, "1234").code, "key_format");
+
+        let cut = fx.dir.path().join("cut.crypt15");
+        let bytes = fs::read(&fx.backup).unwrap();
+        fs::write(&cut, &bytes[..bytes.len() / 2]).unwrap();
+        let e = err(&mut session, &cut, KEY_HEX);
+        assert_eq!(e.code, "wrong_key", "a cut-off backup fails like a wrong key: {}", e.detail);
+        assert!(!e.detail.contains(KEY_HEX));
+        assert!(session.summaries().is_empty());
+    }
+
+    #[test]
+    fn merge_writes_a_new_folder_and_leaves_the_originals() {
+        let two = fixture::two_phones();
+        let tmp = tempfile::tempdir().unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let source = session.check(&two.source, KEY_HEX, tmp.path()).unwrap();
+        let target = session.check(&two.target, TARGET_KEY_HEX, tmp.path()).unwrap();
+        let req = MergeRequest {
+            source: source.id,
+            source_chat: SOURCE_CHAT,
+            target: target.id,
+            target_chat: TARGET_CHAT,
+            target_key: TARGET_KEY_HEX,
+            out_parent: out.path(),
+            media: Some(&two.source_media),
+        };
+
+        let done = session.merge(&req).unwrap();
+        assert!(done.original_untouched);
+        assert!(done.added > 0 && done.already_there > 0, "{done:?}");
+        assert!(!done.checks.is_empty());
+        assert_eq!(done.folder, out.path().join("oopz-result-1"));
+        assert_eq!(done.backup, done.folder.join("Databases/msgstore.db.crypt15"));
+        assert!(done.media_copied.unwrap() > 0);
+        assert_eq!(sha256_file(&two.target).unwrap(), target.sha256);
+        assert_eq!(sha256_file(&two.source).unwrap(), source.sha256);
+
+        // The result opens with the target's key and has the added messages.
+        let mut again = Session::default();
+        let merged = again.check(&done.backup, TARGET_KEY_HEX, tmp.path()).unwrap();
+        let chat = merged.chat_list.iter().find(|c| c.number == TARGET_CHAT).unwrap();
+        assert_eq!(chat.messages, done.target_before + done.added);
+
+        // A second merge goes into a new folder, never over the first.
+        let second = session.merge(&MergeRequest { media: None, ..req }).unwrap();
+        assert_eq!(second.folder, out.path().join("oopz-result-2"));
+        assert_eq!(fs::read(&done.backup).unwrap().len() as u64, fs::metadata(&done.backup).unwrap().len());
+    }
+
+    #[test]
+    fn merge_refuses_a_wrong_key_the_same_backup_and_a_changed_original() {
+        let two = fixture::two_phones();
+        let tmp = tempfile::tempdir().unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let source = session.check(&two.source, KEY_HEX, tmp.path()).unwrap();
+        let target = session.check(&two.target, TARGET_KEY_HEX, tmp.path()).unwrap();
+        let req = MergeRequest {
+            source: source.id,
+            source_chat: SOURCE_CHAT,
+            target: target.id,
+            target_chat: TARGET_CHAT,
+            target_key: KEY_HEX,
+            out_parent: out.path(),
+            media: None,
+        };
+        assert_eq!(session.merge(&req).unwrap_err().code, "wrong_key");
+        assert_eq!(session.merge(&MergeRequest { target: source.id, ..req }).unwrap_err().code, "unsupported");
+        assert_eq!(session.merge(&MergeRequest { target: 99, ..req }).unwrap_err().code, "not_found");
+
+        // Our test's own copy changed after the check (never an original): refused.
+        let mut bytes = fs::read(&two.target).unwrap();
+        bytes.push(0);
+        fs::write(&two.target, bytes).unwrap();
+        let req = MergeRequest { target_key: TARGET_KEY_HEX, ..req };
+        assert_eq!(session.merge(&req).unwrap_err().code, "changed");
+        assert_eq!(fs::read_dir(out.path()).unwrap().count(), 0, "nothing written");
+    }
+}

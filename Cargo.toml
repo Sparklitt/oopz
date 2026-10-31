@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# The Tauri shell has its own workspace: it needs a webview toolkit to build (docs/desktop-plan.md).
+exclude = ["apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +14,7 @@ publish = false
 
 [workspace.dependencies]
 oopz = { path = "crates/oopz" }
+oopz-app = { path = "crates/oopz-app" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"
@@ -34,6 +37,10 @@ jiff = "0.2"
 rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 tempfile = "3"
 thiserror = "2"
+# docs/decisions/0009: the desktop app's logic (results for the UI, the Wi-Fi receive page and its QR code).
+serde = { version = "1", features = ["derive"] }
+tiny_http = "0.12"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [workspace.lints.rust]

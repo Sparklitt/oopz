@@ -1,0 +1,26 @@
+[package]
+name = "oopz-app"
+description = "The oopz desktop app's logic without a UI toolkit: checks, merges and the Wi-Fi receive page (decision 0009)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+oopz.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+qrcode.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tiny_http.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+oopz = { workspace = true, features = ["fixtures"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true
