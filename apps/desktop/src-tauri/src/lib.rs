@@ -348,7 +348,19 @@ mod tests {
         let stopped = state.receive_stop();
         assert_eq!(stopped.stopped, Some("stopped"));
         assert!(!state.receive_status().running);
-        assert!(TcpStream::connect(&addr).is_err());
+        // The freed port may already be another listener's (the OS reuses it), so it may answer, but never as this
+        // page: nothing comes back, or its path is refused (as in oopz-app's receive tests).
+        if let Ok(mut s) = TcpStream::connect(&addr) {
+            let mut reply = String::new();
+            if write!(s, "GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").is_ok()
+                && s.read_to_string(&mut reply).is_ok()
+            {
+                assert!(
+                    reply.is_empty() || reply.starts_with("HTTP/1.1 404"),
+                    "still answering after it stopped: {reply}"
+                );
+            }
+        }
     }
 
     /// Tauri's deserializer for command arguments is serde_json.
