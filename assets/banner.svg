@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="oops: your own chat backups, open, check, recover. Offline.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="oopz: your own chat backups, open, check, recover. Offline.">
   <style>.bg{fill:#FFF7EE}.bg2{fill:#FFE9D6}.mark{stroke:#23244F}.ink{fill:#23244F}.coral{fill:#F2604F}.coraltext{fill:#F2604F}.amber{fill:#F7A928}.amberstroke{stroke:#F7A928}.card{fill:#FFFFFF;stroke:#E4D9CC;stroke-width:2}.bar{fill:#D9D2E6}.ghost{stroke:#6B6C8F}.chip{fill:#23244F}.chiptext{fill:#FFF7EE}@media (prefers-color-scheme: dark){.bg{fill:#15162E}.bg2{fill:#1F2042}.mark{stroke:#F6F0E7}.ink{fill:#F6F0E7}.coral{fill:#FF7565}.coraltext{fill:#FF7565}.amber{fill:#FFB940}.amberstroke{stroke:#FFB940}.card{fill:#26284F;stroke:#34366A;stroke-width:2}.bar{fill:#4A4C80}.ghost{stroke:#A9AACB}.chip{fill:#F6F0E7}.chiptext{fill:#15162E}}</style>
   <rect class="bg" width="1280" height="640"/>
   <circle class="bg2" cx="1040" cy="300" r="250"/>
@@ -10,8 +10,7 @@
     <circle cx="326" cy="262" r="54"/>
     <circle cx="466" cy="262" r="54"/>
     <path d="M412 262 V392"/>
-    <path d="M638 222 C626 204 600 198 580 202 C556 207 546 226 556 243 C566 260 602 262 622 274
-             C644 288 642 312 622 322 C600 333 566 330 550 308"/>
+    <path d="M554 210 H636 L554 314 H640"/>
   </g>
   <circle class="coral" cx="696" cy="304" r="17"/>
 
