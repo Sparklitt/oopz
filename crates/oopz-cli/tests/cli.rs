@@ -3,10 +3,10 @@
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
 
-use oops::fixture::{self, BEN_CHAT, BEN_JID, KEY_HEX};
+use oopz::fixture::{self, BEN_CHAT, BEN_JID, KEY_HEX};
 
-fn oops(args: &[&str], key: Option<&str>) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_oops"))
+fn oopz(args: &[&str], key: Option<&str>) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_oopz"))
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -29,15 +29,15 @@ fn chats_types_tables_print_structure_only() {
     let backup = fx.backup.to_str().unwrap();
     let chat = BEN_CHAT.to_string();
 
-    let chats = oops(&["chats", "--backup", backup], Some(KEY_HEX));
+    let chats = oopz(&["chats", "--backup", backup], Some(KEY_HEX));
     assert!(chats.status.success(), "{}", text(&chats));
     assert!(text(&chats).contains("contact ••••001"));
 
-    let types = oops(&["types", "--backup", backup, "--chat", &chat], Some(KEY_HEX));
+    let types = oopz(&["types", "--backup", backup, "--chat", &chat], Some(KEY_HEX));
     assert!(text(&types).contains("type 11: 1 messages, 0 with text"), "{}", text(&types));
     assert!(text(&types).contains("linked message_media: 2"));
 
-    let tables = oops(&["tables", "--backup", backup], Some(KEY_HEX));
+    let tables = oopz(&["tables", "--backup", backup], Some(KEY_HEX));
     assert!(text(&tables).contains("message_call_log (1): _id, message_row_id, call_log_row_id"), "{}", text(&tables));
 
     for out in [&chats, &types, &tables] {
@@ -56,7 +56,7 @@ fn backups_checks_every_backup_in_a_folder() {
     std::fs::copy(&fx.backup, dir.join("msgstore.db.crypt15")).unwrap();
     std::fs::write(dir.join("notes.txt"), "not a backup").unwrap();
 
-    let ok = oops(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
+    let ok = oopz(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
     assert!(ok.status.success(), "{}", text(&ok));
     assert!(
         text(&ok).contains("msgstore.db.crypt15  0 MB  ok: 2 chats, 19 messages, last 2023-11-14"),
@@ -68,7 +68,7 @@ fn backups_checks_every_backup_in_a_folder() {
     // A cut-off copy fails on its own line; the good one still passes, and so does nothing else.
     let bytes = std::fs::read(&fx.backup).unwrap();
     std::fs::write(dir.join("msgstore-2023-11-13.1.db.crypt15"), &bytes[..bytes.len() / 2]).unwrap();
-    let mixed = oops(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
+    let mixed = oopz(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
     assert!(!mixed.status.success());
     assert!(text(&mixed).contains("msgstore-2023-11-13.1.db.crypt15  0 MB  FAILED:"), "{}", text(&mixed));
     assert!(text(&mixed).contains("1 of 2 backups didn't pass"), "{}", text(&mixed));
@@ -81,7 +81,7 @@ fn backups_checks_every_backup_in_a_folder() {
 fn a_wrong_key_fails_without_echoing_it() {
     let fx = fixture::build();
     let wrong = "2".repeat(64);
-    let out = oops(&["chats", "--backup", fx.backup.to_str().unwrap()], Some(&wrong));
+    let out = oopz(&["chats", "--backup", fx.backup.to_str().unwrap()], Some(&wrong));
     assert!(!out.status.success());
     assert!(text(&out).contains("doesn't open this backup"));
     assert!(!text(&out).contains(&wrong));
@@ -111,7 +111,7 @@ fn restore_writes_a_checked_backup_once() {
         pack.to_str().unwrap(),
     ];
     let keys = format!("{KEY_HEX}\n{}", fixture::TARGET_KEY_HEX);
-    let merged = oops(&args, Some(&keys));
+    let merged = oopz(&args, Some(&keys));
     assert!(merged.status.success(), "{}", text(&merged));
     assert!(text(&merged).contains("2 already there, 8 added"), "{}", text(&merged));
     assert!(text(&merged).contains("check integrity_check: ok"));
@@ -122,12 +122,12 @@ fn restore_writes_a_checked_backup_once() {
     }
 
     let facts =
-        oops(&["chat-facts", "--backup", out.to_str().unwrap(), "--chat", &target_chat], Some(fixture::TARGET_KEY_HEX));
+        oopz(&["chat-facts", "--backup", out.to_str().unwrap(), "--chat", &target_chat], Some(fixture::TARGET_KEY_HEX));
     assert!(text(&facts).contains("messages: 12"), "{}", text(&facts));
     assert!(text(&facts).contains("all messages: _id max / sort_id max: 22 / 22"), "{}", text(&facts));
 
     let before = std::fs::read(&out).unwrap();
-    let again = oops(&args, Some(&keys));
+    let again = oopz(&args, Some(&keys));
     assert!(!again.status.success());
     assert!(text(&again).contains("already exists"));
     assert_eq!(std::fs::read(&out).unwrap(), before);

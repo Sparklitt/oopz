@@ -1,4 +1,4 @@
-//! oops: a person's own WhatsApp backups (decision 0007). Opens a crypt15 backup with its owner's key, reads its
+//! oopz: a person's own WhatsApp backups (decision 0007). Opens a crypt15 backup with its owner's key, reads its
 //! structure, and merges a chat back into another backup (decision 0006). Output is counts and masked ids only.
 
 use std::collections::BTreeMap;

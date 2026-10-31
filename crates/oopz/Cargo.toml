@@ -1,5 +1,5 @@
 [package]
-name = "oops"
+name = "oopz"
 description = "A person's own WhatsApp backups: open, inspect, merge a lost chat back (decision 0007)."
 license.workspace = true
 version.workspace = true
@@ -27,7 +27,7 @@ zeroize.workspace = true
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]
-# The fixtures are compiled for this crate's own tests too, without the feature (`cargo test -p oops`).
+# The fixtures are compiled for this crate's own tests too, without the feature (`cargo test -p oopz`).
 zip.workspace = true
 
 [lints]

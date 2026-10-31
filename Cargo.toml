@@ -11,7 +11,7 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
-oops = { path = "crates/oops" }
+oopz = { path = "crates/oopz" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"
@@ -29,7 +29,7 @@ getrandom = "0.4"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 jiff = "0.2"
-# SQLite built from source (FTS3/FTS5 included, as WhatsApp's tables need). oops never needs SQLCipher: the backup is
+# SQLite built from source (FTS3/FTS5 included, as WhatsApp's tables need). oopz never needs SQLCipher: the backup is
 # decrypted by crypt15.rs, not by SQLite.
 rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 tempfile = "3"

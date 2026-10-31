@@ -1,4 +1,4 @@
-//! `oops`: a person's own WhatsApp backups from a terminal (decision 0007). Prints counts and masked ids only, never
+//! `oopz`: a person's own WhatsApp backups from a terminal (decision 0007). Prints counts and masked ids only, never
 //! message text, phone numbers or keys.
 
 use std::io::{self, BufRead, IsTerminal};
@@ -7,11 +7,11 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use oops::{Backup, ChatMerge, Key};
+use oopz::{Backup, ChatMerge, Key};
 use zeroize::Zeroizing;
 
 #[derive(Parser)]
-#[command(name = "oops", version, about = "Your own WhatsApp backups: inspect them, restore a lost chat")]
+#[command(name = "oopz", version, about = "Your own WhatsApp backups: inspect them, restore a lost chat")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -36,7 +36,7 @@ enum Command {
     Types {
         #[arg(long)]
         backup: PathBuf,
-        /// The chat number shown by `oops chats`.
+        /// The chat number shown by `oopz chats`.
         #[arg(long)]
         chat: i64,
     },
@@ -49,7 +49,7 @@ enum Command {
     ChatFacts {
         #[arg(long)]
         backup: PathBuf,
-        /// The chat number shown by `oops chats`.
+        /// The chat number shown by `oopz chats`.
         #[arg(long)]
         chat: i64,
     },
@@ -59,7 +59,7 @@ enum Command {
     Restore {
         #[arg(long)]
         source: PathBuf,
-        /// The chat number in the source, shown by `oops chats`.
+        /// The chat number in the source, shown by `oopz chats`.
         #[arg(long)]
         source_chat: i64,
         #[arg(long)]
@@ -172,16 +172,16 @@ fn run(cli: Cli) -> Result<()> {
                 .with_context(|| format!("writing {}", out.display()))?;
             println!("written: {} ({} bytes)", out.display(), merged.backup.len());
             if let (Some(media), Some(media_out)) = (media, media_out) {
-                print!("{}", oops::copy_media(&merged.media, &media, &media_out)?);
+                print!("{}", oopz::copy_media(&merged.media, &media, &media_out)?);
                 println!("media for the target's Media/ folder: {}", media_out.display());
             }
-            println!("next: oops chat-facts --backup {} --chat {target_chat}", out.display());
+            println!("next: oopz chat-facts --backup {} --chat {target_chat}", out.display());
         }
     }
     Ok(())
 }
 
-/// From a hidden prompt, or one line of stdin when it isn't a terminal (`oops … < keyfile`). Never from an argument
+/// From a hidden prompt, or one line of stdin when it isn't a terminal (`oopz … < keyfile`). Never from an argument
 /// or the environment: both leak into shell history and process lists.
 fn read_key() -> Result<Key> {
     read_key_for("backup")
