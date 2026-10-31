@@ -374,19 +374,21 @@ the person's messages and isn't encrypted. The app itself never needs a browser 
   copies named), check (counts, dates, masked chat list, SHA-256 of the original, soundness), merge into a new
   `oopz-result-N` folder with media (the original's hash checked before and after), the Wi-Fi receive page, the
   search index, search, stats, the chat viewer's pages. 14 unit tests, synthetic data only.
-- `apps/desktop`: the Tauri 2 shell (16 commands, 2 tests through the same state the commands use) and the web UI:
+- `apps/desktop`: the Tauri 2 shell (17 commands, 2 tests through the same state the commands use) and the web UI:
   Welcome → Get backup (folder, file, Wi-Fi QR with live progress) → Key (masked, cleared once sent, password panel)
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
   on phone 2 (guided checklist) → Done. English and Spanish. Laid out like a setup assistant: a sidebar of steps, content
   on the page (no cards), bordered tiles only for choices, one action bar per screen (Back left, the main action
-  right); WCAG AA contrast in light and dark.
+  right); WCAG AA contrast in light and dark. Like a desktop app: no web page menu on right-click and no
+  selecting labels (both kept where there is text to copy), the window's size and place remembered, and "Show folder"
+  next to each result (only folders this run made).
 - `.github/workflows/desktop-build.yml`: unsigned installers for the three systems, by hand, as run artifacts with
   checksums; publishes nothing.
 - **Not yet**: group
   merges; restoring from an older own backup (0008); signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
-- **Not yet verified by hand**: the window itself (the build, the commands and the web UI's types are checked; the
-  screens haven't been clicked through on Windows, macOS or Linux yet).
+- **Verified by hand**: every screen clicked through on Linux (WSLg, driven over WebDriver with `tauri-driver`) with the
+  synthetic fixtures, Welcome to Done. Not yet on Windows or macOS (their installers build: "Desktop installers").
 
 ## 10. Android later
 
@@ -448,7 +450,7 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 ## 12. Milestones
 
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
-2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks (done); the
+2. Click through on Windows, macOS and Linux with the synthetic fixtures (Linux: done); progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
 3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export (done).
 4. Release builds (unsigned, by hand: done) and signed installers (decision on publishing).

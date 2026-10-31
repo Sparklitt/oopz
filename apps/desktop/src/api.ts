@@ -165,6 +165,8 @@ export const api = {
   /** Saves stats (and a chat's messages) as a web page in a new file in `outDir`; returns its path. */
   exportPage: (id: number, chat: number | null, labels: ExportLabels, outDir: string) =>
     invoke<string>("export_page", { id, chat, labels, outDir }),
+  /** Opens a folder this run of the app made (a result, or where a page was saved) in the file manager. */
+  showFolder: (folder: string) => invoke<void>("show_folder", { folder }),
   missing: (a: number, chatA: number, b: number, chatB: number) =>
     invoke<Missing>("missing", { a, chatA, b, chatB }),
   buildIndex: (id: number, onProgress: (perMille: number) => void) =>

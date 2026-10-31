@@ -24,6 +24,8 @@ oopz-app = { path = "../../../crates/oopz-app" }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+tauri-plugin-window-state = "2"
+open = "5"
 tempfile = "3"
 zeroize = { version = "1", features = ["serde"] }
 

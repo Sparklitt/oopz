@@ -128,6 +128,11 @@ function pathBox(path: string, empty = false): Node {
   return h("div", { class: `path${empty ? " empty" : ""}` }, icon("folder"), h("code", {}, path));
 }
 
+/** A path oopz made, with a button that shows its folder in the file manager. */
+function madeBox(folder: string, shown = folder): Node {
+  return h("div", { class: "path-row" }, pathBox(shown), h("button", { class: "secondary small", onclick: () => void run(() => api.showFolder(folder)) }, icon("folder"), t.showFolder));
+}
+
 /** A label tied to its control by id, the control, and an optional line of help under it. */
 function field(id: string, label: Child, control: Node, hint?: Child): Node {
   if (control instanceof HTMLElement) control.id = id;
@@ -559,10 +564,15 @@ function bars(values: [string, number][], label: string): Node {
     bar.style.height = `${Math.max(1, (n / max) * 100)}%`;
     box.append(bar);
   }
+  const first = values[0]?.[0];
+  const last = values[values.length - 1]?.[0];
   const ends = values.length
-    ? h("div", { class: "bar-ends" }, h("span", {}, values[0][0]), h("span", {}, `max ${fmt(max)}`), h("span", {}, values[values.length - 1][0]))
+    ? h("div", { class: "bar-ends" }, h("span", {}, first), h("span", {}, `max ${fmt(max)}`), values.length > 1 && h("span", {}, last))
     : null;
-  return h("div", { class: "chart" }, h("h3", {}, label), box, ends);
+  // As wide as its bars (each at most 40px), so a month or two isn't one block across the page.
+  const plot = h("div", { class: "plot" }, box, ends);
+  plot.style.maxWidth = `${Math.max(200, values.length * 42)}px`;
+  return h("div", { class: "chart" }, h("h3", {}, label), plot);
 }
 
 function statsView(s: Stats): Node {
@@ -633,12 +643,13 @@ function viewer(id: number, chat: number, len: number, startAt: number): Node {
       const line = Array.isArray(lines) ? lines[i - page * PAGE] : undefined;
       const row = h(
         "div",
-        { class: `line ${line?.from_me ? "me" : ""}` },
+        { class: `line ${line?.kind === 7 ? "system" : line?.from_me ? "me" : ""}` },
         line
           ? h(
               "div",
               { class: "bubble" },
-              h("small", {}, `${line.from_me ? t.you : line.sender ? `••••${line.sender}` : t.them} · ${new Date(line.ts).toLocaleString(state.lang)}`),
+              // A system row (someone joined, the number changed…) is nobody's message: no sender shown.
+              h("small", {}, `${line.kind === 7 ? "" : `${line.from_me ? t.you : line.sender ? `••••${line.sender}` : t.them} · `}${new Date(line.ts).toLocaleString(state.lang)}`),
               h("div", { class: "text" }, line.text ?? `[${t.kinds[line.kind] ?? `#${line.kind}`}]`),
             )
           : "…",
@@ -773,7 +784,8 @@ function explore(): Screen {
           h("p", {}, t.exportLead),
           notice("note", t.exportNote),
           h("div", { class: "row" }, h("button", { class: "secondary", disabled: state.busy, onclick: () => void saveExport() }, icon("download"), t.exportButton)),
-          explorer.saved && h("p", { class: "ok" }, icon("check"), h("span", {}, `${t.exportSaved}: `, h("code", {}, explorer.saved))),
+          explorer.saved && h("p", { class: "ok" }, icon("check"), h("span", {}, `${t.exportSaved}:`)),
+          explorer.saved && madeBox(explorer.saved.replace(/[\\/][^\\/]*$/, ""), explorer.saved),
         ),
     ],
     back: h("button", { class: "secondary", onclick: () => go("check") }, t.back),
@@ -869,7 +881,7 @@ function merge(): Screen {
             o.media_copied !== null && stat(fmt(o.media_copied), t.mediaCopied, `${fmt(o.media_missing ?? 0)} ${t.mediaMissing}`),
           ),
           o.original_untouched && notice("ok", t.untouched),
-          pathBox(o.backup),
+          madeBox(o.folder, o.backup),
           h("details", {}, h("summary", {}, `${o.checks.length} checks`), h("ul", {}, ...o.checks.map((c) => h("li", { class: "mono" }, c)))),
         ),
       section(
@@ -918,7 +930,7 @@ function phone2(): Screen {
   return {
     body: [
       head(t.phoneTitle, t.phoneLead),
-      state.outcome && pathBox(state.outcome.folder),
+      state.outcome && madeBox(state.outcome.folder),
       h(
         "ol",
         { class: "checklist" },
@@ -949,7 +961,7 @@ function done(): Screen {
     body: [
       h("div", { class: "done-mark" }, icon("check")),
       head(t.doneTitle, t.doneLead),
-      state.outcome && pathBox(state.outcome.folder),
+      state.outcome && madeBox(state.outcome.folder),
     ],
     actions: [
       h(
@@ -1010,5 +1022,11 @@ function setLang(lang: Lang) {
   }
   render();
 }
+
+// Like a desktop app: no web page menu (Back, Reload…) on right-click, except where there is text to copy or paste.
+const COPYABLE = "input, textarea, code, .mono, .viewer, .results";
+document.addEventListener("contextmenu", (e) => {
+  if (!(e.target instanceof Element && e.target.closest(COPYABLE))) e.preventDefault();
+});
 
 render();

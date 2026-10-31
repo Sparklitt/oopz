@@ -22,6 +22,8 @@ pub struct AppState {
     session: Mutex<Session>,
     receiver: Mutex<Option<Receiver>>,
     tmp: tempfile::TempDir,
+    /// Folders this run of the app made (merge results, the folders pages were saved in): the only ones it opens.
+    made: Mutex<Vec<PathBuf>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -60,7 +62,7 @@ impl AppState {
             .prefix("session-")
             .tempdir_in(&dir)
             .map_err(|e| AppError::new("io", format!("creating the app's cache: {e}")))?;
-        Ok(Self { session: Mutex::default(), receiver: Mutex::default(), tmp })
+        Ok(Self { session: Mutex::default(), receiver: Mutex::default(), tmp, made: Mutex::default() })
     }
 
     pub fn check(&self, path: &Path, key: &str, progress: &mut dyn FnMut(u64, u64)) -> Result<Summary, AppError> {
@@ -76,7 +78,7 @@ impl AppState {
     }
 
     pub fn merge(&self, form: &MergeForm) -> Result<MergeOutcome, AppError> {
-        lock(&self.session).merge(&MergeRequest {
+        let done = lock(&self.session).merge(&MergeRequest {
             source: form.source,
             source_chat: form.source_chat,
             target: form.target,
@@ -84,7 +86,30 @@ impl AppState {
             target_key: &form.target_key,
             out_parent: &form.out_parent,
             media: form.media.as_deref(),
-        })
+        })?;
+        lock(&self.made).push(done.folder.clone());
+        Ok(done)
+    }
+
+    pub fn export(
+        &self,
+        id: u32,
+        chat: Option<i64>,
+        labels: &oopz_app::export::Labels,
+        out_dir: &Path,
+    ) -> Result<PathBuf, AppError> {
+        let page = lock(&self.session).export(id, chat, labels, out_dir)?;
+        lock(&self.made).push(out_dir.to_path_buf());
+        Ok(page)
+    }
+
+    /// Only a folder this run made, so a page can't ask the app to open just anything.
+    pub fn made(&self, folder: &Path) -> Result<(), AppError> {
+        if lock(&self.made).iter().any(|m| m == folder) {
+            Ok(())
+        } else {
+            Err(AppError::new("io", "not a folder oopz made".to_owned()))
+        }
     }
 
     /// Starts the Wi-Fi page into a new `oopz-received-N` folder in `parent`, on this computer's LAN address (or on
@@ -183,7 +208,15 @@ fn export_page(
     labels: oopz_app::export::Labels,
     out_dir: PathBuf,
 ) -> Result<PathBuf, AppError> {
-    lock(&state.session).export(id, chat, &labels, &out_dir)
+    state.export(id, chat, &labels, &out_dir)
+}
+
+/// Shows a result folder in the system's file manager.
+#[tauri::command]
+fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppError> {
+    state.made(&folder)?;
+    // `open` tries each system's launchers in turn (on Linux xdg-open, then gio, kde-open… and wslview).
+    open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
 }
 
 #[tauri::command(async)]
@@ -239,6 +272,8 @@ fn message_position(state: State<'_, AppState>, id: u32, message: i64) -> Result
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Remembers the window's size and place between runs.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             let cache = app.path().app_cache_dir()?;
             app.manage(AppState::new(&cache)?);
@@ -252,6 +287,7 @@ pub fn run() {
             merge_chat,
             missing,
             export_page,
+            show_folder,
             receive_start,
             receive_status,
             receive_stop,
@@ -303,6 +339,9 @@ mod tests {
         let done = state.merge(&form).unwrap();
         assert!(done.original_untouched && done.added > 0);
         assert!(done.backup.starts_with(out.path()));
+        // The app opens the folders it made, and nothing else.
+        assert!(state.made(&done.folder).is_ok());
+        assert!(state.made(out.path()).is_err());
 
         // Explore: the index is built on demand, then search and stats answer.
         // While the index builds, the session answers other commands.
@@ -317,8 +356,9 @@ mod tests {
                "audio_minutes":"minutos","senders":"quién","you":"Tú","note":"sin cifrar",
                "kinds":{"0":"texto","1":"foto"}}"#,
         );
-        let page = lock(&state.session).export(target.id, Some(TARGET_CHAT), &labels, out.path()).unwrap();
+        let page = state.export(target.id, Some(TARGET_CHAT), &labels, out.path()).unwrap();
         assert!(std::fs::read_to_string(&page).unwrap().contains("lang=\"es\""));
+        assert!(state.made(out.path()).is_ok());
 
         state.forget(source.id);
         assert_eq!(state.summaries().len(), 1);
