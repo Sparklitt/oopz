@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: oopz's own commands and the file/folder picker. Nothing else.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}
