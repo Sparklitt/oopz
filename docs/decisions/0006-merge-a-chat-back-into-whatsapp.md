@@ -3,11 +3,11 @@
 Status: accepted (2026-10-23)
 
 One person lost a chat; the other person in it still has it in their backup. They want it back inside WhatsApp. This
-is the riskiest thing oops does: a wrong row can make WhatsApp's restore fail or misbehave later. It is general: any
+is the riskiest thing oopz does: a wrong row can make WhatsApp's restore fail or misbehave later. It is general: any
 one-to-one chat between the owners of two backups, in either direction, each backup opened with its owner's own key
-and consent. (`oops restore`; it began as `hilo merge whatsapp` in the hilo project.)
+and consent. (`oopz restore`; it began as `hilo merge whatsapp` in the hilo project.)
 
-## What we measured (`oops chat-facts`, on two real phones' backups, 2026-10-23)
+## What we measured (`oopz chat-facts`, on two real phones' backups, 2026-10-23)
 
 Only the shapes are recorded here, never the data:
 
@@ -54,7 +54,7 @@ result is a new file.
    `message_send_count`, and anything else; the merge report counts every source row it leaves behind, per table.
 6. **Media paths can't collide.** WhatsApp names files with a per-phone counter, so the same name can be a different
    photo. The source's files go to the same `Media/` folders, mirrored (what one received the other sent:
-   `…/Sent/`), with a `hilo-` name prefix (kept from the project oops came from, so results stay comparable). A file
+   `…/Sent/`), with a `hilo-` name prefix (kept from the project oopz came from, so results stay comparable). A file
    whose `file_hash` the target already has keeps the target's path and isn't sent again. The media pack for the
    target's `Media/` folder is built from these paths after the merge.
 7. **Write the file the way WhatsApp does.** The target's header bytes are kept exactly, except the 16-byte IV,
@@ -63,7 +63,7 @@ result is a new file.
    (the footer only, not for security) and `getrandom` (the IV).
 8. **Check before anything is written:** decrypt the result with the target's key; `PRAGMA integrity_check`; the
    target chat's count = its own + added; `sort_id = _id` on every row; no reference to a missing message; other
-   chats' rows identical to the original's; `oops chat-facts` on the result shaped like both inputs.
+   chats' rows identical to the original's; `oopz chat-facts` on the result shaped like both inputs.
 
 ## Consequences
 
@@ -77,7 +77,7 @@ result is a new file.
 
 ## Built (2026-10-23)
 
-`oops restore`, in `crates/oops/src/merge.rs`, tested on a synthetic two-phone fixture. Where the code settles what
+`oopz restore`, in `crates/oopz/src/merge.rs`, tested on a synthetic two-phone fixture. Where the code settles what
 the text above left open:
 
 - **References are found by name, not listed by hand.** Schemas have about 200 tables pointing at messages, so every

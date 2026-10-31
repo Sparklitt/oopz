@@ -1,11 +1,11 @@
 name: Feature request
-description: Suggest something oops could do.
+description: Suggest something oopz could do.
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        oops works only on a person's own backups, with their own key and consent, offline, and never prints message
+        oopz works only on a person's own backups, with their own key and consent, offline, and never prints message
         text, media, numbers or keys. Ideas that fit those rules are very welcome.
   - type: textarea
     id: problem

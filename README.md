@@ -2,28 +2,28 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
-    <img alt="oops: your own chat backups, open, check, recover. Offline." src="assets/banner-light.svg" width="100%">
+    <img alt="oopz: your own chat backups, open, check, recover. Offline." src="assets/banner-light.svg" width="100%">
   </picture>
 </p>
 
 <p align="center"><b>Open your own WhatsApp backups with your own key, check them, and bring a lost chat back. Offline.</b></p>
 
 <p align="center">
-  <a href="https://github.com/OWNER/oops/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/OWNER/oops/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/OWNER/oopz/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/OWNER/oopz/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Licence: AGPL-3.0-or-later" src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue"></a>
   <img alt="Rust 1.89+" src="https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey">
   <img alt="No network" src="https://img.shields.io/badge/network-none-success">
 </p>
 
-oops is a small command-line tool for WhatsApp's end-to-end encrypted Android backups (`*.crypt15`). It tells you
+oopz is a small command-line tool for WhatsApp's end-to-end encrypted Android backups (`*.crypt15`). It tells you
 whether your backups open and are sound, shows what is inside them (structure and counts, never content), and can
 restore a lost one-to-one chat from the other person's backup into a new, checked backup.
 
 ## Why
 
 Phones break, chats get deleted by mistake, a restore picks the wrong backup. The messages often still exist: in an
-older backup of yours, or on the phone of the person you were talking to. oops helps you find out what your backups
+older backup of yours, or on the phone of the person you were talking to. oopz helps you find out what your backups
 hold and put a lost chat back, without sending anything anywhere and without touching the originals.
 
 ## Features
@@ -37,7 +37,7 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 ## Demo
 
 <p align="center">
-  <img alt="A terminal session: oops checks a folder of backups, lists the chats in one with masked ids, and restores a lost chat into a new, checked backup." src="assets/demo.svg" width="100%">
+  <img alt="A terminal session: oopz checks a folder of backups, lists the chats in one with masked ids, and restores a lost chat into a new, checked backup." src="assets/demo.svg" width="100%">
 </p>
 
 <sub>Replayed from a run on the synthetic test backups (invented people, test keys), never on real data.</sub>
@@ -45,15 +45,15 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 > [!IMPORTANT]
 > **Safety first**
 >
-> - **Your own backups, with your own key, with consent.** oops opens a backup only with the 64-digit key its owner
+> - **Your own backups, with your own key, with consent.** oopz opens a backup only with the 64-digit key its owner
 >   chose when they turned on end-to-end encrypted backups. It never tries to get around WhatsApp's encryption of
->   anyone's account. To use someone else's backup (for `oops restore`), they give you their backup and type their
+>   anyone's account. To use someone else's backup (for `oopz restore`), they give you their backup and type their
 >   own key, knowing what you will do with it.
 > - **Originals are never modified.** Backups and `Media/` folders are only read; every result is a new file or
->   folder, and oops refuses to overwrite an existing one. Work on a copy anyway.
-> - **Offline.** oops makes no network connections.
+>   folder, and oopz refuses to overwrite an existing one. Work on a copy anyway.
+> - **Offline.** oopz makes no network connections.
 > - **Counts and masked ids only.** Its output never contains message text, media, phone numbers or keys.
-> - **Keys** are read from a hidden prompt (or one line of stdin per key, `oops … < keyfile`), never from an argument
+> - **Keys** are read from a hidden prompt (or one line of stdin per key, `oopz … < keyfile`), never from an argument
 >   or an environment variable, and wiped from memory after use.
 
 ## Quick start
@@ -61,18 +61,18 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 You need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C compiler (SQLite is built from source).
 
 ```sh
-git clone https://github.com/OWNER/oops && cd oops
-cargo install --locked --path crates/oops-cli   # installs the `oops` binary
+git clone https://github.com/OWNER/oopz && cd oopz
+cargo install --locked --path crates/oopz-cli   # installs the `oopz` binary
 # or build without installing:
-cargo build --release                           # target/release/oops
+cargo build --release                           # target/release/oopz
 ```
 
 Copy your backup off the phone first (WhatsApp keeps it in `Android/media/com.whatsapp/WhatsApp/Databases/`) and work
 on the copy:
 
 ```sh
-oops backups --dir Databases/                          # do they all open, and are they sound?
-oops chats --backup Databases/msgstore.db.crypt15      # which chats, how many messages
+oopz backups --dir Databases/                          # do they all open, and are they sound?
+oopz chats --backup Databases/msgstore.db.crypt15      # which chats, how many messages
 ```
 
 Every command that opens a backup asks for its 64-digit key.
@@ -81,18 +81,18 @@ Every command that opens a backup asks for its 64-digit key.
 
 | Command | What it does |
 |---|---|
-| `oops backups --dir <folder>` | Checks every `*.crypt15` in a folder with one key: does it open, is its database sound, how many chats and messages, the newest message's date. Fails if any backup doesn't pass (another key, damaged, cut off). |
-| `oops chats --backup <file>` | Lists the chats in a backup: number, masked id, messages, last message's date. |
-| `oops types --backup <file> --chat N` | For each WhatsApp message type in chat N: counts and which tables its rows link to. No content. |
-| `oops tables --backup <file>` | Every table with its columns and row count. Structure only, no values. |
-| `oops chat-facts --backup <file> --chat N` | How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only; useful to compare two phones. |
-| `oops restore --source <file> --source-chat N --target <file> --target-chat M --out <new file> [--media <folder> --media-out <new folder>]` | Restores a lost one-to-one chat (see below). |
+| `oopz backups --dir <folder>` | Checks every `*.crypt15` in a folder with one key: does it open, is its database sound, how many chats and messages, the newest message's date. Fails if any backup doesn't pass (another key, damaged, cut off). |
+| `oopz chats --backup <file>` | Lists the chats in a backup: number, masked id, messages, last message's date. |
+| `oopz types --backup <file> --chat N` | For each WhatsApp message type in chat N: counts and which tables its rows link to. No content. |
+| `oopz tables --backup <file>` | Every table with its columns and row count. Structure only, no values. |
+| `oopz chat-facts --backup <file> --chat N` | How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only; useful to compare two phones. |
+| `oopz restore --source <file> --source-chat N --target <file> --target-chat M --out <new file> [--media <folder> --media-out <new folder>]` | Restores a lost one-to-one chat (see below). |
 
-`oops --help` and `oops <command> --help` describe every flag.
+`oopz --help` and `oopz <command> --help` describe every flag.
 
 ### Restoring a lost chat
 
-Two people share a one-to-one chat; one of them lost it (or part of it), the other still has it. `oops restore` adds
+Two people share a one-to-one chat; one of them lost it (or part of it), the other still has it. `oopz restore` adds
 the messages of the chat in the **source** backup (the one that has them) that the same chat in the **target** backup
 (the person who lost it) lacks, mirrored to the target owner's side, and writes a new, checked backup for the target's
 owner. It asks for the source's key, then the target's.
@@ -102,7 +102,7 @@ owner. It asks for the source's key, then the target's.
   other chat identical). If any check fails, nothing is written.
 - With `--media` (a copy of the source phone's `Media/` folder) and `--media-out`, the files the result needs that the
   target lacks are copied out, laid out like the target's `Media/` folder.
-- Afterwards, run `oops chat-facts` on the result.
+- Afterwards, run `oopz chat-facts` on the result.
 
 > [!WARNING]
 > **Read before restoring on a phone.** This changes a WhatsApp backup, which WhatsApp's terms may not allow; the
@@ -131,29 +131,29 @@ owner. It asks for the source's key, then the target's.
 <details>
 <summary><b>Is this legal?</b></summary>
 
-oops opens only backups whose owner gives you their key; it never breaks or bypasses anyone's encryption. Reading
-your own data is yours to do. `oops restore` writes a changed backup, which WhatsApp's terms may not allow: the
+oopz opens only backups whose owner gives you their key; it never breaks or bypasses anyone's encryption. Reading
+your own data is yours to do. `oopz restore` writes a changed backup, which WhatsApp's terms may not allow: the
 account owner decides and accepts that risk. This is not legal advice.
 </details>
 
 <details>
 <summary><b>Does it upload anything?</b></summary>
 
-No. oops makes no network connections at all, has no telemetry, and prints only counts and masked ids.
+No. oopz makes no network connections at all, has no telemetry, and prints only counts and masked ids.
 </details>
 
 <details>
 <summary><b>Which backups does it support?</b></summary>
 
 WhatsApp's end-to-end encrypted Android backups, `msgstore.db.crypt15`, opened with the 64-digit key. Older formats
-(`crypt12`, `crypt14`) and iPhone backups are not supported. WhatsApp's database changes between versions; oops reads
-what it finds and checks its results, and `oops tables` helps when something looks different.
+(`crypt12`, `crypt14`) and iPhone backups are not supported. WhatsApp's database changes between versions; oopz reads
+what it finds and checks its results, and `oopz tables` helps when something looks different.
 </details>
 
 <details>
-<summary><b>I lost my key. Can oops help?</b></summary>
+<summary><b>I lost my key. Can oopz help?</b></summary>
 
-No. Without its key a crypt15 backup cannot be opened, and oops will never try.
+No. Without its key a crypt15 backup cannot be opened, and oopz will never try.
 </details>
 
 ## Roadmap
@@ -183,5 +183,5 @@ cargo test
 
 ---
 
-<sub>oops is not affiliated with, endorsed by or sponsored by WhatsApp or Meta. WhatsApp is a trademark of its
+<sub>oopz is not affiliated with, endorsed by or sponsored by WhatsApp or Meta. WhatsApp is a trademark of its
 owner.</sub>

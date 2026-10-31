@@ -1,6 +1,6 @@
 # Security
 
-oops handles people's private backups and their keys, so we take reports seriously.
+oopz handles people's private backups and their keys, so we take reports seriously.
 
 ## Reporting a vulnerability
 
@@ -14,12 +14,12 @@ you wish.
 
 ## In scope
 
-- A key, message text, media or phone number appearing in oops's output, errors or files it writes.
+- A key, message text, media or phone number appearing in oopz's output, errors or files it writes.
 - An original backup or `Media/` folder being modified, or an existing file overwritten.
-- A crafted backup file making oops crash unsafely, write outside the paths it was given, or produce a result that
+- A crafted backup file making oopz crash unsafely, write outside the paths it was given, or produce a result that
   passes its checks while being damaged.
 - Weaknesses in how keys are read, held or wiped.
 
 ## Out of scope
 
-- Getting into a backup without its owner's key. oops never tries to, and won't accept changes that do.
+- Getting into a backup without its owner's key. oopz never tries to, and won't accept changes that do.

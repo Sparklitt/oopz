@@ -4,12 +4,12 @@ Status: proposed (2026-10-24); not built until there's a real case to check it a
 
 0006 restores a chat from the *other person's* backup, mirrored. The other common loss is on one phone alone: a
 chat cleared or deleted, or messages deleted, while an older backup of the same phone still has them (WhatsApp keeps
-about a week of local backups, `msgstore-YYYY-MM-DD.1.db.crypt15`, and many people keep copies). oops should put them back
+about a week of local backups, `msgstore-YYYY-MM-DD.1.db.crypt15`, and many people keep copies). oopz should put them back
 without mirroring anything: they were the owner's messages all along.
 
 ## Decision
 
-`oops restore --own`, the same command as 0006 with one flag. The **source** is the older backup, the **target** a
+`oopz restore --own`, the same command as 0006 with one flag. The **source** is the older backup, the **target** a
 private copy of the current one; both are the same owner's, each opened with its own key (usually the same key,
 asked twice so a changed key still works). The originals are only read; the result is a new file.
 

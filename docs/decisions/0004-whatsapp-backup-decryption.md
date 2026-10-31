@@ -2,7 +2,7 @@
 
 Status: accepted (2026-10-23)
 
-oops decrypts a person's own end-to-end encrypted WhatsApp backup with the 64-digit key they chose. It never rolls
+oopz decrypts a person's own end-to-end encrypted WhatsApp backup with the 64-digit key they chose. It never rolls
 its own cryptography: only the crates below.
 
 **The format** (as documented by the open-source `wa-crypt-tools`, which we use only to cross-check on synthetic
