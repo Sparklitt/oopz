@@ -1,7 +1,7 @@
 # GitHub settings
 
-What to set by hand on GitHub after the repository is first pushed; none of it lives in the code. Replace `OWNER` in
-`README.md`, `.github/ISSUE_TEMPLATE/config.yml` and `.github/FUNDING.yml` with the real account first.
+What to set by hand on GitHub after the repository is first pushed to `github.com/sparklitt/oopz`; none of it lives in
+the code.
 
 ## About (the gear next to "About" on the repository page)
 

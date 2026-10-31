@@ -9,7 +9,7 @@
 <p align="center"><b>Open your own WhatsApp backups with your own key, check them, and bring a lost chat back. Offline.</b></p>
 
 <p align="center">
-  <a href="https://github.com/OWNER/oopz/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/OWNER/oopz/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/sparklitt/oopz/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sparklitt/oopz/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Licence: AGPL-3.0-or-later" src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue"></a>
   <img alt="Rust 1.89+" src="https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey">
@@ -61,7 +61,7 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 You need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C compiler (SQLite is built from source).
 
 ```sh
-git clone https://github.com/OWNER/oopz && cd oopz
+git clone https://github.com/sparklitt/oopz && cd oopz
 cargo install --locked --path crates/oopz-cli   # installs the `oopz` binary
 # or build without installing:
 cargo build --release                           # target/release/oopz
