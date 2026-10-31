@@ -277,11 +277,85 @@ fn message_position(state: State<'_, AppState>, id: u32, message: i64) -> Result
     lock(&state.session).position(id, message)
 }
 
+/// The opt-in update check (decision 0011): only when the person switched it on or clicked, and installed only on
+/// their click. The download's signature is checked against the key in tauri.conf.json before anything runs.
+#[cfg(desktop)]
+mod update {
+    use std::sync::Mutex;
+
+    use oopz_app::AppError;
+    use serde::Serialize;
+    use tauri::ipc::Channel;
+    use tauri::{AppHandle, Manager, State};
+    use tauri_plugin_updater::{Update, UpdaterExt};
+
+    use super::{AppState, lock, per_mille};
+
+    /// The update the last check found, until the person installs it.
+    #[derive(Default)]
+    pub struct Pending(Mutex<Option<Update>>);
+
+    #[derive(Serialize)]
+    pub struct Found {
+        pub version: String,
+    }
+
+    fn failed(e: tauri_plugin_updater::Error) -> AppError {
+        AppError::new("update", e.to_string())
+    }
+
+    #[tauri::command]
+    pub async fn update_check(app: AppHandle, pending: State<'_, Pending>) -> Result<Option<Found>, AppError> {
+        // On Windows the installer is started and the app quits at once, without its exit event: wipe first.
+        let handle = app.clone();
+        let updater = app
+            .updater_builder()
+            .on_before_exit(move || {
+                handle.state::<AppState>().close();
+                handle.cleanup_before_exit();
+            })
+            .build()
+            .map_err(failed)?;
+        let update = updater.check().await.map_err(failed)?;
+        let found = update.as_ref().map(|u| Found { version: u.version.clone() });
+        *lock(&pending.0) = update;
+        Ok(found)
+    }
+
+    /// Downloads, checks the signature, installs and restarts (the restart runs the exit event, which wipes).
+    #[tauri::command]
+    pub async fn update_install(
+        app: AppHandle,
+        pending: State<'_, Pending>,
+        progress: Channel<u16>,
+    ) -> Result<(), AppError> {
+        let update = lock(&pending.0).take().ok_or_else(|| AppError::new("update", "no update to install"))?;
+        let mut report = per_mille(&progress);
+        let mut done = 0u64;
+        update
+            .download_and_install(
+                |chunk, total| {
+                    done += chunk as u64;
+                    if let Some(total) = total {
+                        report(done, total);
+                    }
+                },
+                || {},
+            )
+            .await
+            .map_err(failed)?;
+        app.restart()
+    }
+}
+
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         // Remembers the window's size and place between runs.
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build());
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Pending::default());
+    builder
         .setup(|app| {
             let cache = app.path().app_cache_dir()?;
             app.manage(AppState::new(&cache)?);
@@ -305,6 +379,10 @@ pub fn run() {
             chat_len,
             chat_lines,
             message_position,
+            #[cfg(desktop)]
+            update::update_check,
+            #[cfg(desktop)]
+            update::update_install,
         ])
         .build(tauri::generate_context!())
         .expect("oopz couldn't start its window")

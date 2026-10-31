@@ -15,9 +15,19 @@ const en = {
     "Only your own backups, opened with your own key. To use someone else's backup, they give it to you and type their own key, knowing what you will do.",
     "oopz never gets around WhatsApp's encryption. Without the key, nothing can be opened, by oopz or anyone.",
     "Your original files are never changed. oopz only reads them; every result is a new folder.",
-    "Nothing leaves this computer. oopz has no account, no cloud and no tracking.",
+    "Your backups and keys never leave this computer. oopz has no account, no cloud and no tracking, and goes online only to check for updates when you ask it to.",
   ],
   consent: "These are my own backups, or their owner agreed and will type their own key.",
+  updatesTitle: "Updates",
+  updatesLead:
+    "Checking asks GitHub, where oopz is published, whether a newer version exists. GitHub sees this computer's internet address, nothing else. An update is installed only when you click, and only if its signature is oopz's.",
+  updatesAuto: "Check for updates when oopz starts",
+  updateCheck: "Check for updates",
+  updateChecking: "Checking…",
+  updateNone: "You have the newest oopz.",
+  updateFound: (version: string) => `oopz ${version} is available.`,
+  updateInstall: "Install and restart",
+  updateInstalling: "Downloading and installing…",
 
   getTitle: "Get your backup onto this computer",
   getLead: "WhatsApp keeps its backups on the phone. Pick how you want to bring them here.",
@@ -212,6 +222,7 @@ const en = {
     not_found: "Nothing found:",
     network: "The Wi-Fi page couldn't start:",
     no_space: "There isn't enough free space on the disk; nothing was written. Free some space or choose another folder:",
+    update: "The update check or install didn't work; nothing was changed. Check the internet connection and try again later:",
   } as Record<string, string>,
 };
 
@@ -232,9 +243,19 @@ const es: Strings = {
     "Solo tus propias copias, abiertas con tu propia clave. Para usar la copia de otra persona, te la da ella y escribe su propia clave, sabiendo lo que vas a hacer.",
     "oopz nunca se salta el cifrado de WhatsApp. Sin la clave no se puede abrir nada, ni oopz ni nadie.",
     "Tus archivos originales nunca se modifican. oopz solo los lee; cada resultado es una carpeta nueva.",
-    "Nada sale de este ordenador. oopz no tiene cuentas, ni nube, ni seguimiento.",
+    "Tus copias y claves nunca salen de este ordenador. oopz no tiene cuentas, ni nube, ni seguimiento, y solo se conecta a internet para buscar actualizaciones cuando tú se lo pides.",
   ],
   consent: "Son mis propias copias, o su dueño está de acuerdo y escribirá su propia clave.",
+  updatesTitle: "Actualizaciones",
+  updatesLead:
+    "Al buscar, oopz pregunta a GitHub, donde se publica, si hay una versión más nueva. GitHub ve la dirección de internet de este ordenador, nada más. Una actualización solo se instala cuando haces clic, y solo si su firma es la de oopz.",
+  updatesAuto: "Buscar actualizaciones al abrir oopz",
+  updateCheck: "Buscar actualizaciones",
+  updateChecking: "Buscando…",
+  updateNone: "Tienes la versión más nueva de oopz.",
+  updateFound: (version: string) => `oopz ${version} está disponible.`,
+  updateInstall: "Instalar y reiniciar",
+  updateInstalling: "Descargando e instalando…",
 
   getTitle: "Trae tu copia a este ordenador",
   getLead: "WhatsApp guarda sus copias en el teléfono. Elige cómo traerlas.",
@@ -429,6 +450,7 @@ const es: Strings = {
     not_found: "No se encontró nada:",
     network: "La página Wi-Fi no pudo arrancar:",
     no_space: "No hay espacio libre suficiente en el disco; no se ha escrito nada. Libera espacio o elige otra carpeta:",
+    update: "No se pudo buscar o instalar la actualización; no se ha cambiado nada. Revisa la conexión a internet y vuelve a intentarlo más tarde:",
   },
 };
 

@@ -181,4 +181,13 @@ export const api = {
   receiveStart: (parent: string) => invoke<ReceiveInfo>("receive_start", { parent }),
   receiveStatus: () => invoke<ReceiveStatus>("receive_status"),
   receiveStop: () => invoke<ReceiveStatus>("receive_stop"),
+  /** Asks GitHub for a newer oopz (decision 0011); null when this one is the newest. */
+  updateCheck: () => invoke<UpdateFound | null>("update_check"),
+  /** Installs what the last check found, after checking its signature, and restarts the app. */
+  updateInstall: (onProgress: (perMille: number) => void) =>
+    invoke<void>("update_install", { progress: progress(onProgress) }),
 };
+
+export interface UpdateFound {
+  version: string;
+}

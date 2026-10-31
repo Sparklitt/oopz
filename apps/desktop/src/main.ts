@@ -1,7 +1,7 @@
 // The oopz desktop UI: one screen per step, rendered from `state`. It only shows results and sends commands; the
 // work happens in Rust (crates/oopz-app). Text from files (names) is always set as text, never as HTML.
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, isAppError, type AppError, type BackupFile, type BuildInfo, type Hit, type Line, type MergeOutcome, type Missing, type ReceiveInfo, type ReceiveStatus, type Stats, type Summary } from "./api";
+import { api, isAppError, type AppError, type BackupFile, type BuildInfo, type Hit, type Line, type MergeOutcome, type Missing, type ReceiveInfo, type ReceiveStatus, type Stats, type Summary, type UpdateFound } from "./api";
 import { initialLang, strings, type Lang, type Strings } from "./i18n";
 
 type Work = "open" | "index";
@@ -223,9 +223,102 @@ function welcome(): Screen {
         }),
         h("span", {}, t.consent),
       ),
+      updatesSection(),
     ],
     actions: [h("button", { class: "primary", disabled: !state.consent, onclick: () => go("get") }, t.next)],
   };
+}
+
+// ---- updates (decision 0011): off unless switched on; nothing installs without a click ----
+
+const updates = {
+  auto: (() => {
+    try {
+      return localStorage.getItem("oopz.updates") === "on";
+    } catch {
+      return false;
+    }
+  })(),
+  status: "idle" as "idle" | "checking" | "none" | "found" | "installing" | "failed",
+  found: null as UpdateFound | null,
+  error: null as AppError | null,
+};
+let updateBar: HTMLProgressElement | null = null;
+
+function setAutoUpdates(on: boolean) {
+  updates.auto = on;
+  try {
+    localStorage.setItem("oopz.updates", on ? "on" : "off");
+  } catch {
+    // Storage blocked: the choice lasts until the app closes.
+  }
+  render();
+}
+
+async function checkUpdates() {
+  updates.status = "checking";
+  updates.error = null;
+  render();
+  try {
+    updates.found = await api.updateCheck();
+    updates.status = updates.found ? "found" : "none";
+  } catch (e) {
+    updates.error = isAppError(e) ? e : { code: "update", detail: String(e) };
+    updates.status = "failed";
+  }
+  render();
+}
+
+async function installUpdate() {
+  updates.status = "installing";
+  render();
+  try {
+    await api.updateInstall((perMille) => {
+      if (updateBar) updateBar.value = perMille;
+    });
+    // The app restarts itself on success: nothing to do here.
+  } catch (e) {
+    updates.error = isAppError(e) ? e : { code: "update", detail: String(e) };
+    updates.status = "failed";
+    render();
+  }
+}
+
+function updatesSection(): Node {
+  const s = updates.status;
+  const busy = s === "checking" || s === "installing";
+  let status: Child = null;
+  if (s === "checking") status = h("p", {}, t.updateChecking);
+  if (s === "none") status = h("p", { class: "ok" }, icon("check"), t.updateNone);
+  if (s === "failed" && updates.error)
+    status = h("div", { class: "error" }, icon("alert"), h("div", {}, t.errors.update, h("div", { class: "mono" }, updates.error.detail)));
+  if ((s === "found" || s === "installing") && updates.found) {
+    updateBar = s === "installing" ? h("progress", { max: "1000", "aria-label": t.updateInstalling }) : null;
+    status = h(
+      "div",
+      { class: "panel" },
+      h("p", {}, h("strong", {}, t.updateFound(updates.found.version))),
+      s === "found"
+        ? h("div", { class: "row" }, h("button", { class: "primary", onclick: installUpdate }, t.updateInstall))
+        : h("div", { class: "progress" }, h("p", {}, t.updateInstalling), updateBar),
+    );
+  }
+  return section(
+    t.updatesTitle,
+    h("p", { class: "hint" }, t.updatesLead),
+    h(
+      "div",
+      { class: "row" },
+      h(
+        "label",
+        { class: "check" },
+        h("input", { type: "checkbox", role: "switch", checked: updates.auto, onchange: (e) => setAutoUpdates((e.target as HTMLInputElement).checked) }),
+        h("span", {}, t.updatesAuto),
+      ),
+    ),
+    h("div", { class: "row" }, h("button", { class: "secondary", disabled: busy, onclick: checkUpdates }, t.updateCheck)),
+    h("div", { "aria-live": "polite" }, status),
+  );
 }
 
 async function listBackups(path: string) {
@@ -1030,3 +1123,4 @@ document.addEventListener("contextmenu", (e) => {
 });
 
 render();
+if (updates.auto) void checkUpdates();
