@@ -1,0 +1,26 @@
+[package]
+name = "oops-cli"
+description = "oops from a terminal: a person's own WhatsApp backups (decision 0007)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "oops"
+path = "src/main.rs"
+
+[dependencies]
+oops.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+jiff.workspace = true
+rpassword.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+oops = { workspace = true, features = ["fixtures"] }
+
+[lints]
+workspace = true

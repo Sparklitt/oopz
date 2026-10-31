@@ -1,0 +1,8 @@
+/target
+# Never commit a real backup, key or media: test with the synthetic fixtures only.
+*.crypt12
+*.crypt14
+*.crypt15
+*.key
+/Databases/
+/Media/

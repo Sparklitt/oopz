@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "AGPL-3.0-or-later"
+# Off until the first release is decided: `cargo publish` refuses while this is false.
+publish = false
+
+[workspace.dependencies]
+oops = { path = "crates/oops" }
+
+# docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
+aes-gcm = "0.11"
+hkdf = "0.13"
+sha2 = "0.11"
+prost = "0.14"
+zeroize = "1"
+rpassword = "7"
+hex = "0.4"
+flate2 = "1"
+# docs/decisions/0006: the backup footer (not for security) and a fresh IV.
+md-5 = "0.11"
+getrandom = "0.4"
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+jiff = "0.2"
+# SQLite built from source (FTS3/FTS5 included, as WhatsApp's tables need). oops never needs SQLCipher: the backup is
+# decrypted by crypt15.rs, not by SQLite.
+rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
+tempfile = "3"
+thiserror = "2"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+strip = "symbols"

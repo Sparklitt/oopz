@@ -1,0 +1,34 @@
+[package]
+name = "oops"
+description = "A person's own WhatsApp backups: open, inspect, merge a lost chat back (decision 0007)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# Synthetic WhatsApp backups for tests in this and other crates. Never real data.
+fixtures = ["dep:zip"]
+
+[dependencies]
+aes-gcm.workspace = true
+flate2.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hkdf.workspace = true
+md-5.workspace = true
+prost.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
+zip = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The fixtures are compiled for this crate's own tests too, without the feature (`cargo test -p oops`).
+zip.workspace = true
+
+[lints]
+workspace = true
