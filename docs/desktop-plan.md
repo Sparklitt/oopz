@@ -374,10 +374,14 @@ the person's messages and isn't encrypted. The app itself never needs a browser 
   copies named), check (counts, dates, masked chat list, SHA-256 of the original, soundness), merge into a new
   `oopz-result-N` folder with media (the original's hash checked before and after), the Wi-Fi receive page, the
   search index, search, stats, the chat viewer's pages. 14 unit tests, synthetic data only.
-- `apps/desktop`: the Tauri 2 shell (14 commands, 2 tests through the same state the commands use) and the web UI:
+- `apps/desktop`: the Tauri 2 shell (16 commands, 2 tests through the same state the commands use) and the web UI:
   Welcome → Get backup (folder, file, Wi-Fi QR with live progress) → Key (masked, cleared once sent, password panel)
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
-  on phone 2 (guided checklist) → Done. English and Spanish.
+  on phone 2 (guided checklist) → Done. English and Spanish. Laid out like a setup assistant: a sidebar of steps, content
+  on the page (no cards), bordered tiles only for choices, one action bar per screen (Back left, the main action
+  right); WCAG AA contrast in light and dark.
+- `.github/workflows/desktop-build.yml`: unsigned installers for the three systems, by hand, as run artifacts with
+  checksums; publishes nothing.
 - **Not yet**: group
   merges; restoring from an older own backup (0008); signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
@@ -447,5 +451,5 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
 3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export (done).
-4. Release builds and signed installers (decision on publishing).
+4. Release builds (unsigned, by hand: done) and signed installers (decision on publishing).
 5. Android (Tauri 2 mobile), the same `oopz-app`.
