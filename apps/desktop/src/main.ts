@@ -292,6 +292,7 @@ function key(): Child[] {
   const count = h("span", {}, `0/64 ${t.keyDigits}`);
   const input = h("input", {
     class: "key",
+    id: "key-input",
     type: "password",
     autocomplete: "off",
     spellcheck: "false",
@@ -319,7 +320,7 @@ function key(): Child[] {
     h(
       "div",
       { class: "card" },
-      h("label", {}, `${t.keyLabel} `, h("strong", {}, f.name)),
+      h("label", { for: "key-input" }, `${t.keyLabel} `, h("strong", {}, f.name)),
       h("form", { onsubmit: (e) => { e.preventDefault(); void submit(); } }, input),
       h("p", {}, count),
       h("p", {}, t.keyNever),
@@ -644,7 +645,13 @@ function merge(): Child[] {
   if (!targetChats.some(([n]) => n === m.targetChat)) m.targetChat = targetChats[0]?.[0] ?? 0;
   const names: [number, string][] = backups.map((b) => [b.id, `${b.name} (${fmt(b.messages)} ${t.messages})`]);
   const keyInput = h("input", { class: "key", type: "password", autocomplete: "off", spellcheck: "false", "aria-label": t.targetKey });
-  const field = (label: string, ...control: Node[]) => h("div", { class: "card" }, h("label", {}, h("strong", {}, label)), ...control);
+  // Each label names its first control, so a click on it (or a screen reader) reaches the right one.
+  const field = (label: string, ...control: Node[]) => {
+    const first = control[0];
+    const labelable = first instanceof HTMLInputElement || first instanceof HTMLSelectElement;
+    if (labelable && !first.id) first.id = `field-${label.replace(/\W+/g, "-")}`;
+    return h("div", { class: "card" }, h("label", labelable ? { for: first.id } : {}, h("strong", {}, label)), ...control);
+  };
   const folderField = (label: string, value: string, set: (v: string) => void, optional: boolean) =>
     field(
       label,
@@ -713,8 +720,8 @@ function merge(): Child[] {
     h(
       "div",
       { class: "row" },
-      h("button", { class: "ghost", onclick: () => go("check") }, t.back),
       h("button", { class: "primary", disabled: state.busy || !m.out || !m.sourceChat || !m.targetChat || m.source === m.target, onclick: () => void runMerge() }, t.runMerge),
+      h("button", { class: "ghost", onclick: () => go("check") }, t.back),
       o && h("button", { class: "primary", onclick: () => go("phone2") }, t.toPhone2),
     ),
   ];
@@ -782,7 +789,7 @@ function render() {
   document.documentElement.lang = state.lang;
   const nav = document.getElementById("steps")!;
   const at = STEPS.indexOf(state.step);
-  nav.replaceChildren(...t.steps.map((name, i) => h("span", { class: i === at ? "on" : i < at ? "past" : "" }, name)));
+  nav.replaceChildren(...t.steps.map((name, i) => h("span", { class: i === at ? "on" : i < at ? "past" : "", "aria-current": i === at ? "step" : undefined }, name)));
   document.getElementById("lang")!.textContent = state.lang === "en" ? "ES" : "EN";
   document.getElementById("app")!.replaceChildren(...SCREENS[state.step]().filter((n): n is Node => !!n));
 }
