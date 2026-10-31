@@ -385,10 +385,12 @@ the person's messages and isn't encrypted. The app itself never needs a browser 
 - `.github/workflows/desktop-build.yml`: unsigned installers for the three systems, by hand, as run artifacts with
   checksums; publishes nothing.
 - **Not yet**: group
-  merges; restoring from an older own backup (0008); signed installers and release builds; Android.
+  merges; restoring from an older own backup (0008); signed installers (0010); Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
 - **Verified by hand**: every screen clicked through on Linux (WSLg, driven over WebDriver with `tauri-driver`) with the
-  synthetic fixtures, Welcome to Done. Not yet on Windows or macOS (their installers build: "Desktop installers").
+  synthetic fixtures, Welcome to Done; and on Windows 11 (the installer from "Desktop installers", driven over WebView2's
+  debugging port). Not yet on macOS. On closing, the app wipes what it decrypted (Tauri doesn't drop its state on
+  exit, so `AppState::close` runs on the exit event).
 
 ## 10. Android later
 
@@ -450,8 +452,8 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 ## 12. Milestones
 
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
-2. Click through on Windows, macOS and Linux with the synthetic fixtures (Linux: done); progress bars (done); free-space checks (done); the
+2. Click through on Windows, macOS and Linux with the synthetic fixtures (Linux and Windows: done); progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
 3. "What's missing" between two backups (done); restore from an older own backup (0008); the HTML export (done).
-4. Release builds (unsigned, by hand: done) and signed installers (decision on publishing).
+4. Release builds (unsigned, by hand: done); publishing decided (0010: unsigned, draft GitHub Releases from a tag).
 5. Android (Tauri 2 mobile), the same `oopz-app`.

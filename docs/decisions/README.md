@@ -9,6 +9,7 @@ Why oopz is the way it is. Numbers are kept from the hilo project, where oopz be
 - [0008](0008-restore-a-chat-from-an-older-own-backup.md): restoring from an older backup of one's own (proposed).
 - [0009](0009-a-desktop-app-with-tauri.md): the desktop app with Tauri 2, its Wi-Fi receive page and search
   ([plan](../desktop-plan.md)).
+- [0010](0010-unsigned-installers-on-github-releases.md): the first releases, unsigned installers on GitHub Releases.
 
 Code comments also cite hilo's decision 0034 (WhatsApp groups and sticker packs). What it settled for oopz: a chat's
 names are read from `wa.db` only for the jid asked for (point 6, `contacts.rs`), and the synthetic fixtures include a

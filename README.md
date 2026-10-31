@@ -56,7 +56,23 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 > - **Keys** are read from a hidden prompt (or one line of stdin per key, `oopz … < keyfile`), never from an argument
 >   or an environment variable, and wiped from memory after use.
 
-## Quick start
+## Install
+
+The desktop app: download the installer for your system from the
+[latest release](https://github.com/Sparklitt/oopz/releases/latest).
+
+- **Windows**: `oopz_<version>_x64-setup.exe` (or the `.msi`). It isn't signed yet, so SmartScreen says "Windows
+  protected your PC": choose **More info › Run anyway**.
+- **macOS** (Apple silicon and Intel): `oopz_<version>_universal.dmg`. It isn't signed or notarized yet: drag oopz to
+  Applications and open it once; when macOS says it can't check it, go to **System Settings › Privacy & Security** and
+  choose **Open Anyway**.
+- **Linux**: `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) or `.AppImage` (any; make it executable).
+
+To check a download is the one built here from this source, compare its hash with the release's `SHA256SUMS.txt`
+(`sha256sum <file>`, or `Get-FileHash <file>` in PowerShell) and verify its provenance with the GitHub CLI:
+`gh attestation verify <file> --repo Sparklitt/oopz`.
+
+## Quick start (command line)
 
 You need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C compiler (SQLite is built from source).
 
