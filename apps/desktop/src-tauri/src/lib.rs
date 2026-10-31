@@ -34,6 +34,8 @@ pub struct ReceiveInfo {
     pub url: String,
     pub qr_svg: String,
     pub dest: PathBuf,
+    /// Bytes free where the files go: a Media zip can be tens of GB.
+    pub free: u64,
 }
 
 /// The merge form, as the UI sends it.
@@ -103,7 +105,8 @@ impl AppState {
             .find(|p| !p.exists())
             .ok_or_else(|| AppError::new("exists", "too many oopz-received folders here; choose another folder"))?;
         let rx = Receiver::start(&dest, ip, RECEIVE_IDLE)?;
-        let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest };
+        let free = session::free_space(&dest)?;
+        let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest, free };
         *slot = Some(rx);
         Ok(info)
     }

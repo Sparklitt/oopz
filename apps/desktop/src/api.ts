@@ -51,6 +51,8 @@ export interface ReceiveInfo {
   url: string;
   qr_svg: string;
   dest: string;
+  /** Bytes free where the files go. */
+  free: number;
 }
 
 export interface ReceiveStatus {

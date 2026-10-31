@@ -269,7 +269,7 @@ own key, laid out like WhatsApp's folder. The guided screen (a checklist the per
 |---|---|
 | Wrong key | "This key doesn't open this backup… or the file is incomplete"; nothing else is tried; the key is never shown back. Tested (`check_names_a_wrong_key_a_bad_key_and_damage`). |
 | Truncated or corrupt backup | AES-GCM fails: the same message plus "copy it again and compare its size with the phone's". A file that opens but whose database fails SQLite's quick check is shown as opened-but-damaged with SQLite's (structural) message; the app suggests an older dated backup. Tested with a half file. |
-| Very large media folders, low disk | Media is copied file by file, streamed, never loaded whole; only the files the merge needs are copied. A write error stops with "disk full, cable unplugged, no permission?". The Wi-Fi page answers 507 when the disk is full and deletes the partial file. Planned: show the space needed vs free before merging and before receiving. |
+| Very large media folders, low disk | Media is copied file by file, streamed, never loaded whole; only the files the merge needs are copied. A write error stops with "disk full, cable unplugged, no permission?". The Wi-Fi page answers 507 when the disk is full and deletes the partial file. Free space is checked first: a merge needs its exact size (the result and the media it copies), a check about four times the backup in the app's cache (decrypted copy and index, an estimate); short of it, nothing is written (`no_space`). The Wi-Fi screen shows the space free where files go. |
 | Windows MTP timeouts | Section 4.1: copy Databases first, Media by subfolder or as a zip, or use a stick or the Wi-Fi page. Incomplete copies are flagged in the file list. |
 | Schema/version differences | oopz detects the schema and reads optional columns only if present (decision 0006); the index copies only columns that exist (missing ones become empty); the merge copies by column name and refuses, writing nothing, if a check fails. Unknown types show as "#code" in stats. `oopz tables` helps report a new version (structure only). |
 | Duplicate messages across two backups | Matched by WhatsApp's message id (`key_id`), never by time or text: "already there" are skipped, only missing ones are added. |
@@ -368,12 +368,12 @@ needs a browser tab.
 - `crates/oopz-app`: find backups (folder, `Databases/` subfolder or file; current first; crypt14/12 and incomplete
   copies named), check (counts, dates, masked chat list, SHA-256 of the original, soundness), merge into a new
   `oopz-result-N` folder with media (the original's hash checked before and after), the Wi-Fi receive page, the
-  search index, search, stats, the chat viewer's pages. 13 unit tests, synthetic data only.
+  search index, search, stats, the chat viewer's pages. 14 unit tests, synthetic data only.
 - `apps/desktop`: the Tauri 2 shell (14 commands, 2 tests through the same state the commands use) and the web UI:
   Welcome → Get backup (folder, file, Wi-Fi QR with live progress) → Key (masked, cleared once sent, password panel)
   → Check → Explore (stats charts, search as you type, virtualized viewer) → Merge (calls the library's merge) → Put
   on phone 2 (guided checklist) → Done. English and Spanish.
-- **Not yet**: free-space checks; the "what's missing" comparison; group
+- **Not yet**: the "what's missing" comparison; group
   merges; restoring from an older own backup (0008); the HTML export; signed installers and release builds; Android.
   The phone-2 screen is guidance only: oopz doesn't touch the phone.
 - **Not yet verified by hand**: the window itself (the build, the commands and the web UI's types are checked; the
@@ -439,7 +439,7 @@ signing (Windows Authenticode, Apple notarization) needs certificates and is lef
 ## 12. Milestones
 
 1. **Done (this version):** the core flow end to end, Wi-Fi receive, search, stats, viewer, guided screens.
-2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks; the
+2. Click through on Windows, macOS and Linux with the synthetic fixtures; progress bars (done); free-space checks (done); the
    index build in the background (done: it runs without holding the session, so other screens stay usable); a CI job for the shell and the UI (done).
 3. "What's missing" between two backups; restore from an older own backup (0008); the HTML export.
 4. Release builds and signed installers (decision on publishing).

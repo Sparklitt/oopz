@@ -212,6 +212,7 @@ function receivePanel(info: ReceiveInfo, status: ReceiveStatus): Node {
     status.running && qr,
     status.running && h("p", {}, t.wifiOr, " ", h("code", {}, info.url)),
     status.running && h("p", { class: "note" }, t.wifiWarn),
+    status.running && h("p", {}, `${t.wifiFree}: ${mb(info.free)}`),
     cur && h("div", {}, `${t.wifiReceiving}: `, cur.name, h("progress", { max: String(cur.total || 1), value: String(cur.done) })),
     status.files.length > 0 &&
       h("div", {}, h("strong", {}, t.wifiReceived), h("ul", {}, ...status.files.map((f) => h("li", {}, `${f.name} · ${mb(f.bytes)}`)))),

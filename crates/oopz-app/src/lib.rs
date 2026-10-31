@@ -17,7 +17,7 @@ pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Session, Summ
 #[error("{detail}")]
 pub struct AppError {
     /// `key_format`, `wrong_key`, `not_crypt15`, `crypt14`, `damaged`, `unsupported`, `merge_check`, `changed`,
-    /// `exists`, `io`, `not_found`, `network`.
+    /// `exists`, `io`, `not_found`, `network`, `no_space`.
     pub code: &'static str,
     pub detail: String,
 }

@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 oopz.workspace = true
+fs4.workspace = true
 getrandom.workspace = true
 hex.workspace = true
 qrcode.workspace = true

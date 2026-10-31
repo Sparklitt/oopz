@@ -35,6 +35,7 @@ const en = {
   wifiWarn:
     "Use your own home Wi-Fi. Backups are encrypted, but photos and videos are not: for Media, a USB cable is safer.",
   wifiReceiving: "Receiving",
+  wifiFree: "Free space where the files go",
   wifiReceived: "Received (size checked)",
   wifiStop: "Stop receiving",
   wifiStopped: {
@@ -179,6 +180,7 @@ const en = {
     io: "A file couldn't be read or written (disk full, cable unplugged, no permission?):",
     not_found: "Nothing found:",
     network: "The Wi-Fi page couldn't start:",
+    no_space: "There isn't enough free space on the disk; nothing was written. Free some space or choose another folder:",
   } as Record<string, string>,
 };
 
@@ -219,6 +221,7 @@ const es: Strings = {
   wifiWarn:
     "Usa el Wi-Fi de tu casa. Las copias van cifradas, pero las fotos y vídeos no: para Media, el cable USB es más seguro.",
   wifiReceiving: "Recibiendo",
+  wifiFree: "Espacio libre donde se guardan",
   wifiReceived: "Recibido (tamaño comprobado)",
   wifiStop: "Dejar de recibir",
   wifiStopped: {
@@ -363,6 +366,7 @@ const es: Strings = {
     io: "No se pudo leer o escribir un archivo (¿disco lleno, cable desconectado, sin permiso?):",
     not_found: "No se encontró nada:",
     network: "La página Wi-Fi no pudo arrancar:",
+    no_space: "No hay espacio libre suficiente en el disco; no se ha escrito nada. Libera espacio o elige otra carpeta:",
   },
 };
 

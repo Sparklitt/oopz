@@ -70,6 +70,25 @@ fn looks_like_crypt15(path: &Path) -> bool {
     fs::File::open(path).and_then(|f| f.take(512).read_to_end(&mut head)).is_ok() && oopz::crypt15::looks_like(&head)
 }
 
+/// Bytes free for this user on the disk holding `path` (or its nearest existing parent).
+pub fn free_space(path: &Path) -> Result<u64> {
+    let existing = path.ancestors().find(|p| p.exists()).unwrap_or(path);
+    fs4::available_space(existing).map_err(|e| AppError::io(format!("reading the free space at {}", path.display()), e))
+}
+
+/// Fails with `no_space`, writing nothing, when `need` bytes don't fit at `path`.
+fn ensure_space(path: &Path, need: u64) -> Result<()> {
+    let free = free_space(path)?;
+    if free < need {
+        let mb = |b: u64| b.div_ceil(1_000_000);
+        return Err(AppError::new(
+            "no_space",
+            format!("needs about {} MB at {}, {} MB free", mb(need), path.display(), mb(free)),
+        ));
+    }
+    Ok(())
+}
+
 /// SHA-256 of a file, streamed, as lowercase hex: to show that an original is unchanged.
 pub fn sha256_file(path: &Path) -> Result<String> {
     sha256_file_with(path, &mut |_| {})
@@ -204,6 +223,9 @@ impl Session {
     ) -> Result<Summary> {
         let key = Key::from_hex(key_text)?;
         let bytes = fs::metadata(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?.len();
+        // The decrypted database is larger than the compressed backup, and the search index comes next to it: about
+        // four times the backup in all (an estimate; WhatsApp's databases compress about 2-3 times).
+        ensure_space(tmp, 4 * bytes)?;
         let total = 4 * bytes.max(1);
         let sha256 = sha256_file_with(path, &mut |done| progress(done.min(bytes), total))?;
         let backup = Backup::open_in_with(path, &key, tmp, &mut |done, of| {
@@ -350,6 +372,17 @@ impl Session {
         .run()?;
         drop(original);
 
+        // The exact size: the merged backup and the media files it needs (those the source folder has).
+        let media_bytes: u64 = req.media.map_or(0, |dir| {
+            merged
+                .media
+                .iter()
+                .filter_map(|f| oopz::media_relative(&f.from))
+                .filter_map(|rel| fs::metadata(dir.join(rel)).ok())
+                .map(|m| m.len())
+                .sum()
+        });
+        ensure_space(req.out_parent, merged.backup.len() as u64 + media_bytes)?;
         let folder = new_folder(req.out_parent)?;
         let databases = folder.join("Databases");
         fs::create_dir(&databases).map_err(|e| AppError::io(format!("creating {}", databases.display()), e))?;
@@ -453,6 +486,14 @@ mod tests {
         assert!(seen.windows(2).all(|w| w[0].0 <= w[1].0 && w[0].1 == w[1].1), "{seen:?}");
         assert!(seen.iter().all(|&(done, of)| done <= of));
         assert_eq!(seen.last().unwrap().0, total, "{seen:?}");
+    }
+
+    #[test]
+    fn free_space_reads_through_missing_folders_and_refuses_what_wont_fit() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(free_space(&tmp.path().join("not/yet")).unwrap() > 0);
+        assert!(ensure_space(tmp.path(), 1).is_ok());
+        assert_eq!(ensure_space(tmp.path(), u64::MAX).unwrap_err().code, "no_space");
     }
 
     #[test]

@@ -34,7 +34,7 @@ with the screens, the ways to move files and every edge case, is [docs/desktop-p
    app.
 
 New crates, none cryptographic: `serde` (results for the UI), `tiny_http` (the receive page), `qrcode` (its QR code,
-SVG only), in `oopz-app`; `tauri`, `tauri-build`, `tauri-plugin-dialog` (file and folder pickers) in the shell.
+SVG only), `fs4` (free disk space before writing a decrypted copy or a merge; added 2026-10-31), in `oopz-app`; `tauri`, `tauri-build`, `tauri-plugin-dialog` (file and folder pickers) in the shell.
 
 ## Consequences
 
