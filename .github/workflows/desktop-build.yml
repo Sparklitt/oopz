@@ -102,8 +102,11 @@ jobs:
       - name: Notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # The CHANGELOG's section for this version, without its heading.
-          awk -v h="## [$version]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
+          # The CHANGELOG's section for this version, without its heading, its wrapped lines joined (release notes
+          # keep every line break).
+          awk -v h="## [$version]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md \
+            | awk 'NF == 0 { if (p != "") print p; p = ""; print; next } /^(- |#)/ { if (p != "") print p; p = $0; next }
+                   { sub(/^ +/, ""); p = (p == "" ? $0 : p " " $0) } END { if (p != "") print p }' > notes.md
           test -s notes.md
       - name: The updater's latest.json
         working-directory: out
