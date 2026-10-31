@@ -1,6 +1,5 @@
 use std::fs;
 
-use md5::Digest as _;
 use rusqlite::Connection;
 
 use super::*;
