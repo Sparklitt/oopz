@@ -34,15 +34,15 @@ jobs:
       run:
         working-directory: apps/desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - if: matrix.name == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: apps/desktop/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -76,7 +76,7 @@ jobs:
           fi
           ls -la
           if command -v sha256sum >/dev/null; then sha256sum * > SHA256SUMS-${{ matrix.name }}.txt; else shasum -a 256 * > SHA256SUMS-${{ matrix.name }}.txt; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: oopz-desktop-${{ matrix.name }}
           path: out/
@@ -91,10 +91,10 @@ jobs:
       id-token: write # signing the provenance
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: The tag is the app's version
         run: test "${GITHUB_REF_NAME#v}" = "$(jq -r .version apps/desktop/src-tauri/tauri.conf.json)"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: oopz-desktop-*
           path: out
@@ -139,7 +139,7 @@ jobs:
           rm SHA256SUMS-*.txt
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: out/*
       - name: Draft release
