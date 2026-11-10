@@ -164,13 +164,11 @@ fn check_stats_search_export_missing_print_counts_only() {
 
     let pages = fx.dir.path().join("pages");
     std::fs::create_dir(&pages).unwrap();
-    let export = oopz(
-        &["export", "--backup", source, "--chat", "1", "--out-dir", pages.to_str().unwrap(), "--lang", "es"],
-        Some(KEY_HEX),
-    );
+    let export =
+        oopz(&["export", "--backup", source, "--chat", "1", "--out-dir", pages.to_str().unwrap()], Some(KEY_HEX));
     assert!(export.status.success(), "{}", text(&export));
     let page = std::fs::read_to_string(pages.join("oopz-export-1.html")).unwrap();
-    assert!(page.contains("<html lang=\"es\">") && page.contains("Hola Ben"), "the file has the messages");
+    assert!(page.contains("<html lang=\"en\">") && page.contains("Hola Ben"), "the file has the messages");
 
     let missing = oopz(
         &["missing", "--a", source, "--chat-a", "1", "--b", target, "--chat-b", "2"],

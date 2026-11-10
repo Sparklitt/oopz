@@ -149,7 +149,11 @@ fn merged_letter_without_media_or_cover() {
         media: MediaMode::None,
         cover: false,
         contents: false,
-        base: oopz_export::Options { order: Order::Time, lang: "es".into(), ..opts().base },
+        base: oopz_export::Options {
+            order: Order::Time,
+            words: oopz_export::Words { lang: "es".into(), ..Default::default() },
+            ..opts().base
+        },
         ..opts()
     };
     let w = export_pdf(&lib, &all(), &o, dir.path(), &mut |_, _| true).unwrap();

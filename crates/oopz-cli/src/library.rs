@@ -311,9 +311,6 @@ enum LibCommand {
         /// An IANA time zone (Europe/Madrid); this computer's otherwise.
         #[arg(long)]
         tz: Option<String>,
-        /// en or es.
-        #[arg(long, default_value = "en")]
-        lang: String,
         #[arg(long)]
         title: Option<String>,
         /// Leave out system lines (joined, changed the subject…).
@@ -638,7 +635,6 @@ pub fn run(lib_args: Lib) -> Result<()> {
             pick,
             order,
             tz,
-            lang,
             title,
             skip_system,
             page,
@@ -647,7 +643,6 @@ pub fn run(lib_args: Lib) -> Result<()> {
             no_contents,
             font,
         } => {
-            ensure!(lang == "en" || lang == "es", "--lang is en or es");
             let plain = match format.as_str() {
                 "pdf" => None,
                 code => Some(oopz_export::Format::from_code(code).with_context(|| {
@@ -661,7 +656,8 @@ pub fn run(lib_args: Lib) -> Result<()> {
                     OrderArg::Time => Order::Time,
                 },
                 time_zone: tz,
-                lang,
+                // The app passes its own language's words; the CLI writes English.
+                words: oopz_export::Words::default(),
                 title,
                 skip_system,
             };

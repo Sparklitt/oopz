@@ -120,9 +120,6 @@ enum Command {
         /// A folder; a new `oopz-export-N.html` is made in it.
         #[arg(long)]
         out_dir: PathBuf,
-        /// The page's language: en or es.
-        #[arg(long, default_value = "en")]
-        lang: String,
     },
     /// What's missing between two backups' copies of the same chat, matched by WhatsApp's message ids. Asks for the
     /// first backup's key, then the second's.
@@ -388,14 +385,13 @@ fn run(cli: Cli) -> Result<()> {
                 None => println!("chat {chat} has no messages"),
             }
         }
-        Command::Export { backup, chat, out_dir, lang } => {
-            anyhow::ensure!(lang == "en" || lang == "es", "--lang is en or es");
+        Command::Export { backup, chat, out_dir } => {
             let id = open.indexed(&backup)?;
             let heading = match chat {
                 Some(n) => format!("chat {n}"),
-                None => if lang == "es" { "toda la copia" } else { "the whole backup" }.to_owned(),
+                None => "the whole backup".to_owned(),
             };
-            let page = open.session.export(id, chat, &Labels::builtin(&lang, &heading), &out_dir)?;
+            let page = open.session.export(id, chat, &Labels::english(&heading), &out_dir)?;
             println!("saved: {}", page.display());
             println!("this file holds message text and isn't encrypted: keep it private, delete it when done");
         }

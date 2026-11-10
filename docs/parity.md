@@ -17,7 +17,7 @@ names (`oopz export`), or prints as counts and positions.
 | `position_at` | `oopz jump` | `Session::position_at` |
 | `thumbnail` | `oopz thumbnail` (to a file) | `Session::thumbnail` |
 | `chat_len`, `chat_lines` | `oopz export --chat` (the chat's text, to a file) | `Session::lines` |
-| `export_page` | `oopz export` | `Session::export` (the CLI's words: `Labels::builtin`) |
+| `export_page` | `oopz export` | `Session::export` (the CLI's words, English: `Labels::english`; the app sends its own) |
 | `missing` | `oopz missing` | `Session::missing` |
 | `merge_chat` | `oopz restore` | `Session::merge` |
 | `receive_start`, `receive_status`, `receive_stop` | `oopz receive` | `receive::start_in` |

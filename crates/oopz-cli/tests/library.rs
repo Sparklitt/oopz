@@ -143,23 +143,10 @@ fn every_lib_command_on_invented_exports_and_a_backup() {
     }
     let w = ok(
         lib,
-        &[
-            "export",
-            "--format",
-            "txt",
-            "--app",
-            "telegram",
-            "--order",
-            "time",
-            "--tz",
-            "UTC",
-            "--lang",
-            "es",
-            "--out-dir",
-        ]
-        .into_iter()
-        .chain([out.to_str().unwrap()])
-        .collect::<Vec<_>>(),
+        &["export", "--format", "txt", "--app", "telegram", "--order", "time", "--tz", "UTC", "--out-dir"]
+            .into_iter()
+            .chain([out.to_str().unwrap()])
+            .collect::<Vec<_>>(),
     );
     assert!(w.contains(&format!("{telegram_n} messages")), "{w}");
     assert!(fails(lib, &["export", "--format", "docx", "--out-dir", out.to_str().unwrap()]).contains("--format"));

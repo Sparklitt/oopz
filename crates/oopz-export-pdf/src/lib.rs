@@ -1,8 +1,8 @@
 //! PDF exports of a selection (decision 0017): a cover, contents, one chapter per conversation or one merged
-//! timeline, photos as thumbnails or not at all, A4 or Letter, in the person's language and time zone. Text is
-//! shaped (joined scripts, combining marks), laid out right to left where it is (the Unicode bidirectional
-//! algorithm), and every character goes to a font that has it, colour emoji included. The fonts are the system's:
-//! none ships with oopz.
+//! timeline, photos as thumbnails or not at all, A4 or Letter, in the words the caller passes (the app's language)
+//! and the person's time zone. Text is shaped (joined scripts, combining marks), laid out right to left where it is
+//! (the Unicode bidirectional algorithm), and every character goes to a font that has it, colour emoji included.
+//! The fonts are the system's: none ships with oopz.
 
 use std::collections::HashMap;
 use std::fs;
@@ -433,19 +433,6 @@ fn thumbnail(root: Option<&Path>, rel: &str) -> Option<(krilla::image::Image, f3
     Some((image, w as f32 * scale, h as f32 * scale))
 }
 
-struct Labels {
-    contents: &'static str,
-    messages: &'static str,
-}
-
-fn labels(lang: &str) -> Labels {
-    if lang == "es" {
-        Labels { contents: "Contenido", messages: "mensajes" }
-    } else {
-        Labels { contents: "Contents", messages: "messages" }
-    }
-}
-
 /// Lays out the whole document into `w` (a dry run when it has no document).
 fn layout(
     w: &mut Writer<'_>,
@@ -456,10 +443,9 @@ fn layout(
     chapter_pages: &[(String, usize, f32)],
     progress: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<u64> {
-    let lang = opts.base.lang.as_str();
+    let words = &opts.base.words;
     let clock = oopz_export::Clock::new(opts.base.time_zone.as_deref())?;
-    let l = labels(lang);
-    let (note, exported) = oopz_export::note(lang);
+    let (note, exported) = oopz_export::note(words);
     let title = opts.base.title.clone().unwrap_or_else(|| "oopz".into());
     w.footer = title.clone();
     let mut roots: HashMap<i64, Option<PathBuf>> = HashMap::new();
@@ -474,7 +460,7 @@ fn layout(
             clock.time(rows.first().and_then(|r| r.time_ms), rows.first().is_some_and(|r| r.wall_clock)),
             clock.time(rows.last().and_then(|r| r.time_ms), rows.last().is_some_and(|r| r.wall_clock)),
             ids.len(),
-            l.messages
+            words.messages
         );
         w.text(&span, BODY, MUTED, false, 0.0);
         w.gap(24.0);
@@ -482,7 +468,7 @@ fn layout(
     }
     if opts.contents && opts.base.order == Order::Conversation {
         w.new_page();
-        w.text(l.contents, HEADING, INK, true, 0.0);
+        w.text(&words.contents, HEADING, INK, true, 0.0);
         w.gap(8.0);
         for (name, page, _) in chapter_pages {
             w.text(&format!("{name} · {}", page + 1), BODY, INK, false, 0.0);
@@ -516,7 +502,7 @@ fn layout(
                 last_conv = Some(row.conversation);
                 last_day.clear();
             }
-            message(w, lib, row, &clock, lang, merged, (app, &conv), &replies, &mut last_day, opts, &mut roots)?;
+            message(w, lib, row, &clock, words, merged, (app, &conv), &replies, &mut last_day, opts, &mut roots)?;
             done += 1;
         }
         if !progress(done, total) {
@@ -533,7 +519,7 @@ fn message(
     lib: &Library,
     row: &MessageRow,
     clock: &oopz_export::Clock,
-    lang: &str,
+    words: &oopz_export::Words,
     merged: bool,
     (app, conv): (App, &str),
     replies: &HashMap<i64, String>,
@@ -548,12 +534,12 @@ fn message(
         w.text(&day, SMALL, MUTED, true, 0.0);
         *last_day = day;
     }
-    let mut head = format!("{} · {}", oopz_export::sender_label(row, lang), time.get(11..).unwrap_or_default());
+    let mut head = format!("{} · {}", oopz_export::sender_label(row, words), time.get(11..).unwrap_or_default());
     if merged {
         head = format!("{} · {conv} · {head}", app.name());
     }
     if row.message.edited {
-        head.push_str(if lang == "es" { " · editado" } else { " · edited" });
+        head.push_str(&format!(" · {}", words.edited));
     }
     w.need(SMALL * 1.4 + BODY * 1.4);
     let top = w.y;
@@ -562,7 +548,7 @@ fn message(
     if let Some(q) = row.reply.and_then(|r| replies.get(&r)) {
         w.text(&format!("↩ {q}"), SMALL, MUTED, false, indent + 6.0);
     }
-    let lines = oopz_export::row_lines(row, lang);
+    let lines = oopz_export::row_lines(row, words);
     let mut shown_photo = false;
     if opts.media == MediaMode::Thumbnails {
         for part in &row.message.parts {
@@ -688,10 +674,7 @@ pub fn export_pdf(
     doc.set_outline(outline);
     let title = opts.base.title.clone().unwrap_or_else(|| "oopz".into());
     doc.set_metadata(
-        krilla::metadata::Metadata::new()
-            .title(title)
-            .creator("oopz".into())
-            .language(if opts.base.lang == "es" { "es" } else { "en" }.into()),
+        krilla::metadata::Metadata::new().title(title).creator("oopz".into()).language(opts.base.words.lang.clone()),
     );
     let bytes = doc.finish().map_err(|e| Error::new("io", format!("making the PDF: {e:?}")))?;
     let (path, written) = oopz_export::write_new_file(out_dir, "pdf", "pdf", &bytes)?;

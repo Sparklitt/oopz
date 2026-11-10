@@ -1,6 +1,8 @@
 // What the UI needs from the backend, and the data it gets back. The shapes mirror crates/oopz-app's serialized
 // structs; tauri.ts maps each call to a Rust command (apps/desktop/src-tauri/src/lib.rs), mock.ts invents the data.
 
+import type { Strings } from "../i18n/en";
+
 export type BackupKind = "crypt15" | "crypt14" | "crypt12" | "not_crypt15";
 
 export interface BackupFile {
@@ -455,11 +457,18 @@ export interface LibStats {
 
 export type ExportFormat = "html" | "json" | "csv" | "txt" | "vcard" | "media-zip" | "pdf";
 
+/** A library export's words (oopz_export::Words), from the language files (src/lib/i18n/). */
+export type ExportWords = Strings["exportWords"] & {
+  /** A call's outcome and a notice with no text of its own, by code. */
+  outcomes: Record<string, string>;
+  events: Record<string, string>;
+};
+
 export interface ExportOptions {
   order: Order;
   /** An IANA zone; null for this device's. */
   time_zone: string | null;
-  lang: string;
+  words: ExportWords;
   title: string | null;
   skip_system: boolean;
   /** PDF only. */

@@ -558,8 +558,8 @@ pub fn lib_delete_selection(lib: State<'_, Lib>, id: i64) -> Result<(), AppError
 
 /// Writes a selection as `format` (`html`, `json`, `csv`, `txt`, `vcard`, `media-zip`, or `pdf` when this build has
 /// it) into a new file in `folder` (none: a private folder to save from). The options are the export's (order, time
-/// zone, language, title, leaving out notices) and a PDF's (page, thumbnails, cover, contents). Stops on
-/// `cancel_work`, leaving no file.
+/// zone, the words in the app's language, title, leaving out notices) and a PDF's (page, thumbnails, cover,
+/// contents). Stops on `cancel_work`, leaving no file.
 #[tauri::command(async)]
 pub fn lib_export(
     state: State<'_, AppState>,

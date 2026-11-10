@@ -56,7 +56,7 @@
     progress = null;
     try {
       const options = {
-        order, time_zone: null, lang: app.lang, title: title.trim() || null, skip_system: skipSystem,
+        order, time_zone: null, words: { ...t.exportWords, outcomes: l.outcomes, events: l.events }, title: title.trim() || null, skip_system: skipSystem,
         ...(format === "pdf" ? { page, media: thumbs ? ("thumbnails" as const) : ("none" as const), cover, contents } : {}),
       };
       done = await be().libExport(job.selection, format, options, folder, (p) => (progress = p));

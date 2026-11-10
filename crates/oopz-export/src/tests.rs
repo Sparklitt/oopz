@@ -59,6 +59,7 @@ fn setup() -> (tempfile::TempDir, Library) {
             msg("1", false, T0, vec![Part::text("<script>alert(1)</script> שלום \u{202E}evil")]),
             Message {
                 reply_to: Some("1".into()),
+                edited: true,
                 ..msg("2", true, T0 + 60_000, vec![Part::text("=HYPERLINK(\"x\")")])
             },
             msg(
@@ -223,9 +224,44 @@ fn a_stop_leaves_nothing_and_bad_requests_are_refused() {
 }
 
 #[test]
-fn spanish_words() {
+fn spanish_words_are_the_ones_passed_in() {
     let (dir, lib) = setup();
-    let es = Options { lang: "es".into(), ..utc() };
+    let words = Words {
+        lang: "es".into(),
+        me: "Tú".into(),
+        edited: "editado".into(),
+        deleted: "Se eliminó este mensaje".into(),
+        photo: "Foto".into(),
+        ..Default::default()
+    };
+    let es = Options { words, ..utc() };
     let html = read(&run(&lib, dir.path(), Format::Html, &es).path);
-    assert!(html.contains("lang=\"es\"") && html.contains("Se eliminó este mensaje"));
+    assert!(html.contains("lang=\"es\"") && html.contains("Se eliminó este mensaje") && html.contains(" · editado"));
+    let txt = read(&run(&lib, dir.path(), Format::Txt, &es).path);
+    assert!(txt.contains("Tú: =HYPERLINK") && txt.contains("(editado)") && txt.contains("[Foto · 5 B]"), "{txt}");
+}
+
+#[test]
+fn any_language_works() {
+    let (dir, lib) = setup();
+    let words = Words {
+        lang: "x-zorb".into(),
+        me: "Mimi".into(),
+        edited: "zorbed".into(),
+        photo: "Pikka".into(),
+        outcomes: [("missed".to_owned(), "zipped".to_owned())].into(),
+        events: [("group_created".to_owned(), "Bloop".to_owned())].into(),
+        ..Default::default()
+    };
+    let o = Options { words: words.clone(), ..utc() };
+    let txt = read(&run(&lib, dir.path(), Format::Txt, &o).path);
+    assert!(txt.contains("Mimi: =HYPERLINK") && txt.contains("(zorbed)") && txt.contains("[Pikka · 5 B]"), "{txt}");
+    assert!(read(&run(&lib, dir.path(), Format::Html, &o).path).contains("lang=\"x-zorb\""));
+    let call = Part::Call { video: false, outcome: m::CallOutcome::Missed, secs: None };
+    assert_eq!(part_lines(&call, &words), ["[Voice call · zipped]"]);
+    let notice = Part::System { event: m::Event::GroupCreated, text: None };
+    assert_eq!(part_lines(&notice, &words), ["— Bloop —"]);
+    // Words the app leaves out are English.
+    let partial: Options = serde_json::from_str(r#"{"words":{"me":"Mimi"}}"#).unwrap();
+    assert_eq!((partial.words.me.as_str(), partial.words.edited.as_str()), ("Mimi", "edited"));
 }

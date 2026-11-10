@@ -64,8 +64,8 @@ pub struct Options {
     pub order: Order,
     /// An IANA zone (`Europe/Madrid`); `None` for this computer's.
     pub time_zone: Option<String>,
-    /// `en` or `es`.
-    pub lang: String,
+    /// The words the export is written in.
+    pub words: Words,
     /// The document's title.
     pub title: Option<String>,
     /// Leave the apps' own notices out.
@@ -74,7 +74,13 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Options { order: Order::Conversation, time_zone: None, lang: "en".into(), title: None, skip_system: false }
+        Options {
+            order: Order::Conversation,
+            time_zone: None,
+            words: Words::default(),
+            title: None,
+            skip_system: false,
+        }
     }
 }
 
@@ -87,83 +93,132 @@ pub struct Written {
     pub missing_files: u64,
 }
 
-/// The export's own words.
-struct Words {
-    lang: &'static str,
-    me: &'static str,
-    note: &'static str,
-    exported: &'static str,
-    deleted: &'static str,
-    edited: &'static str,
-    forwarded: &'static str,
-    view_once: &'static str,
-    omitted: &'static str,
-    reply: &'static str,
-    votes: &'static str,
-    call: &'static str,
-    video_call: &'static str,
-    location: &'static str,
-    live: &'static str,
-    unknown: &'static str,
-    wall_clock: &'static str,
+/// The export's own words, from the caller (the app's language files; the CLI uses English, the default).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Words {
+    /// A BCP 47 code, for `<html lang>` and the PDF's language.
+    pub lang: String,
+    pub me: String,
+    pub note: String,
+    pub exported: String,
+    pub deleted: String,
+    pub edited: String,
+    pub forwarded: String,
+    pub view_once: String,
+    pub omitted: String,
+    pub reply: String,
+    pub votes: String,
+    pub call: String,
+    pub video_call: String,
+    pub location: String,
+    pub live: String,
+    pub unknown: String,
+    pub wall_clock: String,
+    pub photo: String,
+    pub video: String,
+    pub video_note: String,
+    pub gif: String,
+    pub sticker: String,
+    pub voice: String,
+    pub audio: String,
+    pub document: String,
+    /// The PDF's contents page.
+    pub contents: String,
+    pub messages: String,
+    /// A call's outcome by its code (`missed`), and an app notice with no text of its own by its event's code.
+    pub outcomes: BTreeMap<String, String>,
+    pub events: BTreeMap<String, String>,
 }
 
-const EN: Words = Words {
-    lang: "en",
-    me: "You",
-    note: "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.",
-    exported: "Exported with oopz",
-    deleted: "This message was deleted",
-    edited: "edited",
-    forwarded: "Forwarded",
-    view_once: "View once (not kept)",
-    omitted: "not included in the export",
-    reply: "Reply to",
-    votes: "votes",
-    call: "Voice call",
-    video_call: "Video call",
-    location: "Location",
-    live: "Live location",
-    unknown: "Something oopz can't show yet",
-    wall_clock: "Times as the phone showed them",
-};
+impl Default for Words {
+    fn default() -> Self {
+        Words {
+            lang: "en".into(),
+            me: "You".into(),
+            note: "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.".into(),
+            exported: "Exported with oopz".into(),
+            deleted: "This message was deleted".into(),
+            edited: "edited".into(),
+            forwarded: "Forwarded".into(),
+            view_once: "View once (not kept)".into(),
+            omitted: "not included in the export".into(),
+            reply: "Reply to".into(),
+            votes: "votes".into(),
+            call: "Voice call".into(),
+            video_call: "Video call".into(),
+            location: "Location".into(),
+            live: "Live location".into(),
+            unknown: "Something oopz can't show yet".into(),
+            wall_clock: "Times as the phone showed them".into(),
+            photo: "Photo".into(),
+            video: "Video".into(),
+            video_note: "Video note".into(),
+            gif: "GIF".into(),
+            sticker: "Sticker".into(),
+            voice: "Voice note".into(),
+            audio: "Audio".into(),
+            document: "Document".into(),
+            contents: "Contents".into(),
+            messages: "messages".into(),
+            outcomes: owned(&[
+                ("answered", "answered"),
+                ("missed", "missed"),
+                ("declined", "declined"),
+                ("cancelled", "cancelled"),
+                ("busy", "busy"),
+                ("failed", "failed"),
+                ("unknown", "result unknown"),
+            ]),
+            events: owned(&[
+                ("encryption", "Messages are end-to-end encrypted"),
+                ("security_code_changed", "Security code changed"),
+                ("number_changed", "Changed their number"),
+                ("group_created", "Group created"),
+                ("topic_created", "Topic created"),
+                ("renamed", "Name changed"),
+                ("description_changed", "Description changed"),
+                ("picture_changed", "Picture changed"),
+                ("member_added", "Someone was added"),
+                ("member_joined", "Someone joined"),
+                ("member_left", "Someone left"),
+                ("member_removed", "Someone was removed"),
+                ("admin_changed", "Admins changed"),
+                ("settings_changed", "Settings changed"),
+                ("disappearing", "Disappearing messages changed"),
+                ("pinned", "A message was pinned"),
+                ("blocked", "Blocked or unblocked"),
+                ("message_deleted", "A message was deleted"),
+                ("history_cleared", "History cleared"),
+                ("other", "Notice"),
+            ]),
+        }
+    }
+}
 
-const ES: Words = Words {
-    lang: "es",
-    me: "Tú",
-    note: "Este archivo contiene tus mensajes y no está cifrado: guárdalo en un lugar privado y bórralo cuando termines.",
-    exported: "Exportado con oopz",
-    deleted: "Se eliminó este mensaje",
-    edited: "editado",
-    forwarded: "Reenviado",
-    view_once: "Ver una vez (no se guarda)",
-    omitted: "no incluido en la exportación",
-    reply: "Respuesta a",
-    votes: "votos",
-    call: "Llamada de voz",
-    video_call: "Videollamada",
-    location: "Ubicación",
-    live: "Ubicación en tiempo real",
-    unknown: "Algo que oopz aún no sabe mostrar",
-    wall_clock: "Horas como las mostraba el teléfono",
-};
+fn owned(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+    pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
+}
 
-fn kind_word(kind: m::MediaKind, es: bool) -> &'static str {
-    use m::MediaKind as K;
-    match (kind, es) {
-        (K::Photo, false) => "Photo",
-        (K::Photo, true) => "Foto",
-        (K::Video, false) => "Video",
-        (K::Video, true) => "Vídeo",
-        (K::VideoNote, false) => "Video note",
-        (K::VideoNote, true) => "Videonota",
-        (K::Gif, _) => "GIF",
-        (K::Sticker, _) => "Sticker",
-        (K::Voice, false) => "Voice note",
-        (K::Voice, true) => "Nota de voz",
-        (K::Audio, _) => "Audio",
-        (K::Document, false) => "Document",
-        (K::Document, true) => "Documento",
+impl Words {
+    fn kind(&self, kind: m::MediaKind) -> &str {
+        use m::MediaKind as K;
+        match kind {
+            K::Photo => &self.photo,
+            K::Video => &self.video,
+            K::VideoNote => &self.video_note,
+            K::Gif => &self.gif,
+            K::Sticker => &self.sticker,
+            K::Voice => &self.voice,
+            K::Audio => &self.audio,
+            K::Document => &self.document,
+        }
+    }
+
+    /// The word for `value` (an enum's code) in `map`, else its code.
+    fn code_word(map: &BTreeMap<String, String>, value: impl Serialize) -> String {
+        let code = serde_json::to_value(value).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+        map.get(&code).cloned().unwrap_or(code)
     }
 }
 
@@ -312,12 +367,11 @@ fn size(bytes: u64) -> String {
 
 /// One line per part, as plain text (TXT, CSV's `text` column for non-text parts).
 fn part_lines(part: &Part, w: &Words) -> Vec<String> {
-    let es = w.lang == "es";
     match part {
         Part::Text { text } => vec![text.clone()],
         Part::Media(media) if media.view_once => vec![format!("[{}]", w.view_once)],
         Part::Media(media) => {
-            let mut facts = vec![kind_word(media.kind, es).to_owned()];
+            let mut facts = vec![w.kind(media.kind).to_owned()];
             if let Some(n) = &media.name {
                 facts.push(n.clone());
             }
@@ -335,7 +389,7 @@ fn part_lines(part: &Part, w: &Words) -> Vec<String> {
             lines
         }
         Part::Location { lat, lng, name, live } => {
-            let mut s = format!("[{}", if *live { w.live } else { w.location });
+            let mut s = format!("[{}", if *live { &w.live } else { &w.location });
             if let (Some(a), Some(b)) = (lat, lng) {
                 let _ = write!(s, " {a:.6}, {b:.6}");
             }
@@ -355,8 +409,8 @@ fn part_lines(part: &Part, w: &Words) -> Vec<String> {
             lines
         }
         Part::Call { video, outcome, secs } => {
-            let mut s = format!("[{}", if *video { w.video_call } else { w.call });
-            let _ = write!(s, " · {outcome:?}");
+            let mut s = format!("[{}", if *video { &w.video_call } else { &w.call });
+            let _ = write!(s, " · {}", Words::code_word(&w.outcomes, outcome));
             if let Some(secs) = secs {
                 let _ = write!(s, " · {}:{:02}", secs / 60, secs % 60);
             }
@@ -364,7 +418,9 @@ fn part_lines(part: &Part, w: &Words) -> Vec<String> {
         }
         // A link's address is already in the text it came with, or stands alone.
         Part::Link { url, title } => vec![title.as_ref().map_or_else(|| url.clone(), |t| format!("{t} <{url}>"))],
-        Part::System { text, event } => vec![format!("— {} —", text.clone().unwrap_or_else(|| format!("{event:?}")))],
+        Part::System { text, event } => {
+            vec![format!("— {} —", text.clone().unwrap_or_else(|| Words::code_word(&w.events, event)))]
+        }
         Part::Unknown { code, text } => {
             vec![format!("[{} #{code}]{}", w.unknown, text.as_ref().map_or(String::new(), |t| format!(" {t}")))]
         }
@@ -388,20 +444,19 @@ fn message_lines(row: &MessageRow, w: &Words) -> Vec<String> {
     lines
 }
 
-/// A message as lines of plain text (`lang` `en` or `es`), for other writers (the PDF).
-pub fn row_lines(row: &MessageRow, lang: &str) -> Vec<String> {
-    message_lines(row, if lang == "es" { &ES } else { &EN })
+/// A message as lines of plain text in `w`, for other writers (the PDF).
+pub fn row_lines(row: &MessageRow, w: &Words) -> Vec<String> {
+    message_lines(row, w)
 }
 
 /// "You", or the sender's name.
-pub fn sender_label(row: &MessageRow, lang: &str) -> String {
-    sender(row, if lang == "es" { &ES } else { &EN })
+pub fn sender_label(row: &MessageRow, w: &Words) -> String {
+    sender(row, w)
 }
 
-/// The warning every export carries, and "Exported with oopz", in `lang`.
-pub fn note(lang: &str) -> (&'static str, &'static str) {
-    let w = if lang == "es" { &ES } else { &EN };
-    (w.note, w.exported)
+/// The warning every export carries, and "Exported with oopz", in `w`.
+pub fn note(w: &Words) -> (&str, &str) {
+    (&w.note, &w.exported)
 }
 
 /// Conversation (app, name) by id.
@@ -429,7 +484,7 @@ pub fn export(
     out_dir: &Path,
     progress: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<Written> {
-    let w = if options.lang == "es" { &ES } else { &EN };
+    let w = &options.words;
     let clock = Clock::new(options.time_zone.as_deref())?;
     let ids = lib.selected(selection, options.order)?;
     if ids.is_empty() {

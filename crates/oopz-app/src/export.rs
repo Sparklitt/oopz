@@ -38,51 +38,46 @@ pub struct Labels {
 }
 
 impl Labels {
-    /// The page's words for `lang` (`en` or `es`; anything else is English), the same as the app's (`src/i18n.ts`),
-    /// for the CLI, which has no UI to send them. `heading` names what is exported.
-    pub fn builtin(lang: &str, heading: &str) -> Labels {
-        let es = lang == "es";
-        let t = |en: &str, sp: &str| if es { sp.to_owned() } else { en.to_owned() };
-        let kinds: &[(i64, &str, &str)] = &[
-            (0, "text", "texto"),
-            (1, "photo", "foto"),
-            (2, "audio / voice", "audio / voz"),
-            (3, "video", "vídeo"),
-            (4, "contact", "contacto"),
-            (5, "location", "ubicación"),
-            (7, "system", "sistema"),
-            (9, "document", "documento"),
-            (13, "GIF", "GIF"),
-            (15, "deleted", "eliminado"),
-            (16, "live location", "ubicación en tiempo real"),
-            (20, "sticker", "sticker"),
-            (42, "view once", "ver una vez"),
-            (46, "poll", "encuesta"),
-            (81, "video note", "videonota"),
-            (90, "call", "llamada"),
-            (99, "album", "álbum"),
+    /// The page's words in English, for the CLI, which has no UI to send them; the app sends its own, from its language
+    /// files (`apps/desktop/src/lib/i18n/`). `heading` names what is exported.
+    pub fn english(heading: &str) -> Labels {
+        let t = |en: &str| en.to_owned();
+        let kinds: &[(i64, &str)] = &[
+            (0, "text"),
+            (1, "photo"),
+            (2, "audio / voice"),
+            (3, "video"),
+            (4, "contact"),
+            (5, "location"),
+            (7, "system"),
+            (9, "document"),
+            (13, "GIF"),
+            (15, "deleted"),
+            (16, "live location"),
+            (20, "sticker"),
+            (42, "view once"),
+            (46, "poll"),
+            (81, "video note"),
+            (90, "call"),
+            (99, "album"),
         ];
         Labels {
-            lang: if es { "es" } else { "en" }.to_owned(),
+            lang: "en".to_owned(),
             heading: heading.to_owned(),
-            messages: t("messages", "mensajes"),
-            sent: t("sent by you", "enviados por ti"),
-            received: t("received", "recibidos"),
-            dates: t("first and last message", "primer y último mensaje"),
-            by_month: t("Messages per month", "Mensajes por mes"),
-            by_hour: t(
-                "Messages by hour of the day (this computer's time zone)",
-                "Mensajes por hora del día (zona horaria de este ordenador)",
-            ),
-            by_kind: t("By type", "Por tipo"),
-            audio_minutes: t("minutes of voice notes and audio", "minutos de notas de voz y audio"),
-            senders: t("Who writes most (ids masked)", "Quién escribe más (ids ocultos)"),
-            you: t("You", "Tú"),
+            messages: t("messages"),
+            sent: t("sent by you"),
+            received: t("received"),
+            dates: t("first and last message"),
+            by_month: t("Messages per month"),
+            by_hour: t("Messages by hour of the day (this computer's time zone)"),
+            by_kind: t("By type"),
+            audio_minutes: t("minutes of voice notes and audio"),
+            senders: t("Who writes most (ids masked)"),
+            you: t("You"),
             note: t(
                 "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.",
-                "Este archivo contiene tus mensajes y no está cifrado: guárdalo en un lugar privado y bórralo cuando termines.",
             ),
-            kinds: kinds.iter().map(|&(code, en, sp)| (code, t(en, sp))).collect(),
+            kinds: kinds.iter().map(|&(code, en)| (code, t(en))).collect(),
         }
     }
 }
