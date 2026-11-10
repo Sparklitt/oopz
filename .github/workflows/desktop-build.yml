@@ -140,6 +140,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          # Not the default "tools platform-tools": the old `tools` package is gone from current SDK repositories.
+          packages: platform-tools
       - name: NDK
         run: |
           sdkmanager --install "ndk;30.0.16248370" >/dev/null
