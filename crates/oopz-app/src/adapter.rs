@@ -330,3 +330,16 @@ mod tests {
         assert!(matches!(e, Error::NeedsSecret));
     }
 }
+
+#[cfg(test)]
+mod registry {
+    #[test]
+    fn every_adapter_once_with_a_distinct_id() {
+        let ids: Vec<&str> = crate::adapters().iter().map(|a| a.id()).collect();
+        let mut unique = ids.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), ids.len(), "{ids:?}");
+        assert_eq!(ids[0], "whatsapp-android");
+    }
+}

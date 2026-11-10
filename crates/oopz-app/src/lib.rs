@@ -12,6 +12,19 @@ pub mod receive;
 pub mod session;
 
 pub use index::Filter;
+
+/// Every adapter oopz has, in the order detection tries them (backups first, then the text exports). The CLI and the
+/// app import through this one list (docs/adapters/README.md).
+pub fn adapters() -> Vec<&'static dyn oopz_model::Adapter> {
+    vec![
+        &adapter::WhatsAppAdapter,
+        &oopz_whatsapp_export::WhatsAppExportAdapter,
+        &oopz_telegram_export::TelegramExportAdapter,
+        &oopz_sms_xml::SmsXmlAdapter,
+        &oopz_line_export::LineExportAdapter,
+        &oopz_viber_export::ViberExportAdapter,
+    ]
+}
 pub use receive::{ReceiveInfo, ReceiveStatus, Receiver};
 pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Missing, Session, Summary};
 

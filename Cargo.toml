@@ -19,6 +19,11 @@ oopz-model = { path = "crates/oopz-model" }
 oopz-core = { path = "crates/oopz-core" }
 oopz-export = { path = "crates/oopz-export" }
 oopz-export-pdf = { path = "crates/oopz-export-pdf" }
+oopz-whatsapp-export = { path = "crates/adapters/whatsapp-export" }
+oopz-telegram-export = { path = "crates/adapters/telegram-export" }
+oopz-sms-xml = { path = "crates/adapters/sms-xml" }
+oopz-line-export = { path = "crates/adapters/line-export" }
+oopz-viber-export = { path = "crates/adapters/viber-export" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"
