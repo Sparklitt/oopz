@@ -19,6 +19,7 @@
           ["compare", "compare", t.navCompare, true],
           ["restore", "restore", t.navRestore, true],
           ...(onPhone() ? [] : [["receive", "wifi", t.navReceive, true] as [View, IconName, string, boolean]]),
+          ["diagnostics", "fileCheck", t.navDiagnostics, has],
           ["settings", "settings", t.navSettings, true],
         ],
   );

@@ -4,7 +4,7 @@ import type { AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, R
 import { isAppError } from "./backend/types";
 import { initialLang, usePhoneWords, type Lang } from "./i18n";
 
-export type View = "add" | "receive" | "overview" | "chats" | "search" | "insights" | "compare" | "restore" | "phone" | "done" | "settings" | "backups" | "tools";
+export type View = "add" | "receive" | "overview" | "chats" | "search" | "insights" | "compare" | "restore" | "phone" | "done" | "settings" | "backups" | "tools" | "diagnostics";
 export type SheetName = "welcome" | "found" | "unlock" | "export" | "update";
 export type Theme = "system" | "light" | "dark";
 

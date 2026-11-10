@@ -6,6 +6,7 @@
   import AddBackup from "./lib/views/AddBackup.svelte";
   import Chats from "./lib/views/Chats.svelte";
   import Compare from "./lib/views/Compare.svelte";
+  import Diagnostics from "./lib/views/Diagnostics.svelte";
   import Done from "./lib/views/Done.svelte";
   import ExportSheet from "./lib/views/ExportSheet.svelte";
   import FoundSheet from "./lib/views/FoundSheet.svelte";
@@ -23,7 +24,7 @@
   let has = $derived(current() !== null);
   // Screens about one backup need one open; without it they show Add a backup.
   // No receiving over Wi-Fi on a phone.
-  let view = $derived((!has && ["overview", "chats", "search", "insights"].includes(app.view)) || (app.view === "receive" && onPhone()) ? "add" : app.view);
+  let view = $derived((!has && ["overview", "chats", "search", "insights", "diagnostics"].includes(app.view)) || (app.view === "receive" && onPhone()) ? "add" : app.view);
 
   $effect(() => {
     if (app.theme === "system") delete document.documentElement.dataset.theme;
@@ -62,6 +63,7 @@
       {:else if view === "phone"}<Phone />
       {:else if view === "done"}<Done />
       {:else if view === "settings"}<Settings />
+      {:else if view === "diagnostics"}<Diagnostics />
       {:else if view === "backups" || view === "tools"}<MobileMenu section={view} />
       {/if}
     {/key}

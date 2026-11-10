@@ -22,6 +22,7 @@
     ["compare", "compare", t.navCompare],
     ["restore", "restore", t.navRestore],
     ...(onPhone() ? [] : [["receive", "wifi", t.navReceive] as [View, IconName, string]]),
+    ["diagnostics", "fileCheck", t.navDiagnostics],
   ]);
 </script>
 

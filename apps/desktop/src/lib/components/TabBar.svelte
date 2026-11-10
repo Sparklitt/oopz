@@ -9,7 +9,7 @@
   const TAB_OF: Record<View, View> = {
     backups: "backups", add: "backups", overview: "backups", insights: "backups",
     chats: "chats", search: "search",
-    tools: "tools", receive: "tools", compare: "tools", restore: "tools", phone: "tools", done: "tools", settings: "tools",
+    tools: "tools", diagnostics: "tools", receive: "tools", compare: "tools", restore: "tools", phone: "tools", done: "tools", settings: "tools",
   };
   let at = $derived(TAB_OF[app.view]);
   let tabs = $derived<[View, IconName, string, boolean][]>([
