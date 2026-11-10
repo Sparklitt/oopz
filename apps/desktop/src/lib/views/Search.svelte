@@ -26,7 +26,7 @@
       const mine = ++seq;
       const query = app.query;
       const started = performance.now();
-      const found = await be().search(s.id, query, app.searchChat).catch(() => [] as Hit[]);
+      const found = await be().search(s.id, query, { chat: app.searchChat, kinds: [] }).catch(() => [] as Hit[]);
       if (mine !== seq) return; // A newer search has started.
       ms = Math.round(performance.now() - started);
       hits = found;

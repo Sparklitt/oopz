@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check:commands": "node scripts/check-commands.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

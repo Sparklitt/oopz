@@ -1,6 +1,6 @@
 // The app's state and the actions that change it. Keys are never kept here: each key field holds its own value
 // and empties it as soon as it is sent.
-import type { AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, ReceiveInfo, ReceiveStatus, Summary, UpdateFound } from "./backend/types";
+import type { AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, ReceiveInfo, ReceiveStatus, Step, Summary, UpdateFound } from "./backend/types";
 import { isAppError } from "./backend/types";
 import { initialLang, usePhoneWords, type Lang } from "./i18n";
 
@@ -10,9 +10,11 @@ export type Theme = "system" | "light" | "dark";
 
 interface IndexState {
   built: BuildInfo | null;
-  /** Thousandths done, or null before the first report. */
-  progress: number | null;
+  /** The last progress report, or null before the first one. */
+  progress: Step | null;
   error: AppError | null;
+  /** The person cancelled the build: shown with a Try again, not as an error. */
+  stopped: boolean;
 }
 
 function load(key: string): string | null {
@@ -64,8 +66,10 @@ export const app = $state({
     auto: load("oopz.updates") === "on",
     status: "idle" as "idle" | "checking" | "none" | "found" | "installing" | "failed",
     found: null as UpdateFound | null,
+    /** When the last check happened, in any run (Rust keeps it), or null if never. */
+    lastChecked: null as number | null,
     error: null as AppError | null,
-    progress: null as number | null,
+    progress: null as Step | null,
   },
 });
 
@@ -87,6 +91,12 @@ export const current = () => app.summaries.find((s) => s.id === app.currentId) ?
 export function toError(e: unknown, code = "io"): AppError {
   return isAppError(e) ? e : { code, detail: String(e) };
 }
+
+/** The person pressed Cancel: the work stopped as asked, which is not an error to show. */
+export const isCancelled = (e: unknown) => isAppError(e) && e.code === "cancelled";
+
+/** Asks Rust to stop the check or index build that is running. */
+export const cancelWork = () => backend.cancelWork().catch(() => {});
 
 export function go(view: View) {
   app.view = view;
@@ -162,15 +172,17 @@ export async function closeBackup(id: number) {
 /** Builds a backup's search index once; it doesn't make the app busy, so other screens stay usable meanwhile. */
 export async function ensureIndex(id: number) {
   const known = app.index[id];
-  if (known && !known.error) return;
-  app.index[id] = { built: null, progress: null, error: null };
+  if (known && !known.error && !known.stopped) return;
+  app.index[id] = { built: null, progress: null, error: null, stopped: false };
   try {
-    const built = await backend.buildIndex(id, (perMille) => {
-      if (app.index[id]) app.index[id].progress = perMille;
+    const built = await backend.buildIndex(id, (step) => {
+      if (app.index[id]) app.index[id].progress = step;
     });
     if (app.index[id]) app.index[id].built = built;
   } catch (e) {
-    if (app.index[id]) app.index[id].error = toError(e);
+    if (!app.index[id]) return;
+    if (isCancelled(e)) app.index[id].stopped = true;
+    else app.index[id].error = toError(e);
   }
 }
 
@@ -227,7 +239,9 @@ export async function checkUpdates(showSheet: boolean) {
   u.status = "checking";
   u.error = null;
   try {
-    u.found = await backend.updateCheck();
+    const checked = await backend.updateCheck();
+    u.found = checked.found;
+    u.lastChecked = checked.checked_ms;
     u.status = u.found ? "found" : "none";
     if (u.found && showSheet && app.sheet === null) app.sheet = "update";
   } catch (e) {
@@ -241,7 +255,7 @@ export async function installUpdate() {
   u.status = "installing";
   u.progress = null;
   try {
-    await backend.updateInstall((perMille) => (u.progress = perMille));
+    await backend.updateInstall((step) => (u.progress = step));
     // The app restarts itself on success: nothing to do here.
   } catch (e) {
     u.error = toError(e, "update");

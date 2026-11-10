@@ -3,6 +3,7 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon from "../components/Icon.svelte";
   import Sheet from "../components/Sheet.svelte";
+  import StepLine from "../components/StepLine.svelte";
   import { strings } from "../i18n";
   import { app, installUpdate } from "../state.svelte";
 
@@ -19,8 +20,9 @@
   <p class="safe"><Icon name="shield" size={16} />{t.updateSigned}</p>
   {#if installing}
     <div role="status">
-      <p>{t.updateInstalling}{#if u.progress !== null} {Math.round(u.progress / 10)}%{/if}</p>
-      {#if u.progress !== null}<progress max="1000" value={u.progress} aria-label={t.updateInstalling}></progress>{:else}<progress aria-label={t.updateInstalling}></progress>{/if}
+      <p>{t.updateInstalling}</p>
+      {#if u.progress !== null}<progress max="1000" value={u.progress.per_mille} aria-label={t.updateInstalling}></progress>{:else}<progress aria-label={t.updateInstalling}></progress>{/if}
+      <StepLine step={u.progress} />
     </div>
   {/if}
   {#if u.status === "failed"}<ErrorNote error={u.error} />{/if}

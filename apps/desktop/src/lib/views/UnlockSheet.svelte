@@ -4,15 +4,16 @@
   import KeyBoxes from "../components/KeyBoxes.svelte";
   import Ring from "../components/Ring.svelte";
   import Sheet from "../components/Sheet.svelte";
-  import type { AppError } from "../backend/types";
+  import StepLine from "../components/StepLine.svelte";
+  import type { AppError, Step } from "../backend/types";
   import { strings } from "../i18n";
-  import { app, be, opened, toError } from "../state.svelte";
+  import { app, be, cancelWork, isCancelled, opened, toError } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let file = $derived(app.unlocking);
   let key = $state("");
   let opening = $state(false);
-  let progress = $state<number | null>(null);
+  let progress = $state<Step | null>(null);
   let error = $state<AppError | null>(null);
   let showPassword = $state(false);
   let boxes = $state<KeyBoxes>();
@@ -29,7 +30,8 @@
       const summary = await be().checkBackup(file.path, value, (p) => (progress = p));
       await opened(summary);
     } catch (err) {
-      error = toError(err);
+      // Cancelled: back to the key, quietly.
+      error = isCancelled(err) ? null : toError(err);
       opening = false;
       queueMicrotask(() => boxes?.focus());
     }
@@ -45,9 +47,10 @@
 <Sheet label={t.keyTitle} size="medium" onclose={opening ? undefined : cancel} footer={opening ? undefined : buttons}>
   {#if opening}
     <div class="opening" role="status">
-      <Ring value={progress} size={120} label={t.keyOpening} />
+      <Ring value={progress?.per_mille ?? null} size={120} label={t.keyOpening} />
       <h1 class="sheet-title">{t.keyOpeningTitle}</h1>
       <p class="muted">{t.keyOpening}</p>
+      <StepLine step={progress} oncancel={cancelWork} />
       <p class="file"><Icon name="file" size={16} />{file?.name}</p>
     </div>
   {:else}
