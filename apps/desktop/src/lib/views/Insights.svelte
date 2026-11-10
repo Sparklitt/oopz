@@ -3,6 +3,7 @@
   import IndexGate from "../components/IndexGate.svelte";
   import PageHead from "../components/PageHead.svelte";
   import Bars from "../components/Bars.svelte";
+  import Heatmap from "../components/Heatmap.svelte";
   import type { Stats } from "../backend/types";
   import { chatName, date, fmt, mb, year } from "../format";
   import { strings } from "../i18n";
@@ -67,6 +68,9 @@
       <section class="panel">
         <Bars values={stats.by_month} label={t.byMonth} />
       </section>
+      {#if stats.by_day_hour.length === 7}
+        <section class="panel"><Heatmap values={stats.by_day_hour} /></section>
+      {/if}
       <div class="cols">
         <section class="panel">
           <Bars values={stats.by_hour.map((n, h): [string, number] => [`${h}:00`, n])} label={t.byHour} />
