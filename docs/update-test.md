@@ -39,3 +39,30 @@ release. **B** is the real thing: 0.1.1 published on GitHub, installed over 0.1.
 4. Check again: "You have the newest oopz".
 
 Record the results (OS, installer kind, pass/fail, the error text) in the release to-do before 0.1.2.
+
+## Results
+
+### Part A, Linux (AppImage, WSLg, Ubuntu 24.04), 2026-11-10
+
+Test builds 0.1.0 and 0.1.1 from `db2451d` with the local-server overlay, signed with the updater key; driven through
+WebDriver (`tauri-driver`), the commands called as the UI calls them and the screens read back.
+
+| Case | Result |
+|---|---|
+| Tampered file | pass: "The signature verification failed"; AppImage unchanged; app kept running |
+| Signature from another key | pass: "The signature was created with a different key than the one provided" |
+| Empty `.sig` | pass: "Invalid encoding in minisign data" |
+| Same version / older (0.1.0, 0.0.9) | pass: no update; Settings shows "You have the newest oopz." |
+| No entry for this system | pass: a clear error naming the missing `linux-x86_64` keys; no crash |
+| Malformed `latest.json` | pass: "error decoding response body …", shown in Settings |
+| Server down | pass: error in 0.13 s; the app keeps working |
+| 404 | pass: "Could not fetch a valid release JSON from the remote", shown in Settings |
+| Interrupted download (3 MB of 80, then hung up) | pass: "error decoding response body"; AppImage unchanged; a second try in the same run installed |
+| Auto-check on, offline at start | pass: window up at once, no popup; the error waits in Settings |
+| The good update | pass: progress reported, AppImage replaced by 0.1.1 (hash checked), relaunched as 0.1.1, decrypted copy gone from `~/.cache/com.sparklitt.oopz`, settings kept (language, theme, the switch) |
+
+Found: the release notes are shown as raw Markdown (`**0.1.1**`); they're rendered since (see the changelog).
+
+### Part A, Windows and macOS
+
+Not run yet: Windows needs NSIS test builds (a CI run, or a Windows toolchain); macOS needs a Mac.
