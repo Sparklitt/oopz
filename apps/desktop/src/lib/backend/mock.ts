@@ -8,9 +8,10 @@
 // shows what a phone shows. Any phone number in here starts with 9999 (no such numbers exist). In the console,
 // __oopzDrop(["/home/you/Phone/Databases/msgstore.db.crypt15"]) acts like dropping that file on the window. With
 // ?platform=android, picking a file gives a content:// reference to import; add &nospace and the import fails for
-// lack of space.
+// lack of space. The library (mockLibrary.ts) starts with three invented sources; ?library=empty starts with none.
 import pkg from "../../../package.json";
 import type { Backend, BackupFile, Call, ChatRow, Filter, Hit, Line, Media, Missing, OnProgress, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
+import { libraryMock } from "./mockLibrary";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
 const FOLDER = "/home/you/Phone/Databases";
@@ -341,6 +342,8 @@ export function createMock(): Backend {
   (window as unknown as { __oopzDrop: (paths: string[]) => void }).__oopzDrop = (paths) => drops.forEach((cb) => cb(paths));
   let receive: { started: number; dest: string; stoppedAt: number | null; how: ReceiveStatus["stopped"] } | null = null;
 
+  const library = libraryMock({ sleep, slowly, rightKey: RIGHT_KEY, android, empty: params.get("library") === "empty" });
+
   const backup = (id: number) => opened.get(id) ?? fail("not_found", `backup ${id}`);
   const rowsOf = (id: number) => backup(id).chat_list;
 
@@ -480,6 +483,7 @@ export function createMock(): Backend {
     async wipeNow() {
       await sleep(300);
       opened.clear();
+      library.wipe();
       return 0;
     },
     async openLink(which) {
@@ -689,6 +693,7 @@ export function createMock(): Backend {
       await slowly(2500, onProgress, () => "download");
       // The real app restarts here; the mock stays on the last screen.
     },
+    ...library,
     onFileDrop(cb) {
       drops.add(cb);
       return () => drops.delete(cb);

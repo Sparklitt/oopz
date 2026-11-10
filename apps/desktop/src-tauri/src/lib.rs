@@ -17,6 +17,8 @@ use tauri::ipc::Channel;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
+mod library;
+
 /// What the app holds while it runs. The decrypted copies live in `tmp`, removed when the app closes.
 pub struct AppState {
     session: Mutex<Session>,
@@ -363,10 +365,10 @@ fn ours(made: &[PathBuf], from: &Path) -> Result<PathBuf, AppError> {
     if inside && from.is_file() { Ok(from) } else { Err(refused()) }
 }
 
-/// "Wipe now" (see [`AppState::wipe`]).
+/// "Wipe now" (see [`AppState::wipe`]), and the library with it, kept or not ([`library::Lib::wipe`]).
 #[tauri::command(async)]
-fn wipe_now(state: State<'_, AppState>) -> usize {
-    state.wipe()
+fn wipe_now(state: State<'_, AppState>, lib: State<'_, library::Lib>) -> usize {
+    state.wipe() + lib.wipe()
 }
 
 /// Opens one of the app's own pages in the browser; the page names which, never a URL, so it can't open anything else.
@@ -519,6 +521,7 @@ mod update {
             .updater_builder()
             .on_before_exit(move || {
                 handle.state::<AppState>().close();
+                handle.state::<super::library::Lib>().close();
                 handle.cleanup_before_exit();
             })
             .build()
@@ -583,6 +586,7 @@ pub fn run() {
         .setup(|app| {
             let cache = app.path().app_cache_dir()?;
             app.manage(AppState::new(&cache)?);
+            app.manage(library::Lib::new(&cache, &app.path().app_data_dir()?));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -613,6 +617,38 @@ pub fn run() {
             backup_tables,
             chat_types,
             chat_facts,
+            library::library_info,
+            library::library_set_keep,
+            library::lib_adapters,
+            library::lib_import,
+            library::lib_sources,
+            library::lib_remove_source,
+            library::lib_set_me,
+            library::lib_conversations,
+            library::lib_conversation_len,
+            library::lib_messages,
+            library::lib_position_at,
+            library::lib_position,
+            library::lib_search,
+            library::lib_find,
+            library::lib_count,
+            library::lib_selected,
+            library::lib_messages_by_id,
+            library::lib_stats,
+            library::lib_people,
+            library::lib_contacts,
+            library::lib_link,
+            library::lib_unlink,
+            library::lib_rename_contact,
+            library::lib_delete_contact,
+            library::lib_suggestions,
+            library::lib_accept,
+            library::lib_import_vcards,
+            library::lib_save_selection,
+            library::lib_selections,
+            library::lib_delete_selection,
+            library::lib_export,
+            library::lib_export_contacts,
             #[cfg(desktop)]
             update::update_check,
             #[cfg(desktop)]
@@ -625,6 +661,7 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<AppState>().close();
+                app.state::<library::Lib>().close();
             }
         });
 }

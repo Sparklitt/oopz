@@ -240,7 +240,247 @@ export interface Fact {
   value: string;
 }
 
-export type LinkName = "source" | "report" | "security" | "licences" | "releases";
+// ---- the library (decision 0016): every app's sources in one place; shapes from crates/oopz-core ----
+
+export type AppCode = "whatsapp" | "telegram" | "sms" | "line" | "viber" | "signal" | "imessage";
+export type Kind = "text" | "link" | "photo" | "video" | "gif" | "sticker" | "voice" | "audio" | "document" | "location" | "contact" | "poll" | "call" | "system" | "deleted" | "unknown";
+export type Order = "conversation" | "time" | "newest";
+
+export interface LibraryInfo {
+  dir: string;
+  /** Kept between runs (Settings); otherwise removed when the app closes. */
+  kept: boolean;
+  sources: number;
+  messages: number;
+  /** The library's files on disk. */
+  bytes: number;
+  /** PDF exports are in this build. */
+  pdf: boolean;
+}
+
+export interface AdapterInfo {
+  id: string;
+  app: AppCode;
+  secret: "none" | "key" | "password";
+}
+
+export interface SourceRow {
+  id: number;
+  app: AppCode;
+  adapter: string;
+  /** The file or folder's name. */
+  name: string;
+  format: string | null;
+  added_ms: number;
+  notes: string[];
+  /** Times are the phone's clock, with no time zone. */
+  wall_clock: boolean;
+  has_media: boolean;
+  conversations: number;
+  people: number;
+  messages: number;
+  first_ms: number | null;
+  last_ms: number | null;
+  /** False: the export doesn't say which person is the owner; ask (libSetMe). */
+  owner_known: boolean;
+}
+
+export type ConversationKind = "direct" | "group" | "channel" | "broadcast" | "notes" | "unknown";
+
+export interface ConversationRow {
+  id: number;
+  source: number;
+  app: AppCode;
+  kind: ConversationKind;
+  name: string | null;
+  /** The other members' names, for a one-to-one conversation's title. */
+  members: string[];
+  messages: number;
+  first_ms: number | null;
+  last_ms: number | null;
+  wall_clock: boolean;
+  preview: string | null;
+}
+
+export type CallOutcome = "answered" | "missed" | "declined" | "cancelled" | "busy" | "failed" | "unknown";
+
+export interface MediaPart {
+  type: "media";
+  kind: "photo" | "video" | "video_note" | "gif" | "sticker" | "voice" | "audio" | "document";
+  file: string | null;
+  name: string | null;
+  mime: string | null;
+  size: number | null;
+  width: number | null;
+  height: number | null;
+  secs: number | null;
+  caption: string | null;
+  view_once: boolean;
+  omitted: boolean;
+}
+
+export type Part =
+  | { type: "text"; text: string }
+  | MediaPart
+  | { type: "location"; lat: number | null; lng: number | null; name: string | null; live: boolean }
+  | { type: "contact"; name: string | null; phones: string[]; vcard: string | null }
+  | { type: "poll"; question: string; options: { text: string; voters: string[]; votes: number }[]; multiple: boolean }
+  | { type: "call"; video: boolean; outcome: CallOutcome; secs: number | null }
+  | { type: "link"; url: string; title: string | null }
+  | { type: "system"; event: string; text: string | null }
+  | { type: "unknown"; code: string; text: string | null };
+
+/** A message as its app's adapter read it (crates/oopz-model). */
+export interface LibMessage {
+  id: string;
+  conversation: string;
+  sender: string | null;
+  from_me: boolean;
+  time_ms: number | null;
+  edited_ms: number | null;
+  edited: boolean;
+  deleted: boolean;
+  forwarded: boolean;
+  starred: boolean;
+  reply_to: string | null;
+  parts: Part[];
+  reactions: { by: string | null; from_me: boolean; emoji: string }[];
+}
+
+export interface MessageRow {
+  id: number;
+  conversation: number;
+  source: number;
+  app: AppCode;
+  pos: number;
+  time_ms: number | null;
+  wall_clock: boolean;
+  from_me: boolean;
+  sender: number | null;
+  /** The contact's name, else the app's name for them, else their id in the app. */
+  sender_name: string | null;
+  kind: Kind;
+  /** The library id of the message this one answers, when it's in the library. */
+  reply: number | null;
+  message: LibMessage;
+}
+
+export interface LibHit {
+  id: number;
+  conversation: number;
+  app: AppCode;
+  time_ms: number | null;
+  from_me: boolean;
+  sender_name: string | null;
+  /** Matched words sit between \u0002 and \u0003. */
+  snippet: string;
+}
+
+/** One filter for everything; empty lists mean "any". */
+export interface LibFilter {
+  apps: AppCode[];
+  sources: number[];
+  conversations: number[];
+  contacts: number[];
+  people: number[];
+  kinds: Kind[];
+  from_me: boolean | null;
+  after_ms: number | null;
+  before_ms: number | null;
+  words: string;
+}
+
+/** A filter, plus messages added or taken out by hand. */
+export interface Selection {
+  filter: LibFilter;
+  add: number[];
+  remove: number[];
+}
+
+export interface SavedSelection {
+  id: number;
+  name: string;
+  selection: Selection;
+  saved_ms: number;
+}
+
+export interface PersonRow {
+  id: number;
+  source: number;
+  app: AppCode;
+  key: string;
+  name: string | null;
+  phone: string | null;
+  username: string | null;
+  email: string | null;
+  me: boolean;
+  contact: number | null;
+  messages: number;
+}
+
+export interface ContactRow {
+  id: number;
+  name: string;
+  phones: string[];
+  emails: string[];
+  /** Linked people: [person id, app]. */
+  people: [number, AppCode][];
+}
+
+export interface Suggestion {
+  reason: "phone" | "email";
+  value: string;
+  people: number[];
+  contact: number | null;
+  name: string | null;
+}
+
+export interface LibStats {
+  messages: number;
+  from_me: number;
+  first_ms: number | null;
+  last_ms: number | null;
+  by_month: [string, number][];
+  by_hour: number[];
+  /** Sunday first, 7 rows of 24. */
+  by_day_hour: number[][];
+  /** [kind, messages, media bytes] */
+  by_kind: [Kind, number, number][];
+  by_app: [AppCode, number][];
+  /** [person id, name, messages], most first. */
+  by_person: [number | null, string | null, number][];
+  media_bytes: number;
+  voice_secs: number;
+}
+
+export type ExportFormat = "html" | "json" | "csv" | "txt" | "vcard" | "media-zip" | "pdf";
+
+export interface ExportOptions {
+  order: Order;
+  /** An IANA zone; null for this device's. */
+  time_zone: string | null;
+  lang: string;
+  title: string | null;
+  skip_system: boolean;
+  /** PDF only. */
+  page?: "a4" | "letter";
+  media?: "thumbnails" | "none";
+  cover?: boolean;
+  contents?: boolean;
+}
+
+export interface Exported {
+  path: string;
+  /** The folder it's in: the one picked, or a private one to save from (Android). */
+  folder: string;
+  messages: number;
+  bytes: number;
+  missing_files: number;
+  pages: number;
+  missing_glyphs: number;
+}
+
+export type LinkName ="source" | "report" | "security" | "licences" | "releases";
 
 /** An error from Rust: a stable code the UI words, and an English detail. */
 export interface AppError {
@@ -254,7 +494,7 @@ export function isAppError(e: unknown): e is AppError {
 
 /** Where a long piece of work is: its step, thousandths done, and the seconds left once they can be told. */
 export interface Step {
-  step: "fingerprint" | "read" | "unpack" | "prepare" | "index" | "download";
+  step: "fingerprint" | "read" | "unpack" | "prepare" | "index" | "download" | "import" | "export";
   per_mille: number;
   secs_left: number | null;
 }
@@ -320,6 +560,50 @@ export interface Backend {
   updateLastChecked(): Promise<number | null>;
   /** Installs what the last check found, after checking its signature, and restarts the app. */
   updateInstall(onProgress: OnProgress): Promise<void>;
+  // ---- the library ----
+  libraryInfo(): Promise<LibraryInfo>;
+  /** Keeps the library between runs (moved to the app's data folder), or not (removed when the app closes). */
+  librarySetKeep(keep: boolean): Promise<LibraryInfo>;
+  libAdapters(): Promise<AdapterInfo[]>;
+  /** Adds a file or folder (Android: a content:// reference): its app detected unless `adapter` names it; the secret
+   *  only when the adapter asks for one. Stops on cancelWork ("cancelled"), leaving the library as it was. */
+  libImport(path: string, adapter: string | null, secret: string | null, onProgress: OnProgress): Promise<SourceRow>;
+  libSources(): Promise<SourceRow[]>;
+  libRemoveSource(id: number): Promise<void>;
+  /** Marks a person as the owner of their source: their messages become "from me". */
+  libSetMe(person: number): Promise<void>;
+  libConversations(filter: LibFilter): Promise<ConversationRow[]>;
+  libConversationLen(conversation: number): Promise<number>;
+  /** `count` messages from position `from`, in the conversation's order (at most 500). */
+  libMessages(conversation: number, from: number, count: number): Promise<MessageRow[]>;
+  libPositionAt(conversation: number, ts: number): Promise<number | null>;
+  /** A message's [conversation, position]. */
+  libPosition(message: number): Promise<[number, number] | null>;
+  libSearch(filter: LibFilter, limit: number): Promise<LibHit[]>;
+  libFind(filter: LibFilter, order: Order, offset: number, limit: number): Promise<MessageRow[]>;
+  libCount(filter: LibFilter): Promise<number>;
+  /** The ids of a selection's messages. */
+  libSelected(selection: Selection, order: Order): Promise<number[]>;
+  libMessagesById(ids: number[]): Promise<MessageRow[]>;
+  libStats(filter: LibFilter): Promise<LibStats>;
+  libPeople(source: number | null): Promise<PersonRow[]>;
+  libContacts(): Promise<ContactRow[]>;
+  /** Links people (from any apps) into one contact; returns its id. */
+  libLink(people: number[], name: string | null): Promise<number>;
+  libUnlink(person: number): Promise<void>;
+  libRenameContact(contact: number, name: string): Promise<void>;
+  libDeleteContact(contact: number): Promise<void>;
+  libSuggestions(): Promise<Suggestion[]>;
+  libAccept(reason: string, value: string): Promise<number>;
+  /** Reads a .vcf file (Android: a content:// reference) into contacts; returns how many cards it held. */
+  libImportVcards(path: string): Promise<number>;
+  libSaveSelection(name: string, selection: Selection): Promise<number>;
+  libSelections(): Promise<SavedSelection[]>;
+  libDeleteSelection(id: number): Promise<void>;
+  /** Writes a selection into a new file in `folder` (null: a private folder to save from, on Android). */
+  libExport(selection: Selection, format: ExportFormat, options: ExportOptions, folder: string | null, onProgress: OnProgress): Promise<Exported>;
+  libExportContacts(contacts: number[], folder: string | null): Promise<Exported>;
+
   /** Files dropped on the window; returns the function that stops listening. */
   onFileDrop(cb: (paths: string[]) => void): () => void;
 }

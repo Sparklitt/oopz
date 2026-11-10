@@ -21,6 +21,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 oopz = { path = "../../../crates/adapters/whatsapp-android" }
 oopz-app = { path = "../../../crates/oopz-app" }
+oopz-core = { path = "../../../crates/oopz-core" }
+oopz-export = { path = "../../../crates/oopz-export" }
+oopz-model = { path = "../../../crates/oopz-model" }
+# PDF exports (decision 0017): a PDF writer with text shaping is a large dependency, so it's a feature.
+oopz-export-pdf = { path = "../../../crates/oopz-export-pdf", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
@@ -33,6 +38,10 @@ tauri-plugin-opener = "2"
 open = "5"
 tempfile = "3"
 zeroize = { version = "1", features = ["serde"] }
+
+[features]
+default = ["pdf"]
+pdf = ["dep:oopz-export-pdf"]
 
 [dev-dependencies]
 oopz = { path = "../../../crates/adapters/whatsapp-android", features = ["fixtures"] }
