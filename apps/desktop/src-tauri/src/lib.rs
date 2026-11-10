@@ -3,19 +3,17 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
-use std::time::Duration;
 
 use oopz_app::index::{BuildInfo, Hit, Line, Stats};
 use oopz_app::receive::{self, Receiver};
-use oopz_app::session::{self, BackupFile, MergeOutcome, MergeRequest, Missing, Session, Summary};
-use oopz_app::{AppError, ReceiveStatus};
-use serde::{Deserialize, Serialize};
+use oopz_app::session::{
+    self, BackupFile, Fact, MergeOutcome, MergeRequest, Missing, Session, Summary, TableInfo, TypeInfo,
+};
+use oopz_app::{AppError, ReceiveInfo, ReceiveStatus};
+use serde::Deserialize;
 use tauri::ipc::Channel;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
-
-/// The Wi-Fi page stops by itself after this long without a request.
-const RECEIVE_IDLE: Duration = Duration::from_secs(10 * 60);
 
 /// What the app holds while it runs. The decrypted copies live in `tmp`, removed when the app closes.
 pub struct AppState {
@@ -28,16 +26,6 @@ pub struct AppState {
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
-}
-
-/// What the Wi-Fi screen shows: the QR code, the address (the person may type it) and where files go.
-#[derive(Debug, Serialize)]
-pub struct ReceiveInfo {
-    pub url: String,
-    pub qr_svg: String,
-    pub dest: PathBuf,
-    /// Bytes free where the files go: a Media zip can be tens of GB.
-    pub free: u64,
 }
 
 /// The merge form, as the UI sends it.
@@ -120,26 +108,13 @@ impl AppState {
         }
     }
 
-    /// Starts the Wi-Fi page into a new `oopz-received-N` folder in `parent`, on this computer's LAN address (or on
-    /// `ip`, for tests). One page at a time: a running one is stopped first.
+    /// Starts the Wi-Fi page ([`receive::start_in`]). One page at a time: a running one is stopped first.
     pub fn receive_start(&self, parent: &Path, ip: Option<std::net::IpAddr>) -> Result<ReceiveInfo, AppError> {
-        let ip = ip.or_else(receive::lan_ip).ok_or_else(|| {
-            AppError::new(
-                "network",
-                "this computer isn't on a local network; connect it to the same Wi-Fi as the phone",
-            )
-        })?;
         let mut slot = lock(&self.receiver);
         if let Some(old) = slot.take() {
             old.stop();
         }
-        let dest = (1..1000)
-            .map(|n| parent.join(format!("oopz-received-{n}")))
-            .find(|p| !p.exists())
-            .ok_or_else(|| AppError::new("exists", "too many oopz-received folders here; choose another folder"))?;
-        let rx = Receiver::start(&dest, ip, RECEIVE_IDLE)?;
-        let free = session::free_space(&dest)?;
-        let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest, free };
+        let (rx, info) = receive::start_in(parent, ip)?;
         *slot = Some(rx);
         Ok(info)
     }
@@ -254,7 +229,7 @@ fn build_index(state: State<'_, AppState>, id: u32, progress: Channel<u16>) -> R
 
 #[tauri::command(async)]
 fn search(state: State<'_, AppState>, id: u32, query: String, chat: Option<i64>) -> Result<Vec<Hit>, AppError> {
-    lock(&state.session).search(id, &query, chat, 200)
+    lock(&state.session).search(id, &query, chat, session::SEARCH_LIMIT)
 }
 
 #[tauri::command(async)]
@@ -269,7 +244,24 @@ fn chat_len(state: State<'_, AppState>, id: u32, chat: i64) -> Result<u64, AppEr
 
 #[tauri::command(async)]
 fn chat_lines(state: State<'_, AppState>, id: u32, chat: i64, from: u64, count: u32) -> Result<Vec<Line>, AppError> {
-    lock(&state.session).lines(id, chat, from, count.min(500))
+    lock(&state.session).lines(id, chat, from, count.min(session::LINES_MAX))
+}
+
+/// The diagnostics the CLI prints (`oopz tables`, `types`, `chat-facts`): structure and counts only, for a problem
+/// report.
+#[tauri::command(async)]
+fn backup_tables(state: State<'_, AppState>, id: u32) -> Result<Vec<TableInfo>, AppError> {
+    lock(&state.session).tables(id)
+}
+
+#[tauri::command(async)]
+fn chat_types(state: State<'_, AppState>, id: u32, chat: i64) -> Result<Vec<TypeInfo>, AppError> {
+    lock(&state.session).types(id, chat)
+}
+
+#[tauri::command(async)]
+fn chat_facts(state: State<'_, AppState>, id: u32, chat: i64) -> Result<Vec<Fact>, AppError> {
+    lock(&state.session).chat_facts(id, chat)
 }
 
 #[tauri::command(async)]

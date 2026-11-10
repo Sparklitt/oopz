@@ -55,6 +55,8 @@ fn backups_checks_every_backup_in_a_folder() {
     std::fs::create_dir(&dir).unwrap();
     std::fs::copy(&fx.backup, dir.join("msgstore.db.crypt15")).unwrap();
     std::fs::write(dir.join("notes.txt"), "not a backup").unwrap();
+    // WhatsApp's contacts backup sits beside the messages: not a message backup, so not checked (nor failed).
+    std::fs::write(dir.join("wa.db.crypt15"), "contacts").unwrap();
 
     let ok = oopz(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
     assert!(ok.status.success(), "{}", text(&ok));
@@ -64,6 +66,7 @@ fn backups_checks_every_backup_in_a_folder() {
         text(&ok)
     );
     assert!(!text(&ok).contains("notes.txt"));
+    assert!(!text(&ok).contains("wa.db"));
 
     // A cut-off copy fails on its own line; the good one still passes, and so does nothing else.
     let bytes = std::fs::read(&fx.backup).unwrap();
@@ -88,10 +91,10 @@ fn a_wrong_key_fails_without_echoing_it() {
 }
 
 #[test]
-fn restore_writes_a_checked_backup_once() {
+fn restore_writes_a_checked_backup_in_a_new_folder() {
     let fx = fixture::two_phones();
-    let out = fx.dir.path().join("merged.crypt15");
-    let pack = fx.dir.path().join("pack");
+    let out = fx.dir.path().join("out");
+    std::fs::create_dir(&out).unwrap();
     let (source_chat, target_chat) = (fixture::SOURCE_CHAT.to_string(), fixture::TARGET_CHAT.to_string());
     let args = [
         "restore",
@@ -103,32 +106,82 @@ fn restore_writes_a_checked_backup_once() {
         fx.target.to_str().unwrap(),
         "--target-chat",
         &target_chat,
-        "--out",
+        "--out-dir",
         out.to_str().unwrap(),
         "--media",
         fx.source_media.to_str().unwrap(),
-        "--media-out",
-        pack.to_str().unwrap(),
     ];
     let keys = format!("{KEY_HEX}\n{}", fixture::TARGET_KEY_HEX);
     let merged = oopz(&args, Some(&keys));
     assert!(merged.status.success(), "{}", text(&merged));
     assert!(text(&merged).contains("2 already there, 8 added"), "{}", text(&merged));
     assert!(text(&merged).contains("check integrity_check: ok"));
-    assert!(text(&merged).contains("media files: 1 copied (15 bytes), 1 missing"), "{}", text(&merged));
-    assert!(pack.join("WhatsApp Images/Sent/hilo-IMG-20231114-WA0001.jpg").is_file());
+    assert!(text(&merged).contains("media files: 1 copied, 1 missing"), "{}", text(&merged));
+    assert!(text(&merged).contains("original target unchanged: yes"));
+    let result = out.join("oopz-result-1");
+    assert!(result.join("Media/WhatsApp Images/Sent/hilo-IMG-20231114-WA0001.jpg").is_file());
     for secret in ["Hola", "playa", "IMG-", KEY_HEX, fixture::TARGET_KEY_HEX] {
         assert!(!text(&merged).contains(secret), "printed {secret:?}");
     }
 
-    let facts =
-        oopz(&["chat-facts", "--backup", out.to_str().unwrap(), "--chat", &target_chat], Some(fixture::TARGET_KEY_HEX));
+    let backup = result.join("Databases/msgstore.db.crypt15");
+    let facts = oopz(
+        &["chat-facts", "--backup", backup.to_str().unwrap(), "--chat", &target_chat],
+        Some(fixture::TARGET_KEY_HEX),
+    );
     assert!(text(&facts).contains("messages: 12"), "{}", text(&facts));
     assert!(text(&facts).contains("all messages: _id max / sort_id max: 22 / 22"), "{}", text(&facts));
 
-    let before = std::fs::read(&out).unwrap();
+    // Again: a second folder, the first left as it was.
+    let before = std::fs::read(&backup).unwrap();
     let again = oopz(&args, Some(&keys));
-    assert!(!again.status.success());
-    assert!(text(&again).contains("already exists"));
-    assert_eq!(std::fs::read(&out).unwrap(), before);
+    assert!(again.status.success(), "{}", text(&again));
+    assert!(out.join("oopz-result-2/Databases/msgstore.db.crypt15").is_file());
+    assert_eq!(std::fs::read(&backup).unwrap(), before);
+}
+
+#[test]
+fn check_stats_search_export_missing_print_counts_only() {
+    let fx = fixture::two_phones();
+    let (source, target) = (fx.source.to_str().unwrap(), fx.target.to_str().unwrap());
+
+    let check = oopz(&["check", "--backup", source], Some(KEY_HEX));
+    assert!(check.status.success(), "{}", text(&check));
+    assert!(text(&check).contains("database: sound"));
+    assert!(text(&check).contains("messages: 11"), "{}", text(&check));
+    assert!(text(&check).contains("sha256: "));
+
+    let stats = oopz(&["stats", "--backup", source, "--chat", "1"], Some(KEY_HEX));
+    assert!(stats.status.success(), "{}", text(&stats));
+    assert!(text(&stats).contains("messages: 10"), "{}", text(&stats));
+    assert!(text(&stats).contains("type 1: 3 messages"), "{}", text(&stats));
+
+    // The text searched for is the person's own; the matching messages' text is never printed.
+    let search = oopz(&["search", "--backup", source, "--query", "respuesta"], Some(KEY_HEX));
+    assert!(search.status.success(), "{}", text(&search));
+    assert!(text(&search).contains("1 results"), "{}", text(&search));
+    assert!(text(&search).contains("sent"));
+
+    let pages = fx.dir.path().join("pages");
+    std::fs::create_dir(&pages).unwrap();
+    let export = oopz(
+        &["export", "--backup", source, "--chat", "1", "--out-dir", pages.to_str().unwrap(), "--lang", "es"],
+        Some(KEY_HEX),
+    );
+    assert!(export.status.success(), "{}", text(&export));
+    let page = std::fs::read_to_string(pages.join("oopz-export-1.html")).unwrap();
+    assert!(page.contains("<html lang=\"es\">") && page.contains("Hola Ben"), "the file has the messages");
+
+    let missing = oopz(
+        &["missing", "--a", source, "--chat-a", "1", "--b", target, "--chat-b", "2"],
+        Some(&format!("{KEY_HEX}\n{}", fixture::TARGET_KEY_HEX)),
+    );
+    assert!(missing.status.success(), "{}", text(&missing));
+    assert!(text(&missing).contains("in both: 2"), "{}", text(&missing));
+
+    for out in [&check, &stats, &search, &export, &missing] {
+        for secret in ["Hola", "playa", "respuesta ", BEN_JID, KEY_HEX, fixture::TARGET_KEY_HEX] {
+            assert!(!text(out).contains(secret), "printed {secret:?}: {}", text(out));
+        }
+    }
 }

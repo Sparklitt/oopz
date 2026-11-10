@@ -12,11 +12,12 @@ name = "oopz"
 path = "src/main.rs"
 
 [dependencies]
-oopz.workspace = true
+oopz-app.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 jiff.workspace = true
 rpassword.workspace = true
+tempfile.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]

@@ -64,6 +64,36 @@ impl Shared {
     }
 }
 
+/// The page stops by itself after this long without a request.
+pub const IDLE: Duration = Duration::from_secs(10 * 60);
+
+/// What the Wi-Fi screen (or the terminal) shows: the QR code, the address (the person may type it) and where files
+/// go.
+#[derive(Debug, Serialize)]
+pub struct ReceiveInfo {
+    pub url: String,
+    pub qr_svg: String,
+    pub dest: PathBuf,
+    /// Bytes free where the files go: a Media zip can be tens of GB.
+    pub free: u64,
+}
+
+/// Starts the page into a new `oopz-received-N` folder in `parent`, on this computer's LAN address (or on `ip`, for
+/// tests), stopping after [`IDLE`] without a request.
+pub fn start_in(parent: &Path, ip: Option<IpAddr>) -> Result<(Receiver, ReceiveInfo)> {
+    let ip = ip.or_else(lan_ip).ok_or_else(|| {
+        AppError::new("network", "this computer isn't on a local network; connect it to the same Wi-Fi as the phone")
+    })?;
+    let dest = (1..1000)
+        .map(|n| parent.join(format!("oopz-received-{n}")))
+        .find(|p| !p.exists())
+        .ok_or_else(|| AppError::new("exists", "too many oopz-received folders here; choose another folder"))?;
+    let rx = Receiver::start(&dest, ip, IDLE)?;
+    let free = crate::session::free_space(&dest)?;
+    let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest, free };
+    Ok((rx, info))
+}
+
 /// A running receive page. Stops when dropped.
 pub struct Receiver {
     url: String,
@@ -109,6 +139,17 @@ impl Receiver {
             .min_dimensions(240, 240)
             .dark_color(qrcode::render::svg::Color("#23244F"))
             .light_color(qrcode::render::svg::Color("#FFFFFF"))
+            .build())
+    }
+
+    /// The address as a QR code drawn with block characters, for a terminal.
+    pub fn qr_text(&self) -> Result<String> {
+        let code = qrcode::QrCode::new(self.url.as_bytes())
+            .map_err(|e| AppError::new("network", format!("making the QR code: {e}")))?;
+        Ok(code
+            .render::<qrcode::render::unicode::Dense1x2>()
+            .dark_color(qrcode::render::unicode::Dense1x2::Light)
+            .light_color(qrcode::render::unicode::Dense1x2::Dark)
             .build())
     }
 

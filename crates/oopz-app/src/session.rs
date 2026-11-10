@@ -25,7 +25,8 @@ pub struct BackupFile {
 }
 
 /// The `*.crypt15`, `*.crypt14` and `*.crypt12` files in `path` (a backup file, a `Databases/` folder, or the folder
-/// holding `Databases/`), the current backup first, then the dated ones newest first. Only reads.
+/// holding `Databases/`), the current backup first, then the dated ones newest first. WhatsApp's other backups in a
+/// folder (`wa.db.crypt15`, the contacts, and the like) aren't listed. Only reads.
 pub fn find_backups(path: &Path) -> Result<Vec<BackupFile>> {
     let mut candidates = Vec::new();
     if path.is_file() {
@@ -35,7 +36,8 @@ pub fn find_backups(path: &Path) -> Result<Vec<BackupFile>> {
             let Ok(entries) = fs::read_dir(&dir) else { continue };
             for entry in entries {
                 let p = entry.map_err(|e| AppError::io(format!("reading {}", dir.display()), e))?.path();
-                if p.is_file() {
+                let other = oopz::is_other_whatsapp_backup(&p.file_name().unwrap_or_default().to_string_lossy());
+                if p.is_file() && !other {
                     candidates.push(p);
                 }
             }
@@ -199,6 +201,36 @@ struct Checked {
     index: Option<Index>,
 }
 
+/// The most search results returned, newest first (the app and the CLI alike).
+pub const SEARCH_LIMIT: u32 = 200;
+/// The most chat lines one call returns.
+pub const LINES_MAX: u32 = 500;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TableInfo {
+    pub name: String,
+    pub columns: Vec<String>,
+    pub rows: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TypeInfo {
+    /// WhatsApp's `message_type`.
+    pub code: i64,
+    pub messages: u64,
+    pub with_text: u64,
+    /// (table, messages of this type with a row in it)
+    pub linked: Vec<(String, u64)>,
+    /// (media type, messages), most common first
+    pub mimes: Vec<(String, u64)>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Fact {
+    pub label: &'static str,
+    pub value: String,
+}
+
 /// Builds a backup's search index on its own read-only connection to the decrypted copy.
 pub struct IndexJob {
     source: PathBuf,
@@ -336,6 +368,33 @@ impl Session {
             .map(|(_, c)| c)
             .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))?;
         Ok(checked.index.get_or_insert(index).info)
+    }
+
+    /// Every table with its columns and row count: structure only, for a problem report.
+    pub fn tables(&self, id: u32) -> Result<Vec<TableInfo>> {
+        let tables = self.get(id)?.backup.tables()?;
+        Ok(tables.into_iter().map(|(name, columns, rows)| TableInfo { name, columns, rows }).collect())
+    }
+
+    /// For each message type in a chat: counts and the tables its rows link to. No content.
+    pub fn types(&self, id: u32, chat: i64) -> Result<Vec<TypeInfo>> {
+        let profile = self.get(id)?.backup.type_profile(chat)?;
+        Ok(profile
+            .into_iter()
+            .map(|p| TypeInfo {
+                code: p.code,
+                messages: p.messages,
+                with_text: p.with_text,
+                linked: p.linked,
+                mimes: p.mimes,
+            })
+            .collect())
+    }
+
+    /// How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only.
+    pub fn chat_facts(&self, id: u32, chat: i64) -> Result<Vec<Fact>> {
+        let facts = self.get(id)?.backup.chat_facts(chat)?;
+        Ok(facts.into_iter().map(|(label, value)| Fact { label, value }).collect())
     }
 
     fn index(&self, id: u32) -> Result<&Index> {
@@ -506,6 +565,9 @@ mod tests {
         fs::write(db.join("msgstore-2021-01-01.1.db.crypt14"), b"old").unwrap();
         fs::write(db.join("broken.crypt15"), b"").unwrap();
         fs::write(db.join("notes.txt"), b"not a backup").unwrap();
+        // The contacts and stickers backups hold no messages: not listed, and never taken for the current backup.
+        fs::copy(&fx.backup, db.join("wa.db.crypt15")).unwrap();
+        fs::copy(&fx.backup, db.join("stickers.db.crypt15")).unwrap();
 
         // The WhatsApp folder or its Databases folder, the same list.
         for path in [&dir, &db] {
