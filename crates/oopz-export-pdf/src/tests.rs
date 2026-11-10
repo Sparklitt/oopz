@@ -11,8 +11,8 @@ const PNG: &[u8] = &[
 ];
 
 /// An image XObject (`/Image` not followed by a letter: `/ImageB` is a ProcSet name).
-fn has_image(pdf: &[u8]) -> bool {
-    pdf.windows(7).any(|x| &x[..6] == b"/Image" && !x[6].is_ascii_alphabetic())
+fn images(pdf: &[u8]) -> usize {
+    pdf.windows(7).filter(|x| &x[..6] == b"/Image" && !x[6].is_ascii_alphabetic()).count()
 }
 
 const WINDOWS_FONTS: &str = "/mnt/c/Windows/Fonts";
@@ -132,7 +132,7 @@ fn a_pdf_with_every_script_cover_contents_and_a_thumbnail() {
     let bytes = fs::read(&w.path).unwrap();
     assert!(bytes.starts_with(b"%PDF-") && bytes.windows(5).any(|x| x == b"%%EOF"));
     assert!(w.pages >= 5, "cover, contents, two chapters, the long text: {}", w.pages);
-    assert!(has_image(&bytes), "the photo is drawn");
+    assert!(images(&bytes) > 0, "the photo is drawn");
     if !fonts().is_empty() {
         assert_eq!(w.missing_glyphs, 0, "Windows' fonts have every character used here");
     }
@@ -158,7 +158,11 @@ fn merged_letter_without_media_or_cover() {
     };
     let w = export_pdf(&lib, &all(), &o, dir.path(), &mut |_, _| true).unwrap();
     let bytes = fs::read(&w.path).unwrap();
-    assert!(!has_image(&bytes), "no pictures asked for");
+    // A colour emoji font may draw its glyphs as pictures (Linux's Noto Color Emoji does): count against the same
+    // export with the photos.
+    let with_photos = PdfOptions { media: opts().media, ..o.clone() };
+    let w2 = export_pdf(&lib, &all(), &with_photos, dir.path(), &mut |_, _| true).unwrap();
+    assert!(images(&bytes) < images(&fs::read(&w2.path).unwrap()), "no pictures asked for");
     assert!(w.pages >= 2);
 }
 

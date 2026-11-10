@@ -14,7 +14,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # This action's tag is the Rust version (the msrv job's @1.89 is rust-version in Cargo.toml): raising it is a
+    # This action's tag is the Rust version (the msrv job's @1.92 is rust-version in Cargo.toml): raising it is a
     # decision, not an update.
     ignore:
       - dependency-name: dtolnay/rust-toolchain

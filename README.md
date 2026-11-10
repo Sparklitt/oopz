@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/sparklitt/oopz/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sparklitt/oopz/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Licence: AGPL-3.0-or-later" src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue"></a>
-  <img alt="Rust 1.89+" src="https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust">
+  <img alt="Rust 1.92+" src="https://img.shields.io/badge/rust-1.92%2B-orange?logo=rust">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey">
   <img alt="Network: an opt-in update check only" src="https://img.shields.io/badge/network-opt--in%20update%20check%20only-success">
 </p>
@@ -98,7 +98,7 @@ To check a download is the one built here from this source, compare its hash wit
 
 ## Quick start (command line)
 
-Use a release binary (above), or build it: you need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C
+Use a release binary (above), or build it: you need Rust 1.92 or newer ([rustup.rs](https://rustup.rs)) and a C
 compiler (SQLite is built from source).
 
 ```sh

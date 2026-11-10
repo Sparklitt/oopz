@@ -224,8 +224,9 @@ fn decrypt_stream(key: &[u8], input: &mut dyn Read, size: Option<u64>, out: &mut
         if filled == 0 {
             break;
         }
-        for chunk in buf[..filled].chunks_exact_mut(16) {
-            let block: &mut aes::Block = chunk.try_into().expect("16 bytes");
+        let (blocks, _) = buf[..filled].as_chunks_mut::<16>();
+        for chunk in blocks {
+            let block: &mut aes::Block = chunk.as_mut_slice().try_into().expect("16 bytes");
             dec.decrypt_block(block);
             if let Some(prev) = held.replace(block.as_slice().try_into().expect("16 bytes")) {
                 let take = (limit - written).min(16) as usize;

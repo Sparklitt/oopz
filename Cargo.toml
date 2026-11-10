@@ -7,7 +7,7 @@ exclude = ["apps/desktop/src-tauri"]
 [workspace.package]
 version = "0.1.1"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.92"
 license = "AGPL-3.0-or-later"
 # Off until the first release is decided: `cargo publish` refuses while this is false.
 publish = false
