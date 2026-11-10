@@ -1,0 +1,18 @@
+[package]
+name = "oopz-line-export"
+description = "Reads LINE's \"Export chat history\" text into the oopz model (decision 0015)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+oopz-model.workspace = true
+
+[dev-dependencies]
+oopz-gen = { path = "../../oopz-gen" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

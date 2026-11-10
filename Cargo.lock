@@ -1037,6 +1037,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "oopz-line-export"
+version = "0.1.0"
+dependencies = [
+ "oopz-gen",
+ "oopz-model",
+ "tempfile",
+]
+
+[[package]]
 name = "oopz-model"
 version = "0.1.0"
 dependencies = [
