@@ -25,6 +25,20 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    // Release signing (decision 0012, point 4) from the environment only: CI writes the keystore from the
+    // ANDROID_KEYSTORE secret to a temporary file and names it in ANDROID_KEYSTORE_FILE. Without it, the release APK
+    // is left unsigned. Nothing here is ever printed.
+    val keystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+    if (keystoreFile != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -39,6 +53,9 @@ android {
             }
         }
         getByName("release") {
+            if (keystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                enable = true
             }

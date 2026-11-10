@@ -1,6 +1,6 @@
 name: Desktop installers
 
-# Builds the desktop app's installers and the `oopz` CLI on Linux, Windows and macOS. Started by hand (Actions › Desktop installers › Run
+# Builds the desktop app's installers and the `oopz` CLI on Linux, Windows and macOS, and the Android APK. Started by hand (Actions › Desktop installers › Run
 # workflow), it keeps them as the run's artifacts with their SHA-256 checksums and publishes nothing. A pushed tag
 # `vX.Y.Z` also makes a DRAFT GitHub Release from them, with one SHA256SUMS.txt, build provenance (artifact
 # attestations) and the CHANGELOG's notes for that version; a person reviews and publishes it. The installers are
@@ -129,9 +129,74 @@ jobs:
           path: out/
           if-no-files-found: error
 
+  android:
+    # The Android APK (decision 0012), for 64- and 32-bit ARM phones. Signed with the oopz release keystore from the
+    # repo secrets, written to a temporary file for the build and never printed; without the secret (a fork), unsigned.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - name: NDK
+        run: |
+          sdkmanager --install "ndk;30.0.16248370" >/dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - name: Build
+        working-directory: apps/desktop
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          pnpm install --frozen-lockfile
+          if [ -n "$ANDROID_KEYSTORE" ]; then
+            export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/oopz-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE" | base64 -d > "$ANDROID_KEYSTORE_FILE"
+          fi
+          pnpm tauri android build --apk --target aarch64 --target armv7
+          rm -f "$RUNNER_TEMP/oopz-release.jks"
+      - name: Package
+        run: |
+          version=$(jq -r .version apps/desktop/src-tauri/tauri.conf.json)
+          apk=$(find apps/desktop/src-tauri/gen/android/app/build/outputs/apk -name '*-release*.apk' | head -1)
+          test -n "$apk"
+          mkdir -p out
+          cp "$apk" "out/oopz_${version}_android.apk"
+          # A release is always signed: phones can't update an unsigned or differently signed APK.
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          if "$apksigner" verify --print-certs "out/oopz_${version}_android.apk" > certs.txt; then
+            grep 'SHA-256' certs.txt
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "the APK isn't signed" >&2; exit 1
+          fi
+          cd out && sha256sum * > SHA256SUMS-android.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oopz-android
+          path: out/
+          if-no-files-found: error
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, cli]
+    needs: [build, cli, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write # the draft release
