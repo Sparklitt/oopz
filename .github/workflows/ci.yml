@@ -73,6 +73,8 @@ jobs:
           cache-dependency-path: apps/desktop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # Every Tauri command the shell registers is called from the UI's backend (tauri.ts).
+      - run: pnpm check:commands
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
