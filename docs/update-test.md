@@ -63,6 +63,33 @@ WebDriver (`tauri-driver`), the commands called as the UI calls them and the scr
 
 Found: the release notes are shown as raw Markdown (`**0.1.1**`); they're rendered since (see the changelog).
 
-### Part A, Windows and macOS
+### Part A, Windows 11 (NSIS, per-user), 2026-11-10
 
-Not run yet: Windows needs NSIS test builds (a CI run, or a Windows toolchain); macOS needs a Mac.
+Test builds 0.1.0 and 0.1.1 from `f529bc2` with the local-server overlay, cross-built on Linux (`pnpm tauri build
+--runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis`; clang, lld and NSIS unpacked from Ubuntu's packages,
+no install) and signed with the updater key. 0.1.0 installed with `/S` into `%LOCALAPPDATA%\oopz`. Most cases driven
+through WebDriver (tauri-driver built for Windows, msedgedriver matching WebView2 157); WebDriver gives WebView2 a
+throwaway profile, so the cases that need settings to persist (auto-check at start, the good update) ran on the app
+started normally, driven over WebView2's DevTools port (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`).
+
+| Case | Result |
+|---|---|
+| Tampered file | pass: "The signature verification failed"; the installed exe unchanged (hash) |
+| Signature from another key | pass: "The signature was created with a different key than the one provided" |
+| Empty `.sig` | pass: "Invalid encoding in minisign data" |
+| Same version / older (0.1.0, 0.0.9) | pass: no update found |
+| No entry for this system | pass: a clear error naming `windows-x86_64-nsis` and `windows-x86_64`; no crash |
+| Malformed `latest.json` | pass: "error decoding response body …", shown in Settings; the app kept running |
+| Server down | pass: a clear error in about 2 s (Windows retries a refused local connection; Linux 0.13 s) |
+| 404 | pass: "Could not fetch a valid release JSON from the remote" |
+| Interrupted download (3 MB of 5.4, then hung up) | pass: "error decoding response body"; the exe unchanged; the next install (a later run) worked |
+| Auto-check on, offline at start | pass: page up in 1.3 s, no popup; the error waits in Settings → Updates |
+| The good update (twice) | pass: installed passively and relaunched from the same per-user path as 0.1.1 (the app and the uninstall entry say 0.1.1); the decrypted copy gone from `%LOCALAPPDATA%\com.sparklitt.oopz\decrypted`; settings kept (consent, the switch, light theme, language); Start-menu entry kept; "newest" afterwards; the uninstaller then removed it |
+
+Seen once and not repeated: after the first good update the saved language was English (the system's is Spanish). A
+second downgrade-and-update kept Spanish with nothing saved, so it most likely came from the test's own scripted
+clicks; watch for it in part B.
+
+### Part A, macOS
+
+Not run: needs a Mac.
