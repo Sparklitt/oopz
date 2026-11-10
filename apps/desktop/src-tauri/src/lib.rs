@@ -340,13 +340,15 @@ mod update {
     }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        // Remembers the window's size and place between runs.
-        .plugin(tauri_plugin_window_state::Builder::default().build());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    // Desktop only: the window's size and place remembered between runs, and the update check.
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).manage(update::Pending::default());
+    let builder = builder
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::Pending::default());
     builder
         .setup(|app| {
             let cache = app.path().app_cache_dir()?;
@@ -371,6 +373,9 @@ pub fn run() {
             chat_len,
             chat_lines,
             message_position,
+            backup_tables,
+            chat_types,
+            chat_facts,
             #[cfg(desktop)]
             update::update_check,
             #[cfg(desktop)]
