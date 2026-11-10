@@ -1,0 +1,14 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- The page's colours from the first frame: the launch screen as the window's background (shown until the web view
+         draws), and system bars in the page colour with icons that stay readable on it. -->
+    <style name="Theme.oopz_desktop" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="android:statusBarColor">@color/oopz_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- API 27+: the navigation bar too; before that its buttons can't turn dark on a light bar. -->
+        <item name="android:navigationBarColor">@color/oopz_bg</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="colorPrimary">@color/oopz_mark</item>
+        <item name="android:colorAccent">@color/oopz_mark</item>
+    </style>
+</resources>

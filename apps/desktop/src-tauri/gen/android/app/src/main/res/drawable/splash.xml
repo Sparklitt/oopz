@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch screen, drawn by Android before the web view starts: the page colour and the app icon, centred. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/oopz_bg" />
+    <item android:gravity="center" android:width="112dp" android:height="112dp" android:drawable="@mipmap/ic_launcher" />
+</layer-list>

@@ -1,6 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- The page's colours from the first frame: the launch screen as the window's background (shown until the web view
+         draws), and system bars in the page colour with icons that stay readable on it. -->
     <style name="Theme.oopz_desktop" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="android:statusBarColor">@color/oopz_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="colorPrimary">@color/oopz_mark</item>
+        <item name="android:colorAccent">@color/oopz_mark</item>
     </style>
 </resources>
