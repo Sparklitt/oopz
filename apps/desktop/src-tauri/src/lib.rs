@@ -273,9 +273,8 @@ fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppErr
     open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
 }
 
-/// Copies a picked backup (an Android `content://` reference, or a path) into the private folder, after checking there's
-/// room for it and for opening it (decision 0012, point 3); `check_backup` then opens the copy. The copy goes with the
-/// private folder (on close, or "Wipe now").
+/// Copies a picked backup (an Android `content://` reference, or a path) into the private folder (decision 0012,
+/// point 3); `check_backup` then opens the copy, which goes with the private folder (on close, or "Wipe now").
 #[tauri::command(async)]
 fn import_backup(app: tauri::AppHandle, state: State<'_, AppState>, uri: String) -> Result<PathBuf, AppError> {
     use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
@@ -284,26 +283,34 @@ fn import_backup(app: tauri::AppHandle, state: State<'_, AppState>, uri: String)
         .fs()
         .open(picked, OpenOptions::new().read(true).to_owned())
         .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
-    let bytes = input.metadata().map_err(|e| AppError::io("reading the picked file", e))?.len();
-    // The copy, and then what opening it needs (session::Session::check_with asks four times the backup).
-    let free = session::free_space(state.tmp.path())?;
-    if free < 5 * bytes {
+    // Some providers don't know a file's size: 0, then the copy itself finds out whether it fits.
+    let bytes = input.metadata().map(|m| m.len()).unwrap_or(0);
+    copy_in(&mut input, bytes, state.tmp.path(), session::free_space(state.tmp.path())?)
+}
+
+/// [`import_backup`]'s copy: refused without room for the copy and for opening it (four times the backup, as
+/// `Session::check_with` asks); a copy that fails midway (a disk filling up, a provider cut off) leaves nothing.
+fn copy_in(input: &mut impl std::io::Read, bytes: u64, tmp: &Path, free: u64) -> Result<PathBuf, AppError> {
+    let need = bytes.saturating_mul(5);
+    if free < need {
         return Err(AppError::new(
             "no_space",
-            format!("{} MB free; this backup needs about {} MB", free >> 20, (5 * bytes) >> 20),
+            format!("{} MB free; this backup needs about {} MB", free >> 20, need >> 20),
         ));
     }
     let dir = tempfile::Builder::new()
         .prefix("imported-")
-        .tempdir_in(state.tmp.path())
-        .map_err(|e| AppError::io("making a private copy", e))?
-        .keep();
-    let copy = dir.join("msgstore.db.crypt15");
+        .tempdir_in(tmp)
+        .map_err(|e| AppError::io("making a private copy", e))?;
+    let copy = dir.path().join("msgstore.db.crypt15");
     let mut out = std::fs::File::create(&copy).map_err(|e| AppError::io("making a private copy", e))?;
-    std::io::copy(&mut input, &mut out).map_err(|e| {
-        let _ = std::fs::remove_dir_all(&dir);
-        AppError::io("copying the picked file", e)
-    })?;
+    let n = std::io::copy(input, &mut out).map_err(|e| AppError::io("copying the picked file", e))?;
+    if n == 0 {
+        return Err(AppError::new("not_crypt15", "the picked file is empty"));
+    }
+    out.sync_all().map_err(|e| AppError::io("copying the picked file", e))?;
+    // Kept from here on: the private folder removes it.
+    let _ = dir.keep();
     Ok(copy)
 }
 
@@ -312,11 +319,7 @@ fn import_backup(app: tauri::AppHandle, state: State<'_, AppState>, uri: String)
 #[tauri::command(async)]
 fn save_result(app: tauri::AppHandle, state: State<'_, AppState>, from: PathBuf, to: String) -> Result<u64, AppError> {
     use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
-    let from = from.canonicalize().map_err(|e| AppError::io("finding the result", e))?;
-    let ours = lock(&state.made).iter().filter_map(|m| m.canonicalize().ok()).any(|m| from.starts_with(m));
-    if !ours || !from.is_file() {
-        return Err(AppError::new("io", "not a file oopz made"));
-    }
+    let from = ours(&lock(&state.made), &from)?;
     let target: FilePath = to.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
     let mut out = app
         .fs()
@@ -328,6 +331,14 @@ fn save_result(app: tauri::AppHandle, state: State<'_, AppState>, from: PathBuf,
     Ok(n)
 }
 
+/// `from`, resolved (links followed, `..` gone), when it's a file inside a folder this run made.
+fn ours(made: &[PathBuf], from: &Path) -> Result<PathBuf, AppError> {
+    let refused = || AppError::new("io", "not a file oopz made");
+    let from = from.canonicalize().map_err(|_| refused())?;
+    let inside = made.iter().filter_map(|m| m.canonicalize().ok()).any(|m| from.starts_with(m));
+    if inside && from.is_file() { Ok(from) } else { Err(refused()) }
+}
+
 /// "Wipe now" (see [`AppState::wipe`]).
 #[tauri::command(async)]
 fn wipe_now(state: State<'_, AppState>) -> usize {
@@ -336,16 +347,23 @@ fn wipe_now(state: State<'_, AppState>) -> usize {
 
 /// Opens one of the app's own pages in the browser; the page names which, never a URL, so it can't open anything else.
 #[tauri::command(async)]
-fn open_link(which: String) -> Result<(), AppError> {
-    let url = match which.as_str() {
+fn open_link(app: tauri::AppHandle, which: String) -> Result<(), AppError> {
+    let url = link_url(&which)?;
+    // The opener plugin, from Rust only: it works on Android too, where `open` can't.
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(url, None::<&str>).map_err(|e| AppError::new("io", format!("opening the browser: {e}")))
+}
+
+/// The app's own pages, by name.
+fn link_url(which: &str) -> Result<&'static str, AppError> {
+    Ok(match which {
         "source" => "https://github.com/Sparklitt/oopz",
         "report" => "https://github.com/Sparklitt/oopz/issues/new",
         "security" => "https://github.com/Sparklitt/oopz/security/advisories/new",
         "licences" => "https://github.com/Sparklitt/oopz/blob/main/LICENSE",
         "releases" => "https://github.com/Sparklitt/oopz/releases",
         _ => return Err(AppError::new("not_found", format!("no link named {which}"))),
-    };
-    open::that_detached(url).map_err(|e| AppError::new("io", format!("opening the browser: {e}")))
+    })
 }
 
 #[tauri::command(async)]
@@ -527,7 +545,10 @@ mod update {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_fs::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init());
     // Desktop only: the window's size and place remembered between runs, and the update check.
     #[cfg(desktop)]
     let builder = builder
@@ -723,7 +744,9 @@ mod tests {
 
     #[test]
     fn only_the_apps_own_links_open() {
-        assert_eq!(open_link("https://example.com".into()).unwrap_err().code, "not_found");
+        assert_eq!(link_url("https://example.com").unwrap_err().code, "not_found");
+        assert_eq!(link_url("").unwrap_err().code, "not_found");
+        assert!(link_url("source").unwrap().starts_with("https://github.com/Sparklitt/oopz"));
     }
 
     #[test]
@@ -737,5 +760,52 @@ mod tests {
             }
         }
         assert_eq!(steps, ["fingerprint", "read", "unpack", "prepare"]);
+    }
+
+    #[test]
+    fn a_picked_backup_is_copied_in_only_when_it_fits_and_whole() {
+        let tmp = tempfile::tempdir().unwrap();
+        let backup = vec![1u8; 4096];
+        let copy = copy_in(&mut &backup[..], 4096, tmp.path(), 5 * 4096).unwrap();
+        assert_eq!(std::fs::read(&copy).unwrap(), backup);
+        assert_eq!(copy_in(&mut &backup[..], 4096, tmp.path(), 5 * 4096 - 1).unwrap_err().code, "no_space");
+        assert_eq!(copy_in(&mut &b""[..], 0, tmp.path(), u64::MAX).unwrap_err().code, "not_crypt15");
+        // A provider that fails midway: nothing is left.
+        struct CutOff(u8);
+        impl std::io::Read for CutOff {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                self.0 += 1;
+                if self.0 > 2 {
+                    Err(std::io::Error::other("cut off"))
+                } else {
+                    buf[0] = 1;
+                    Ok(1)
+                }
+            }
+        }
+        assert_eq!(copy_in(&mut CutOff(0), 0, tmp.path(), u64::MAX).unwrap_err().code, "io");
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1, "only the first, whole copy");
+    }
+
+    #[test]
+    fn only_files_inside_folders_oopz_made_are_saved_elsewhere() {
+        let root = tempfile::tempdir().unwrap();
+        let made = root.path().join("oopz-result-1");
+        std::fs::create_dir_all(made.join("Databases")).unwrap();
+        let result = made.join("Databases/msgstore.db.crypt15");
+        std::fs::write(&result, b"x").unwrap();
+        let outside = root.path().join("secret.txt");
+        std::fs::write(&outside, b"x").unwrap();
+        let list = vec![made.clone()];
+        assert!(ours(&list, &result).is_ok());
+        assert!(ours(&list, &made).is_err(), "a folder, not a file");
+        assert!(ours(&list, &outside).is_err());
+        assert!(ours(&list, &made.join("../secret.txt")).is_err(), "no way out with ..");
+        assert!(ours(&list, &made.join("missing")).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&outside, made.join("link")).unwrap();
+            assert!(ours(&list, &made.join("link")).is_err(), "no way out through a link");
+        }
     }
 }

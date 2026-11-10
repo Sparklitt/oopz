@@ -7,6 +7,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use oopz::{Backup, ChatMerge, Key};
+use rusqlite::OptionalExtension;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -178,6 +179,10 @@ pub const PREVIEW_CHARS: usize = 80;
 
 /// The largest file [`Session::thumbnail`] reads.
 pub const THUMBNAIL_MAX_FILE: u64 = 64 << 20;
+/// The widest or tallest picture [`Session::thumbnail`] decodes.
+pub const THUMBNAIL_MAX_SIDE: u32 = 16_384;
+/// The most memory one decode may take.
+pub const THUMBNAIL_MAX_ALLOC: u64 = 512 << 20;
 
 /// Merge `source_chat` of checked backup `source` into `target_chat` of checked backup `target`, writing a new
 /// folder in `out_parent`; with `media` (a copy of the source phone's `Media/` folder), the files the result needs.
@@ -322,7 +327,14 @@ impl Session {
         for c in &chats {
             let name = match (&c.subject, &contacts) {
                 (Some(s), _) if !s.trim().is_empty() => Some(s.trim().to_owned()),
-                (_, Some(book)) if !c.is_group() => book.name(c.jid())?,
+                (_, Some(book)) if !c.is_group() => match book.name(c.jid())? {
+                    Some(name) => Some(name),
+                    // A chat under WhatsApp's private id (lid): its phone id, through jid_map, is the one in contacts.
+                    None => match phone_jid(backup.db(), c.row_id).map_err(oopz::Error::from)? {
+                        Some(jid) => book.name(&jid)?,
+                        None => None,
+                    },
+                },
                 _ => None,
             };
             chat_list.push(ChatRow {
@@ -474,7 +486,15 @@ impl Session {
             Ok(m) if m.is_file() && m.len() <= THUMBNAIL_MAX_FILE => {}
             _ => return Ok(None),
         }
-        let Ok(reader) = image::ImageReader::open(&path).and_then(|r| r.with_guessed_format()) else { return Ok(None) };
+        let Ok(mut reader) = image::ImageReader::open(&path).and_then(|r| r.with_guessed_format()) else {
+            return Ok(None);
+        };
+        // A small file can claim a huge picture (a decompression bomb): refuse sizes no phone photo has.
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(THUMBNAIL_MAX_SIDE);
+        limits.max_image_height = Some(THUMBNAIL_MAX_SIDE);
+        limits.max_alloc = Some(THUMBNAIL_MAX_ALLOC);
+        reader.limits(limits);
         let Ok(picture) = reader.decode() else { return Ok(None) };
         let small = picture.thumbnail(max.max(1), max.max(1)).into_rgb8();
         let mut out = std::io::Cursor::new(Vec::new());
@@ -606,6 +626,20 @@ impl Session {
             original_untouched: sha256_file(&target.path)? == target.summary.sha256,
         })
     }
+}
+
+/// The phone-number id behind a chat under a private id (`…@lid`), when the backup maps it (`jid_map`).
+fn phone_jid(db: &rusqlite::Connection, chat: i64) -> rusqlite::Result<Option<String>> {
+    if !oopz::schema::Schema::has_columns(db, "jid_map", &["lid_row_id", "jid_row_id"]).unwrap_or(false) {
+        return Ok(None);
+    }
+    db.query_row(
+        "SELECT j.raw_string FROM chat c JOIN jid_map m ON m.lid_row_id = c.jid_row_id JOIN jid j ON j._id = m.jid_row_id
+         WHERE c._id = ?1 AND typeof(j.raw_string) = 'text'",
+        [chat],
+        |r| r.get(0),
+    )
+    .optional()
 }
 
 /// Each chat's newest message (by time, then row), its text cut to [`PREVIEW_CHARS`]: one pass over the messages.
@@ -882,11 +916,32 @@ mod tests {
             let small = image::load_from_memory_with_format(&jpeg, image::ImageFormat::Jpeg).unwrap();
             assert_eq!((small.width(), small.height()), (256, 128));
         }
+        // A picture claiming 20000 x 20000 pixels is refused before it's decoded.
+        image::RgbImage::new(20_000, 1).save_with_format(&file, image::ImageFormat::Png).unwrap();
+        assert_eq!(session.thumbnail(s.id, 3, media.path(), 256).unwrap(), None);
         // Not a picture, no file, no media row, a message that doesn't exist: nothing, never an error.
         fs::write(&file, b"not a picture").unwrap();
         assert_eq!(session.thumbnail(s.id, 3, media.path(), 256).unwrap(), None);
         assert_eq!(session.thumbnail(s.id, 5, media.path(), 256).unwrap(), None);
         assert_eq!(session.thumbnail(s.id, 1, media.path(), 256).unwrap(), None);
         assert_eq!(session.thumbnail(s.id, -7, media.path(), 256).unwrap(), None);
+    }
+
+    #[test]
+    fn a_private_id_chat_finds_its_phone_id_through_jid_map() {
+        let db = rusqlite::Connection::open_in_memory().unwrap();
+        assert_eq!(phone_jid(&db, 1).unwrap(), None, "no jid_map: no name, no error");
+        db.execute_batch(
+            "CREATE TABLE jid (_id INTEGER PRIMARY KEY, raw_string TEXT);
+             CREATE TABLE chat (_id INTEGER PRIMARY KEY, jid_row_id INTEGER);
+             CREATE TABLE jid_map (lid_row_id INTEGER PRIMARY KEY, jid_row_id INTEGER);
+             INSERT INTO jid VALUES (1, '888800000001@lid'), (2, '999900000001@s.whatsapp.net'), (3, '888800000002@lid');
+             INSERT INTO chat VALUES (1, 1), (2, 3);
+             INSERT INTO jid_map VALUES (1, 2);",
+        )
+        .unwrap();
+        assert_eq!(phone_jid(&db, 1).unwrap().as_deref(), Some("999900000001@s.whatsapp.net"));
+        assert_eq!(phone_jid(&db, 2).unwrap(), None, "not mapped");
+        assert_eq!(phone_jid(&db, 9).unwrap(), None, "no such chat");
     }
 }

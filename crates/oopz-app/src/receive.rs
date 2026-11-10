@@ -518,4 +518,31 @@ mod tests {
         assert!((IDLE.as_secs() - 2..=IDLE.as_secs()).contains(&left), "{left}");
         assert_eq!(rx.stop().idle_secs_left, 0);
     }
+
+    #[test]
+    fn a_slow_upload_shows_its_pace_and_time_left() {
+        let dir = tempfile::tempdir().unwrap();
+        let rx = Receiver::start(&dir.path().join("r"), IpAddr::V4(Ipv4Addr::LOCALHOST), IDLE).unwrap();
+        let url = rx.url().to_owned();
+        let mut stream = TcpStream::connect(addr_of(&url)).unwrap();
+        let head =
+            format!("PUT {}files/slow.crypt15 HTTP/1.1\r\nHost: x\r\nContent-Length: 4000000\r\n\r\n", path_of(&url));
+        stream.write_all(head.as_bytes()).unwrap();
+        stream.write_all(&vec![7u8; 1 << 20]).unwrap();
+        std::thread::sleep(Duration::from_millis(700));
+        stream.write_all(&vec![7u8; 1 << 16]).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let current = loop {
+            let c = rx.status().current;
+            if c.as_ref().is_some_and(|c| c.bytes_per_sec > 0) || Instant::now() > deadline {
+                break c.expect("a file arriving");
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert!(current.bytes_per_sec > 0 && current.done < current.total);
+        let left = current.secs_left.expect("time left once there's a pace");
+        assert!(left >= 1, "{left}");
+        drop(stream);
+        assert!(rx.stop().files.is_empty(), "a cut-off file isn't kept");
+    }
 }

@@ -428,6 +428,12 @@ fn build_into(
             extras.push(if there { col(table, c, alias)? } else { "NULL".into() });
         }
     }
+    // A reply can quote a message of another chat (WhatsApp's "reply privately"): its key is looked up there.
+    extras.push(if has("message_quoted", "message_row_id")? {
+        col("message_quoted", "parent_message_chat_row_id", "q")?
+    } else {
+        "NULL".into()
+    });
     let sql = format!(
         "SELECT m._id, m.chat_row_id, coalesce(m.timestamp, 0), coalesce(m.from_me, 0), coalesce(m.message_type, 0),
             {}, nullif(m.text_data, ''), {size}, {secs}, {}
@@ -456,7 +462,8 @@ fn build_into(
                 let id: i64 = r.get(0)?;
                 let reply_key: Option<String> = r.get(9)?;
                 if let Some(key) = &reply_key {
-                    quoted.entry((r.get(1)?, key.clone())).or_default().push(id);
+                    let in_chat = r.get::<_, Option<i64>>(22)?.unwrap_or(r.get(1)?);
+                    quoted.entry((in_chat, key.clone())).or_default().push(id);
                 }
                 // An edit row means edited; a forward score of 0 means not forwarded.
                 let edited = x[5] != rusqlite::types::Value::Null;
@@ -506,12 +513,20 @@ fn build_into(
         }
         if has("message_add_on", "parent_message_row_id")? && has("message_add_on_reaction", "reaction")? {
             let mut insert = tx.prepare("INSERT INTO react VALUES (?1, ?2, ?3)")?;
-            let mut read = source.prepare(
-                "SELECT a.parent_message_row_id, r.reaction, coalesce(a.from_me, 0)
-                 FROM message_add_on a JOIN message_add_on_reaction r ON r.message_add_on_row_id = a._id
-                 WHERE a.parent_message_row_id IS NOT NULL AND r.reaction IS NOT NULL AND r.reaction != ''
-                 ORDER BY a.parent_message_row_id, a._id",
-            )?;
+            // Each person's latest reaction only: a changed one replaces theirs, an empty one takes it back.
+            let sender = col("message_add_on", "sender_jid_row_id", "a")?;
+            let mut read = source.prepare(&format!(
+                "WITH latest AS (
+                     SELECT max(a._id) AS id FROM message_add_on a
+                     JOIN message_add_on_reaction r ON r.message_add_on_row_id = a._id
+                     WHERE a.parent_message_row_id IS NOT NULL
+                     GROUP BY a.parent_message_row_id, coalesce(a.from_me, 0), {sender})
+                 SELECT a.parent_message_row_id, r.reaction, coalesce(a.from_me, 0)
+                 FROM latest JOIN message_add_on a ON a._id = latest.id
+                 JOIN message_add_on_reaction r ON r.message_add_on_row_id = a._id
+                 WHERE typeof(r.reaction) = 'text' AND r.reaction != ''
+                 ORDER BY a.parent_message_row_id, a._id"
+            ))?;
             let mut rows = read.query([])?;
             while let Some(r) = rows.next()? {
                 insert.execute(params![r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?])?;
@@ -519,7 +534,22 @@ fn build_into(
         }
         if has("message_poll_option", "message_row_id")? {
             // Votes counted from the chosen options when the backup has them, else WhatsApp's own total.
-            let votes = if has("message_add_on_poll_vote_selected_option", "message_poll_option_id")? {
+            // Each voter's latest vote only (a changed vote is a new one), when the backup links votes to voters.
+            let latest_votes = has("message_add_on_poll_vote_selected_option", "message_add_on_row_id")?
+                && has("message_add_on_poll_vote", "message_add_on_row_id")?
+                && has("message_add_on", "parent_message_row_id")?;
+            let sender = col("message_add_on", "sender_jid_row_id", "a")?;
+            let latest = format!(
+                "(SELECT count(*) FROM message_add_on_poll_vote_selected_option s
+                  WHERE s.message_poll_option_id = o._id AND s.message_add_on_row_id IN (
+                      SELECT max(a._id) FROM message_add_on a
+                      JOIN message_add_on_poll_vote v ON v.message_add_on_row_id = a._id
+                      WHERE a.parent_message_row_id = o.message_row_id
+                      GROUP BY coalesce(a.from_me, 0), {sender}))"
+            );
+            let votes = if latest_votes && has("message_add_on_poll_vote_selected_option", "message_poll_option_id")? {
+                latest.as_str()
+            } else if has("message_add_on_poll_vote_selected_option", "message_poll_option_id")? {
                 "(SELECT count(*) FROM message_add_on_poll_vote_selected_option s WHERE s.message_poll_option_id = o._id)"
             } else if has("message_poll_option", "vote_total")? {
                 "coalesce(o.vote_total, 0)"
@@ -690,5 +720,106 @@ mod tests {
         assert_eq!(fts_query("¿qué?").as_deref(), Some("\"qué\"*"));
         assert_eq!(fts_query(" - * "), None);
         assert_eq!(fts_query("hola m").as_deref(), Some("\"hola\" \"m\""));
+    }
+
+    /// A source with just the tables these cases need, invented rows only.
+    fn edge_source(side_tables: bool) -> Connection {
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(
+            "CREATE TABLE jid (_id INTEGER PRIMARY KEY, raw_string TEXT);
+             CREATE TABLE message (_id INTEGER PRIMARY KEY, chat_row_id INTEGER, from_me INTEGER, key_id TEXT,
+                 sender_jid_row_id INTEGER, timestamp INTEGER, message_type INTEGER, text_data TEXT);
+             INSERT INTO jid VALUES (1, '999900000001@s.whatsapp.net'), (2, '999900000002@s.whatsapp.net');
+             INSERT INTO message VALUES
+                 (1, 10, 0, 'k1', 1, 1000, 0, 'hola'),
+                 (2, 10, 1, 'k2', NULL, 2000, 0, 'respuesta'),
+                 (3, 20, 1, 'k3', NULL, 3000, 0, 'en otro chat'),
+                 (4, 10, 1, 'k4', NULL, 4000, 46, '¿cuándo?'),
+                 (5, 10, 0, 'k5', 1, 5000, 0, 'a nothing');",
+        )
+        .unwrap();
+        if side_tables {
+            db.execute_batch(
+                "CREATE TABLE message_quoted (message_row_id INTEGER PRIMARY KEY, parent_message_chat_row_id INTEGER,
+                     from_me INTEGER, key_id TEXT, message_type INTEGER, text_data TEXT);
+                 -- 2 answers 1 in the same chat; 3 answers 1 from another chat; 5 answers a deleted message.
+                 INSERT INTO message_quoted VALUES (2, 10, 0, 'k1', 0, 'hola'), (3, 10, 0, 'k1', 0, 'hola'),
+                     (5, 10, 1, 'gone', 0, 'borrado');
+                 CREATE TABLE message_add_on (_id INTEGER PRIMARY KEY, chat_row_id INTEGER, from_me INTEGER,
+                     key_id TEXT, sender_jid_row_id INTEGER, parent_message_row_id INTEGER, timestamp INTEGER);
+                 CREATE TABLE message_add_on_reaction (message_add_on_row_id INTEGER PRIMARY KEY, reaction TEXT);
+                 -- On 1: person 2 reacts then changes it; I react then take it back; person 1's reaction has no value.
+                 INSERT INTO message_add_on VALUES (1, 10, 0, 'a1', 2, 1, 1), (2, 10, 0, 'a2', 2, 1, 2),
+                     (3, 10, 1, 'a3', NULL, 1, 3), (4, 10, 1, 'a4', NULL, 1, 4), (5, 10, 0, 'a5', 1, 1, 5);
+                 INSERT INTO message_add_on_reaction VALUES (1, '👍'), (2, '❤️'), (3, '😂'), (4, ''), (5, NULL);
+                 CREATE TABLE message_poll_option (_id INTEGER PRIMARY KEY, message_row_id INTEGER, option_name TEXT,
+                     vote_total INTEGER);
+                 INSERT INTO message_poll_option VALUES (1, 4, 'lunes', 9), (2, 4, 'martes', 9);
+                 CREATE TABLE message_add_on_poll_vote (message_add_on_row_id INTEGER PRIMARY KEY);
+                 CREATE TABLE message_add_on_poll_vote_selected_option (message_add_on_row_id INTEGER,
+                     message_poll_option_id INTEGER);
+                 -- Person 2 votes lunes, then changes to martes; I vote martes.
+                 INSERT INTO message_add_on VALUES (6, 10, 0, 'v1', 2, 4, 6), (7, 10, 0, 'v2', 2, 4, 7),
+                     (8, 10, 1, 'v3', NULL, 4, 8);
+                 INSERT INTO message_add_on_poll_vote VALUES (6), (7), (8);
+                 INSERT INTO message_add_on_poll_vote_selected_option VALUES (6, 1), (7, 2), (8, 2);",
+            )
+            .unwrap();
+        }
+        db
+    }
+
+    #[test]
+    fn changed_reactions_and_votes_count_once_and_replies_find_their_message_anywhere() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = Index::build(&edge_source(true), dir.path()).unwrap();
+        let chat = index.lines(10, 0, 10).unwrap();
+        let first = &chat[0];
+        // Person 2's latest (❤️) only; mine was taken back; one with no value isn't shown.
+        assert_eq!(first.reactions, vec![("❤️".to_owned(), false)]);
+        assert_eq!(chat[1].reply.as_ref().unwrap().id, Some(1));
+        let other = index.lines(20, 0, 1).unwrap();
+        assert_eq!(other[0].reply.as_ref().unwrap().id, Some(1), "a reply from another chat");
+        let gone = chat.iter().find(|l| l.id == 5).unwrap().reply.clone().unwrap();
+        assert_eq!((gone.id, gone.text.as_deref()), (None, Some("borrado")), "the quoted copy stays");
+        let poll = chat.iter().find(|l| l.id == 4).unwrap();
+        assert_eq!(poll.poll, vec![("lunes".to_owned(), 0), ("martes".to_owned(), 2)]);
+    }
+
+    #[test]
+    fn a_backup_without_side_tables_still_indexes() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = Index::build(&edge_source(false), dir.path()).unwrap();
+        let lines = index.lines(10, 0, 10).unwrap();
+        assert_eq!(lines.len(), 4);
+        assert!(lines.iter().all(|l| l.reply.is_none() && l.reactions.is_empty() && l.poll.is_empty()));
+        assert!(lines.iter().all(|l| l.media.is_none() && l.call.is_none() && !l.edited && l.forwarded == 0));
+    }
+
+    #[test]
+    fn jump_to_a_date_and_filters_at_the_edges() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = Index::build(&edge_source(true), dir.path()).unwrap();
+        assert_eq!(index.position_at(10, i64::MIN).unwrap(), Some(0));
+        assert_eq!(index.position_at(10, 4000).unwrap(), Some(2), "exactly at a message's time");
+        assert_eq!(index.position_at(10, i64::MAX).unwrap(), Some(3), "after the last: the last");
+        assert_eq!(index.position_at(99, 0).unwrap(), None, "no such chat");
+        let polls = Filter { kinds: vec![46], ..Default::default() };
+        assert_eq!(index.search("", &polls, 10).unwrap().len(), 1);
+        let empty_range = Filter { after_ms: Some(5000), before_ms: Some(5000), ..Default::default() };
+        assert!(index.search("", &empty_range, 10).unwrap().is_empty());
+        let person = Filter { sender: Some("001".into()), ..Default::default() };
+        assert_eq!(index.search("", &person, 10).unwrap().len(), 2);
+        assert!(
+            index.search("hola", &Filter { sender: Some("002".into()), ..Default::default() }, 10).unwrap().is_empty()
+        );
+    }
+
+    #[test]
+    fn an_index_build_stops_when_asked() {
+        let dir = tempfile::tempdir().unwrap();
+        let stopped = Index::build_with(&edge_source(true), dir.path(), &mut |_, _| false);
+        assert_eq!(stopped.err().map(|e| e.code), Some("cancelled"));
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0, "nothing left behind");
     }
 }
