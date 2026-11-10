@@ -6,7 +6,7 @@
   import type { ChatRow, Line } from "../backend/types";
   import { chatName, date, fmt, isGroup, longDate } from "../format";
   import { strings } from "../i18n";
-  import { app, be, go, openExport } from "../state.svelte";
+  import { app, be, go, onPhone, openExport } from "../state.svelte";
   import Bubble from "./Bubble.svelte";
 
   let { id, row, jump }: { id: number; row: ChatRow; jump: number | null } = $props();
@@ -27,12 +27,15 @@
 
   const dayOf = (ms: number) => new Date(ms).toDateString();
 
+  // box is null once the chat is closed while a fetch was still on its way: every use checks.
   function element(pos: number): HTMLElement | null {
+    if (!box) return null;
     return box.querySelector(`[data-pos="${pos}"]`);
   }
 
   /** The first message on screen: kept in place while the window changes around it. */
   function anchor(): number | null {
+    if (!box) return null;
     for (const el of box.querySelectorAll<HTMLElement>("[data-pos]")) {
       if (el.offsetTop + el.offsetHeight > box.scrollTop) return Number(el.dataset.pos);
     }
@@ -46,7 +49,7 @@
     change();
     await tick();
     const again = pos === null ? null : element(pos);
-    if (again) box.scrollTop = again.offsetTop - offset;
+    if (again && box) box.scrollTop = again.offsetTop - offset;
   }
 
   async function openAt(pos: number | null) {
@@ -57,6 +60,7 @@
     lines = await be().chatLines(id, row.number, from, PAGE);
     start = from;
     await tick();
+    if (!box) return;
     if (pos === null) {
       box.scrollTop = box.scrollHeight;
     } else {
@@ -88,6 +92,7 @@
   }
 
   async function onScroll() {
+    if (!box) return;
     const end = start + lines.length;
     const fromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
     atEnd = end >= len && fromBottom < 80;
@@ -156,7 +161,8 @@
     <button class="btn icon-only" aria-label={t.searchThisChat} title={t.searchThisChat} onclick={() => { app.searchChat = row.number; go("search"); }}><Icon name="search" /></button>
     <button class="btn icon-only" aria-label={t.toOldest} title={t.toOldest} onclick={oldest}><Icon name="arrowUp" /></button>
     <button class="btn icon-only" aria-label={t.jumpDate} title={t.jumpDate} aria-expanded={dating} onclick={() => (dating = !dating)}><Icon name="calendar" /></button>
-    <button class="btn icon-only" aria-label={t.showPhotos} title={t.showPhotosHint} aria-pressed={app.mediaFolder !== null} onclick={pickMedia}><Icon name="image" /></button>
+    <!-- Not on Android: its picker gives a content:// reference, not a folder Rust can read photos from. -->
+    {#if !onPhone()}<button class="btn icon-only" aria-label={t.showPhotos} title={t.showPhotosHint} aria-pressed={app.mediaFolder !== null} onclick={pickMedia}><Icon name="image" /></button>{/if}
     <button class="btn icon-only" aria-label={t.exportChat} title={t.exportChat} onclick={() => openExport(row.number)}><Icon name="download" /></button>
   </div>
 </header>
