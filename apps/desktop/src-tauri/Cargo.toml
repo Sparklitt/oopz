@@ -25,6 +25,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+# Android: reading a picked backup and writing a result through content:// references (decision 0012, point 3), from
+# Rust only; the webview is given no fs permission.
+tauri-plugin-fs = "2"
 open = "5"
 tempfile = "3"
 zeroize = { version = "1", features = ["serde"] }

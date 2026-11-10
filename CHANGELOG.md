@@ -14,6 +14,17 @@ follow [Semantic Versioning](https://semver.org/).
   in the terminal). A test fails if a command is added to one and not the other.
 - The app has the CLI's diagnostics as commands (tables, types, chat facts) for problem reports.
 - Release binaries of the CLI for Linux (x86_64, arm64), Windows and macOS.
+- The chat viewer shows replies (and jumps to the answered message), reactions, edited and forwarded marks, polls
+  with their votes, calls with their outcome and length, and photo thumbnails from the phone's Media folder.
+- Chats show their names (a group's subject; a contact's name from `wa.db.crypt15` beside the backup) and their last
+  message; names can be hidden.
+- Search filters by type, sent or received, sender and dates, and works without words; "jump to a date" in a chat; a
+  day × hour grid in the stats. CLI: `search --kind/--from/--after/--before`, `jump`, `thumbnail`, `chats --names`.
+- Opening a backup names each step, estimates the time left and can be cancelled; the Wi-Fi page shows the speed and
+  when it will stop by itself; "Wipe now" removes every decrypted copy at once.
+- The update check shows the release notes and when it last checked.
+- Android: a signed APK in each release; a picked backup is copied into the app's private storage and results are
+  saved where the person picks (decision 0012).
 
 ### Changed
 

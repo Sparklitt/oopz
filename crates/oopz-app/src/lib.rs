@@ -29,7 +29,8 @@ impl AppError {
         Self { code, detail: detail.into() }
     }
 
-    fn io(context: impl std::fmt::Display, e: std::io::Error) -> Self {
+    /// An `io` error: what was being done, and the system's reason (never a key or message text).
+    pub fn io(context: impl std::fmt::Display, e: std::io::Error) -> Self {
         Self::new("io", format!("{context}: {e}"))
     }
 }

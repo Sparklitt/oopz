@@ -273,6 +273,61 @@ fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppErr
     open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
 }
 
+/// Copies a picked backup (an Android `content://` reference, or a path) into the private folder, after checking there's
+/// room for it and for opening it (decision 0012, point 3); `check_backup` then opens the copy. The copy goes with the
+/// private folder (on close, or "Wipe now").
+#[tauri::command(async)]
+fn import_backup(app: tauri::AppHandle, state: State<'_, AppState>, uri: String) -> Result<PathBuf, AppError> {
+    use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
+    let picked: FilePath = uri.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+    let mut input = app
+        .fs()
+        .open(picked, OpenOptions::new().read(true).to_owned())
+        .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
+    let bytes = input.metadata().map_err(|e| AppError::io("reading the picked file", e))?.len();
+    // The copy, and then what opening it needs (session::Session::check_with asks four times the backup).
+    let free = session::free_space(state.tmp.path())?;
+    if free < 5 * bytes {
+        return Err(AppError::new(
+            "no_space",
+            format!("{} MB free; this backup needs about {} MB", free >> 20, (5 * bytes) >> 20),
+        ));
+    }
+    let dir = tempfile::Builder::new()
+        .prefix("imported-")
+        .tempdir_in(state.tmp.path())
+        .map_err(|e| AppError::io("making a private copy", e))?
+        .keep();
+    let copy = dir.join("msgstore.db.crypt15");
+    let mut out = std::fs::File::create(&copy).map_err(|e| AppError::io("making a private copy", e))?;
+    std::io::copy(&mut input, &mut out).map_err(|e| {
+        let _ = std::fs::remove_dir_all(&dir);
+        AppError::io("copying the picked file", e)
+    })?;
+    Ok(copy)
+}
+
+/// Writes a file oopz made (a merged backup, a saved page) to where the person picked (an Android `content://`
+/// reference, or a path). Only files inside folders this run made.
+#[tauri::command(async)]
+fn save_result(app: tauri::AppHandle, state: State<'_, AppState>, from: PathBuf, to: String) -> Result<u64, AppError> {
+    use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
+    let from = from.canonicalize().map_err(|e| AppError::io("finding the result", e))?;
+    let ours = lock(&state.made).iter().filter_map(|m| m.canonicalize().ok()).any(|m| from.starts_with(m));
+    if !ours || !from.is_file() {
+        return Err(AppError::new("io", "not a file oopz made"));
+    }
+    let target: FilePath = to.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+    let mut out = app
+        .fs()
+        .open(target, OpenOptions::new().write(true).create(true).truncate(true).to_owned())
+        .map_err(|e| AppError::new("io", format!("opening where to save: {e}")))?;
+    let mut input = std::fs::File::open(&from).map_err(|e| AppError::io("reading the result", e))?;
+    let n = std::io::copy(&mut input, &mut out).map_err(|e| AppError::io("saving the result", e))?;
+    out.sync_all().map_err(|e| AppError::io("saving the result", e))?;
+    Ok(n)
+}
+
 /// "Wipe now" (see [`AppState::wipe`]).
 #[tauri::command(async)]
 fn wipe_now(state: State<'_, AppState>) -> usize {
@@ -472,7 +527,7 @@ mod update {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_fs::init());
     // Desktop only: the window's size and place remembered between runs, and the update check.
     #[cfg(desktop)]
     let builder = builder
@@ -506,6 +561,8 @@ pub fn run() {
             position_at,
             cancel_work,
             wipe_now,
+            import_backup,
+            save_result,
             open_link,
             thumbnail,
             backup_tables,

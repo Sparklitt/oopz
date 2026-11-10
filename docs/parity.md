@@ -28,5 +28,6 @@ names (`oopz export`), or prints as counts and positions.
 | `show_folder` | app only: opens the system's file manager | |
 | `cancel_work` | app only: Ctrl-C stops a CLI run, and its copies go with it | the progress callbacks (`Cancelled`) |
 | `wipe_now` | app only: each CLI run removes its decrypted copies when it ends | `Session` |
+| `import_backup`, `save_result` | app only: Android's file picker hands the app references, not paths (decision 0012); the CLI takes paths | |
 | `open_link` | app only: the CLI's `--help` names the repository | |
 | `update_check`, `update_install`, `update_last_checked` | app only: the app updates itself (decision 0011); the CLI binary is replaced by hand | |
