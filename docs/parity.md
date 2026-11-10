@@ -41,24 +41,24 @@ library" is on. Like the rest of the CLI, `oopz lib` prints counts, ids, dates a
 
 | App command | CLI command | Shared code |
 |---|---|---|
-| | `oopz lib` (the group) | |
-| | `oopz lib adapters` | `oopz_app::adapters` |
-| | `oopz lib import` | `Library::import_path` |
-| | `oopz lib sources` | `Library::sources` |
-| | `oopz lib remove` | `Library::remove_source` |
-| | `oopz lib set-me` | `Library::set_me` |
-| | `oopz lib convs` | `Library::conversations` |
-| | `oopz lib jump` | `Library::position_at`, `Library::conversation_len` |
-| | `oopz lib search` | `Library::search`, `Library::position` |
-| | `oopz lib timeline` | `Library::find` (`Order::Time`), `Library::count` |
-| | `oopz lib count` | `Library::count`, `Library::selected` |
-| | `oopz lib stats` | `Library::stats` |
-| | `oopz lib people` | `Library::people` |
-| | `oopz lib contacts` | `Library::contacts` |
-| | `oopz lib suggest`, `oopz lib accept` | `Library::suggestions`, `Library::accept` |
-| | `oopz lib link`, `oopz lib unlink` | `Library::link`, `Library::unlink` |
-| | `oopz lib rename`, `oopz lib forget` | `Library::rename_contact`, `Library::delete_contact` |
-| | `oopz lib vcard-import` | `Library::import_vcards` |
-| | `oopz lib vcard-export` | `oopz_export::export_contacts` |
-| | `oopz lib select`, `oopz lib selections`, `oopz lib unselect` | `Library::save_selection`, `Library::selections`, `Library::delete_selection` |
-| | `oopz lib export` (html, json, csv, txt, vcard, media-zip; pdf with the `pdf` feature) | `oopz_export::export`, `oopz_export_pdf::export_pdf` |
+| `library_info`, `library_set_keep` | `oopz lib` (the group; the CLI's library is the `--library` folder, kept until the person deletes it) | the app's `library.rs` |
+| `lib_adapters` | `oopz lib adapters` | `oopz_app::adapters` |
+| `lib_import` | `oopz lib import` | `Library::import_path` |
+| `lib_sources` | `oopz lib sources` | `Library::sources` |
+| `lib_remove_source` | `oopz lib remove` | `Library::remove_source` |
+| `lib_set_me` | `oopz lib set-me` | `Library::set_me` |
+| `lib_conversations` | `oopz lib convs` | `Library::conversations` |
+| `lib_position_at`, `lib_conversation_len` | `oopz lib jump` | `Library::position_at`, `Library::conversation_len` |
+| `lib_search`, `lib_position` | `oopz lib search` | `Library::search`, `Library::position` |
+| `lib_find` | `oopz lib timeline` | `Library::find` (`Order::Time`), `Library::count` |
+| `lib_count`, `lib_selected` | `oopz lib count` | `Library::count`, `Library::selected` |
+| `lib_stats` | `oopz lib stats` | `Library::stats` |
+| `lib_people` | `oopz lib people` | `Library::people` |
+| `lib_contacts` | `oopz lib contacts` | `Library::contacts` |
+| `lib_suggestions`, `lib_accept` | `oopz lib suggest`, `oopz lib accept` | `Library::suggestions`, `Library::accept` |
+| `lib_link`, `lib_unlink` | `oopz lib link`, `oopz lib unlink` | `Library::link`, `Library::unlink` |
+| `lib_rename_contact`, `lib_delete_contact` | `oopz lib rename`, `oopz lib forget` | `Library::rename_contact`, `Library::delete_contact` |
+| `lib_import_vcards` | `oopz lib vcard-import` | `Library::import_vcards` |
+| `lib_export_contacts` | `oopz lib vcard-export` | `oopz_export::export_contacts` |
+| `lib_save_selection`, `lib_selections`, `lib_delete_selection` | `oopz lib select`, `oopz lib selections`, `oopz lib unselect` | `Library::save_selection`, `Library::selections`, `Library::delete_selection` |
+| `lib_export`, `lib_messages`, `lib_messages_by_id` (the app reads pages on screen; the CLI writes them to a file) | `oopz lib export` (html, json, csv, txt, vcard, media-zip; pdf with the `pdf` feature) | `oopz_export::export`, `oopz_export_pdf::export_pdf` |

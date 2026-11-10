@@ -10,7 +10,9 @@ const INLINE = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|_([^_\s][^_]*)_|`
 export function spans(line: string): Span[] {
   const out: Span[] = [];
   let at = 0;
-  for (const m of line.matchAll(INLINE)) {
+  // exec in a loop, not matchAll: old phones' WebViews (Chrome 67) don't have it.
+  INLINE.lastIndex = 0;
+  for (let m = INLINE.exec(line); m; m = INLINE.exec(line)) {
     if (m.index! > at) out.push({ text: line.slice(at, m.index) });
     if (m[2] ?? m[3]) out.push({ text: (m[2] ?? m[3])!, bold: true });
     else if (m[4] ?? m[5]) out.push({ text: (m[4] ?? m[5])!, italic: true });

@@ -7,7 +7,8 @@
 
   let { values }: { values: number[][] } = $props();
   let t = $derived(strings(app.lang));
-  let top = $derived(Math.max(1, ...values.flat()));
+  // No flat(): Chrome 67 (old phones' WebViews) doesn't have it.
+  let top = $derived(values.reduce((most, row) => Math.max(most, ...row), 1));
   // Spanish weeks start on Monday, English ones on Sunday.
   let order = $derived(app.lang === "es" ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6]);
   // 2023-01-01 was a Sunday.

@@ -54,7 +54,7 @@ fn subcommands(prefix: &[&str]) -> BTreeSet<String> {
 fn table() -> (BTreeSet<String>, BTreeSet<String>) {
     let doc = std::fs::read_to_string(root().join("docs/parity.md")).expect("docs/parity.md");
     let (mut app, mut cli) = (BTreeSet::new(), BTreeSet::new());
-    for row in doc.lines().filter(|l| l.starts_with("| `") || l.starts_with("| | `")) {
+    for row in doc.lines().filter(|l| l.starts_with("| `")) {
         let cells: Vec<&str> = row.split('|').collect();
         for (i, cell) in cells.iter().enumerate().take(3).skip(1) {
             for code in cell.split('`').skip(1).step_by(2) {
