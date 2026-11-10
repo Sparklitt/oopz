@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "oopz", "width": 1000, "height": 760, "minWidth": 640, "minHeight": 560 }
+      { "label": "main", "title": "oopz", "width": 1000, "height": 760, "minWidth": 640, "minHeight": 560, "center": true }
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
@@ -23,6 +23,10 @@
     "createUpdaterArtifacts": true,
     "category": "Utility",
     "shortDescription": "Your own WhatsApp backups: open, check, recover. Offline.",
+    "longDescription": "oopz opens your own WhatsApp backups with your own 64-digit key, shows what they hold, searches them, and can bring a lost chat back. Everything stays on your device: no account, no cloud, no tracking.",
+    "publisher": "Sparklitt",
+    "copyright": "© 2026 Sparklitt",
+    "homepage": "https://github.com/Sparklitt/oopz",
     "license": "AGPL-3.0-or-later",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "windows": {
