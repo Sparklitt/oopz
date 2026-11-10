@@ -102,7 +102,7 @@
   </div>
   <LibFilterFields bind:filter={lib.selection.filter} onchange={() => bump++} />
   <p class="count" aria-live="polite">
-    <strong>{fmt(ids.length)} {t.messages}</strong>
+    <strong>{fmt(ids.length)} {(ids.length) === 1 ? t.message : t.messages}</strong>
     {#if lib.selection.add.length} · {fmt(lib.selection.add.length)} {l.pickedByHand}{/if}
     {#if lib.selection.remove.length} · {fmt(lib.selection.remove.length)} {l.takenOut}{/if}
     {#if lib.selection.add.length || lib.selection.remove.length}<button class="btn small" onclick={() => { lib.selection.add = []; lib.selection.remove = []; }}>{l.clearHand}</button>{/if}

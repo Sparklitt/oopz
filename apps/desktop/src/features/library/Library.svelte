@@ -53,7 +53,7 @@
       <span>
         {lib.info.kept ? l.keptNote : l.notKeptNote}
         <button class="link" onclick={() => go("settings")}>{l.changeInSettings}</button>
-        {#if lib.info.sources}<span class="muted"> · {fmt(lib.info.messages)} {t.messages} · {mb(lib.info.bytes)}</span>{/if}
+        {#if lib.info.sources}<span class="muted"> · {fmt(lib.info.messages)} {(lib.info.messages) === 1 ? t.message : t.messages} · {mb(lib.info.bytes)}</span>{/if}
       </span>
     </div>
   {/if}
@@ -79,7 +79,7 @@
             <span class="muted">{l.adapterNames[s.adapter] ?? s.adapter}</span>
           </div>
           <p class="counts">
-            {fmt(s.conversations)} {l.conversations} · {fmt(s.people)} {l.people} · {fmt(s.messages)} {t.messages}
+            {fmt(s.conversations)} {l.conversations} · {fmt(s.people)} {l.people} · {fmt(s.messages)} {(s.messages) === 1 ? t.message : t.messages}
             · {date(s.first_ms)} – {date(s.last_ms)}
           </p>
           <p class="muted small">{l.added} {date(s.added_ms)}{#if s.wall_clock} · {l.wallClock}{/if}{#if !s.has_media} · {l.noMedia}{/if}</p>
@@ -96,7 +96,7 @@
                     <label class="sr-only" for="me-{s.id}">{l.whoAreYou}</label>
                     <select id="me-{s.id}" class="select" bind:value={me}>
                       <option value={0}>{l.pickYourself}</option>
-                      {#each people as p (p.id)}<option value={p.id}>{personName(p.name ?? p.username ?? p.phone, p.id)} · {fmt(p.messages)} {t.messages}</option>{/each}
+                      {#each people as p (p.id)}<option value={p.id}>{personName(p.name ?? p.username ?? p.phone, p.id)} · {fmt(p.messages)} {(p.messages) === 1 ? t.message : t.messages}</option>{/each}
                     </select>
                     <button class="btn primary small" disabled={!me || app.busy} onclick={setMe}>{l.thatsMe}</button>
                     <button class="btn small" onclick={() => (asking = null)}>{t.cancel}</button>

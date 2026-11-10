@@ -51,7 +51,7 @@
             <span class="avatar" class:group={isGroup(c)} aria-hidden="true"><Icon name={c.kind === "broadcast" ? "megaphone" : isGroup(c) ? "users" : "user"} size={16} /></span>
             <span class="words">
               <span class="name">{chatName(c)}</span>
-              <span class="sub">{previewText(c) ?? `${fmt(c.messages)} ${t.messages}`}</span>
+              <span class="sub">{previewText(c) ?? `${fmt(c.messages)} ${(c.messages) === 1 ? t.message : t.messages}`}</span>
             </span>
             <span class="when">{date(c.last_ms)}</span>
           </button>

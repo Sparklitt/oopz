@@ -36,12 +36,12 @@
     <legend class="h3">{t.source}</legend>
     <label class="field"><span class="label">{t.backup}</span>
       <select class="select" bind:value={m.source} onchange={changed}>
-        {#each backups as b (b.id)}<option value={b.id}>{b.name} ({fmt(b.messages)} {t.messages})</option>{/each}
+        {#each backups as b (b.id)}<option value={b.id}>{b.name} ({fmt(b.messages)} {(b.messages) === 1 ? t.message : t.messages})</option>{/each}
       </select>
     </label>
     <label class="field"><span class="label">{t.chat}</span>
       <select class="select" bind:value={m.sourceChat} onchange={changed}>
-        {#each chatsOf(m.source) as c (c.number)}<option value={c.number}>{c.number} · {chatName(c)} · {fmt(c.messages)} {t.messages}</option>{/each}
+        {#each chatsOf(m.source) as c (c.number)}<option value={c.number}>{c.number} · {chatName(c)} · {fmt(c.messages)} {(c.messages) === 1 ? t.message : t.messages}</option>{/each}
       </select>
     </label>
   </fieldset>
@@ -50,12 +50,12 @@
     <legend class="h3">{t.target}</legend>
     <label class="field"><span class="label">{t.backup}</span>
       <select class="select" bind:value={m.target} onchange={changed}>
-        {#each backups as b (b.id)}<option value={b.id}>{b.name} ({fmt(b.messages)} {t.messages})</option>{/each}
+        {#each backups as b (b.id)}<option value={b.id}>{b.name} ({fmt(b.messages)} {(b.messages) === 1 ? t.message : t.messages})</option>{/each}
       </select>
     </label>
     <label class="field"><span class="label">{t.chat}</span>
       <select class="select" bind:value={m.targetChat} onchange={changed}>
-        {#each chatsOf(m.target) as c (c.number)}<option value={c.number}>{c.number} · {chatName(c)} · {fmt(c.messages)} {t.messages}</option>{/each}
+        {#each chatsOf(m.target) as c (c.number)}<option value={c.number}>{c.number} · {chatName(c)} · {fmt(c.messages)} {(c.messages) === 1 ? t.message : t.messages}</option>{/each}
       </select>
     </label>
   </fieldset>

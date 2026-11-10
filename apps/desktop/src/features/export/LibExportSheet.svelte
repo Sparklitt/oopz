@@ -84,7 +84,7 @@
     </div>
   {:else}
     <h1 class="sheet-title">{l.exportTitle}</h1>
-    <p class="muted">{count === null ? "…" : `${fmt(count)} ${t.messages}`}</p>
+    <p class="muted">{count === null ? "…" : `${fmt(count)} ${(count) === 1 ? t.message : t.messages}`}</p>
     <fieldset class="choices">
       <legend class="h3">{l.format}</legend>
       <div class="formats">
@@ -124,7 +124,7 @@
       <div class="note ok" role="status">
         <Icon name="check" />
         <span>
-          {t.exportSaved}: {fmt(done.messages)} {t.messages} · {mb(done.bytes)}{#if done.pages}{` · ${l.pages(done.pages)}`}{/if}
+          {t.exportSaved}: {fmt(done.messages)} {(done.messages) === 1 ? t.message : t.messages} · {mb(done.bytes)}{#if done.pages}{` · ${l.pages(done.pages)}`}{/if}
           {#if done.missing_files}<br />{l.missingFiles(done.missing_files)}{/if}
           {#if done.missing_glyphs}<br />{l.missingGlyphs}{/if}
         </span>

@@ -161,7 +161,7 @@
     {#each unlinked.slice(0, 300) as p (p.id)}
       <li class="row">
         <input type="checkbox" aria-label="{l.pickToLink}: {who(p)}" checked={linking.includes(p.id)} onchange={(e) => (linking = toggle(linking, p.id, e.currentTarget.checked))} />
-        <span class="grow"><strong><span class="badge">{appName(p.app)}</span> {who(p)}</strong><span class="muted">{app.hideNames ? "" : [p.phone, p.username && `@${p.username}`, p.email].filter(Boolean).join(" · ")} {fmt(p.messages)} {t.messages}</span></span>
+        <span class="grow"><strong><span class="badge">{appName(p.app)}</span> {who(p)}</strong><span class="muted">{app.hideNames ? "" : [p.phone, p.username && `@${p.username}`, p.email].filter(Boolean).join(" · ")} {fmt(p.messages)} {(p.messages) === 1 ? t.message : t.messages}</span></span>
       </li>
     {/each}
     {#if unlinked.length === 0}<li class="row muted">{lib.sources.length ? l.allLinked : l.emptyTitle}</li>{/if}

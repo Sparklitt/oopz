@@ -93,7 +93,7 @@
   </details>
 
   {#if built}
-    <p class="hint"><Icon name="check" size={14} /> {t.exploreBuilt} ({fmt(built.messages)} {t.messages}, {(built.millis / 1000).toFixed(1)} s)</p>
+    <p class="hint"><Icon name="check" size={14} /> {t.exploreBuilt} ({fmt(built.messages)} {(built.messages) === 1 ? t.message : t.messages}, {(built.millis / 1000).toFixed(1)} s)</p>
   {/if}
   {#if app.summaries.length < 2}
     <div class="note"><Icon name="info" /><span>{t.mergeNeedsTwo}</span></div>

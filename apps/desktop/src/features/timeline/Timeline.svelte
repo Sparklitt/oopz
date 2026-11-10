@@ -73,7 +73,7 @@
     {/snippet}
   </PageHead>
   <LibFilterFields bind:filter onchange={() => bump++} />
-  <p class="hint" aria-live="polite">{fmt(total)} {t.messages}</p>
+  <p class="hint" aria-live="polite">{fmt(total)} {(total) === 1 ? t.message : t.messages}</p>
   {#if rows.length}
     <div class="msgs">
       {#each rows as m, i (m.id)}

@@ -124,7 +124,7 @@
           <input id="keep-library" class="switch" type="checkbox" role="switch" disabled={app.busy || !lib.info} checked={lib.info?.kept ?? false} onchange={(e) => setKeep(e.currentTarget.checked)} />
         </div>
       </div>
-      {#if lib.info}<p class="muted">{t.lib.keepWhere}: <code>{lib.info.dir}</code> · {fmt(lib.info.sources)} {t.lib.sources} · {fmt(lib.info.messages)} {t.messages} · {mb(lib.info.bytes)}</p>{/if}
+      {#if lib.info}<p class="muted">{t.lib.keepWhere}: <code>{lib.info.dir}</code> · {fmt(lib.info.sources)} {t.lib.sources} · {fmt(lib.info.messages)} {(lib.info.messages) === 1 ? t.message : t.messages} · {mb(lib.info.bytes)}</p>{/if}
       <h3 class="h3">{t.wipeTitle}</h3>
       <p class="muted">{t.wipeText} {t.lib.wipeAlso}</p>
       <ErrorNote error={app.error} />

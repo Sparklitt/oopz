@@ -81,7 +81,7 @@
       <span class="ok-ico"><Icon name="check" size={30} /></span>
       <h1 class="sheet-title">{l.added}: {appName(done.app)}</h1>
       <p class="muted">{done.name}</p>
-      <p>{fmt(done.conversations)} {l.conversations} · {fmt(done.people)} {l.people} · {fmt(done.messages)} {t.messages}</p>
+      <p>{fmt(done.conversations)} {l.conversations} · {fmt(done.people)} {l.people} · {fmt(done.messages)} {(done.messages) === 1 ? t.message : t.messages}</p>
       {#if !done.owner_known}<div class="note warn"><Icon name="user" /><span>{l.ownerUnknown}</span></div>{/if}
       {#each done.notes as n, i (i)}<p class="muted small">{#each spans(n) as sp, j (j)}{#if sp.code}<code>{sp.text}</code>{:else}{sp.text}{/if}{/each}</p>{/each}
     </div>
