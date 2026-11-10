@@ -142,6 +142,7 @@ impl WhatsAppSource {
             adapter: "whatsapp-android".into(),
             format: Some("crypt15".into()),
             owner: Some(people[0].clone()),
+            wall_clock: false,
             media_root: path.parent().and_then(Path::parent).map(|p| p.join("Media")).filter(|p| p.is_dir()),
             notes: if summary.sound { Vec::new() } else { vec![format!("SQLite's check found: {}", summary.problems)] },
         };

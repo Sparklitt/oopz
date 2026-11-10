@@ -514,6 +514,9 @@ pub struct SourceInfo {
     pub owner: Option<Person>,
     /// The folder media file paths are relative to.
     pub media_root: Option<PathBuf>,
+    /// The times are the phone's wall clock with no zone (text exports), stored as if UTC (decision 0013, point 2):
+    /// shown and counted as they are, never shifted to the computer's zone.
+    pub wall_clock: bool,
     /// Lines or records the adapter kept as unknown or had to read around, in plain words (no message text).
     pub notes: Vec<String>,
 }
