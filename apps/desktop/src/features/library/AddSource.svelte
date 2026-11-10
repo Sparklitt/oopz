@@ -103,7 +103,8 @@
       </label>
 
       {#if stopped}<p class="muted" role="status">{t.stopped}</p>{/if}
-      <ErrorNote {error} words={l.errors} />
+      <!-- Asking for the key or password is said beside its box: not twice. -->
+      {#if !(error && ["needs_key", "needs_password", "needs_secret"].includes(error.code))}<ErrorNote {error} words={l.errors} />{/if}
 
       {#if secretKind === "key"}
         <p class="muted">{l.keyNeeded}</p>

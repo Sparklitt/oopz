@@ -97,7 +97,7 @@ const en = {
 
   welcomeTitle: "Your chats, back where they belong",
   welcomeLead:
-    "oopz opens your own WhatsApp backups with your own 64-digit key, tells you what is inside, and can put a lost chat back. Everything stays on this computer.",
+    "oopz opens your own chat history: WhatsApp backups with your own key or password, and the exports of WhatsApp, Telegram, SMS, LINE and Viber. Read, search and export them together, and put a lost WhatsApp chat back. Everything stays on this computer.",
   rulesTitle: "Before we start",
   rules: [
     "Only your own backups, opened with your own key. To use someone else's backup, they give it to you and type their own key, knowing what you will do.",
@@ -554,7 +554,7 @@ const en = {
     adapterNames: {
       "whatsapp-android": "Android backup (.crypt15, with its 64-digit key)",
       "whatsapp-ios": "iPhone backup (its folder)",
-      "whatsapp-business-ios": "WhatsApp Business in an iPhone backup",
+      "whatsapp-business-ios": "Business, in an iPhone backup",
       "whatsapp-export": "“Export chat” (.txt or .zip)",
       "telegram-json": "Telegram Desktop export (result.json or its folder)",
       "sms-xml": "SMS Backup & Restore (.xml)",
@@ -672,7 +672,7 @@ const es: Strings = {
 
   welcomeTitle: "Tus chats, de vuelta en su sitio",
   welcomeLead:
-    "oopz abre tus propias copias de seguridad de WhatsApp con tu propia clave de 64 dígitos, te dice qué contienen y puede devolver un chat perdido. Todo se queda en este ordenador.",
+    "oopz abre tu propio historial de chats: copias de WhatsApp con tu propia clave o contraseña, y las exportaciones de WhatsApp, Telegram, SMS, LINE y Viber. Léelas, búscalas y expórtalas juntas, y devuelve un chat de WhatsApp perdido. Todo se queda en este ordenador.",
   rulesTitle: "Antes de empezar",
   rules: [
     "Solo tus propias copias, abiertas con tu propia clave. Para usar la copia de otra persona, te la da ella y escribe su propia clave, sabiendo lo que vas a hacer.",
@@ -1129,7 +1129,7 @@ const es: Strings = {
     adapterNames: {
       "whatsapp-android": "Copia de Android (.crypt15, con su clave de 64 dígitos)",
       "whatsapp-ios": "Copia de iPhone (su carpeta)",
-      "whatsapp-business-ios": "WhatsApp Business en una copia de iPhone",
+      "whatsapp-business-ios": "Business, en una copia de iPhone",
       "whatsapp-export": "«Exportar chat» (.txt o .zip)",
       "telegram-json": "Exportación de Telegram Desktop (result.json o su carpeta)",
       "sms-xml": "SMS Backup & Restore (.xml)",
@@ -1157,7 +1157,7 @@ const phoneEn = {
   exportButton: "Save…",
   whereQ: "Where does WhatsApp keep its backups?",
   welcomeLead:
-    "oopz opens your own WhatsApp backups with your own 64-digit key, tells you what is inside, and can put a lost chat back. Everything stays on this phone.",
+    "oopz opens your own chat history: WhatsApp backups with your own key or password, and the exports of WhatsApp, Telegram, SMS, LINE and Viber. Read, search and export them together, and put a lost WhatsApp chat back. Everything stays on this phone.",
   rules: [
     ...en.rules.slice(0, 3),
     "Your backups and keys never leave this phone. oopz has no account, no cloud and no tracking, and goes online only to check for updates when you ask it to.",
@@ -1192,7 +1192,7 @@ const phoneEs: Pick<Strings, keyof typeof phoneEn> = {
   exportButton: "Guardar…",
   whereQ: "¿Dónde guarda WhatsApp sus copias?",
   welcomeLead:
-    "oopz abre tus propias copias de seguridad de WhatsApp con tu propia clave de 64 dígitos, te dice qué contienen y puede devolver un chat perdido. Todo se queda en este teléfono.",
+    "oopz abre tu propio historial de chats: copias de WhatsApp con tu propia clave o contraseña, y las exportaciones de WhatsApp, Telegram, SMS, LINE y Viber. Léelas, búscalas y expórtalas juntas, y devuelve un chat de WhatsApp perdido. Todo se queda en este teléfono.",
   rules: [
     ...es.rules.slice(0, 3),
     "Tus copias y claves nunca salen de este teléfono. oopz no tiene cuentas, ni nube, ni seguimiento, y solo se conecta a internet para buscar actualizaciones cuando tú se lo pides.",
