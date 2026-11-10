@@ -5,6 +5,7 @@
   import Sheet from "../components/Sheet.svelte";
   import StepLine from "../components/StepLine.svelte";
   import { date } from "../format";
+  import { blocks } from "../notes";
   import { strings } from "../i18n";
   import { app, installUpdate } from "../state.svelte";
 
@@ -21,8 +22,12 @@
   {#if u.found?.date_ms}<p class="muted">{t.updatePublished} {date(u.found.date_ms)}</p>{/if}
   {#if u.found?.notes}
     <h2 class="h3">{t.updateNotes}</h2>
-    <!-- Plain text from the release: shown as text, never as HTML. -->
-    <pre class="notes">{u.found.notes}</pre>
+    <!-- From the release's Markdown: formatted, but always as text, never as HTML. -->
+    <div class="notes">
+      {#each blocks(u.found.notes) as b, i (i)}
+        <p class={b.kind}>{#each b.spans as s, j (j)}{#if s.bold}<strong>{s.text}</strong>{:else if s.italic}<em>{s.text}</em>{:else if s.code}<code>{s.text}</code>{:else}{s.text}{/if}{/each}</p>
+      {/each}
+    </div>
   {/if}
   <p class="safe"><Icon name="shield" size={16} />{t.updateSigned}</p>
   {#if installing}
@@ -46,8 +51,20 @@
     gap: 14px;
     align-items: center;
   }
+  .notes p {
+    margin: 0 0 6px;
+  }
+  .notes .heading {
+    font-weight: 600;
+  }
+  .notes .item {
+    padding-inline-start: 1.1em;
+    text-indent: -0.8em;
+  }
+  .notes .item::before {
+    content: "• ";
+  }
   .notes {
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
     font: inherit;
     font-size: 13.5px;
