@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Icon from "../components/Icon.svelte";
   import IndexGate from "../components/IndexGate.svelte";
   import PageHead from "../components/PageHead.svelte";
-  import type { Hit } from "../backend/types";
+  import type { Filter, Hit } from "../backend/types";
   import { chatName, dateTime, fmt, isGroup } from "../format";
   import { strings } from "../i18n";
   import { app, be, current, showMessage } from "../state.svelte";
@@ -20,17 +20,78 @@
 
   const rowOf = (chat: number) => s.chat_list.find((c) => c.number === chat);
 
+  // The filters: a type (some are several WhatsApp codes), who sent it, and a range of days.
+  const KINDS: [string, number[]][] = [
+    ["text", [0]],
+    ["photo", [1]],
+    ["video", [3, 13, 81]],
+    ["audio", [2]],
+    ["document", [9]],
+    ["sticker", [20]],
+    ["location", [5, 16]],
+    ["poll", [46]],
+    ["call", [90]],
+  ];
+  let kind = $state("");
+  let who = $state(""); // "", "me", "them", or a sender's 3-character ending
+  let after = $state("");
+  let before = $state("");
+  let senders = $state<string[]>([]);
+  let filtered = $derived(kind !== "" || who !== "" || after !== "" || before !== "");
+  const kindLabel = (codes: number[]) => codes.map((c) => t.kinds[c]).join(" / ");
+
+  /** A yyyy-mm-dd field as the start of that day, this device's time; `next` gives the start of the day after. */
+  function dayStart(value: string, next = false): number | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3] + (next ? 1 : 0)).getTime() : null;
+  }
+
+  function filter(): Filter {
+    return {
+      chat: app.searchChat,
+      kinds: KINDS.find(([k]) => k === kind)?.[1] ?? [],
+      from_me: who === "me" ? true : who === "them" ? false : null,
+      sender: who.length === 3 ? who : null,
+      after_ms: dayStart(after),
+      before_ms: dayStart(before, true),
+    };
+  }
+
+  // A group's senders, by the end of their id, for the From choice.
+  $effect(() => {
+    const chat = app.searchChat;
+    const row = chat === null ? null : rowOf(chat);
+    senders = [];
+    untrack(() => {
+      if (who.length === 3) who = "";
+    });
+    if (row && isGroup(row)) {
+      be()
+        .stats(s.id, chat)
+        .then((st) => {
+          if (app.searchChat === chat) senders = st.senders.map(([e]) => e);
+        })
+        .catch(() => {});
+    }
+  });
+
+  function clearFilters() {
+    kind = who = after = before = "";
+    search();
+  }
+
   function search() {
     window.clearTimeout(timer);
     timer = window.setTimeout(async () => {
       const mine = ++seq;
       const query = app.query;
       const started = performance.now();
-      const found = await be().search(s.id, query, { chat: app.searchChat, kinds: [] }).catch(() => [] as Hit[]);
+      const found = await be().search(s.id, query, filter()).catch(() => [] as Hit[]);
       if (mine !== seq) return; // A newer search has started.
       ms = Math.round(performance.now() - started);
       hits = found;
-      searched = query.trim();
+      // With no words, a filter alone lists the newest messages that match it.
+      searched = query.trim() || (filtered ? "\u0000" : "");
     }, 80);
   }
 
@@ -71,8 +132,37 @@
         </select>
       </label>
     </div>
+    <fieldset class="filters">
+      <legend class="sr-only">{t.filters}</legend>
+      <label>
+        <span>{t.filterKind}</span>
+        <select class="select small" bind:value={kind} onchange={search}>
+          <option value="">{t.anyKind}</option>
+          {#each KINDS as [k, codes] (k)}<option value={k}>{kindLabel(codes)}</option>{/each}
+        </select>
+      </label>
+      <label>
+        <span>{t.filterWho}</span>
+        <select class="select small" bind:value={who} onchange={search}>
+          <option value="">{t.anyone}</option>
+          <option value="me">{t.sentByMe}</option>
+          <option value="them">{t.receivedByMe}</option>
+          {#each senders as e (e)}<option value={e}>••••{e}</option>{/each}
+        </select>
+      </label>
+      <label>
+        <span>{t.filterAfter}</span>
+        <input class="select small" type="date" placeholder="YYYY-MM-DD" bind:value={after} onchange={search} />
+      </label>
+      <label>
+        <span>{t.filterBefore}</span>
+        <input class="select small" type="date" placeholder="YYYY-MM-DD" bind:value={before} onchange={search} />
+      </label>
+      {#if filtered}<button type="button" class="btn small" onclick={clearFilters}>{t.clearFilters}</button>{/if}
+    </fieldset>
     <p class="hint" id="search-count" aria-live="polite">
       {#if searched}
+        {#if !app.query.trim()}{t.newestMatches}{/if}
         {fmt(hits.length)} {hits.length === 1 ? t.searchHit : t.searchHits} · {ms} ms {hits.length === 200 ? t.searchMore : ""}
       {:else}
         {t.screenOnly}
@@ -132,6 +222,21 @@
     font-size: 17px;
     color: var(--text);
     outline: none;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 12px;
+    border: 0;
+    padding: 0;
+    margin: 12px 0 0;
+  }
+  .filters label {
+    display: grid;
+    gap: 3px;
+    font-size: 12.5px;
+    color: var(--muted);
   }
   .scope {
     flex: 0 1 260px;
