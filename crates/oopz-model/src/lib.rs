@@ -15,12 +15,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum App {
+    #[serde(rename = "whatsapp")]
     WhatsApp,
     Telegram,
     Sms,
     Line,
     Viber,
     Signal,
+    #[serde(rename = "imessage")]
     IMessage,
 }
 
@@ -700,6 +702,10 @@ mod tests {
             assert_eq!(Kind::from_code(k.code()), Some(k));
         }
         assert_eq!(App::from_code("myspace"), None);
+        // The serialized names are the codes.
+        for a in App::ALL {
+            assert_eq!(serde_json::to_string(&a).unwrap(), format!("{:?}", a.code()));
+        }
     }
 
     #[test]
