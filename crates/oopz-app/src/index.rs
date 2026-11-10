@@ -145,19 +145,19 @@ pub struct Index {
 impl Index {
     /// Builds the index from a backup's database (read-only) into a new private file in `dir`.
     pub fn build(source: &Connection, dir: &Path) -> Result<Self> {
-        Self::build_with(source, dir, &mut |_, _| {})
+        Self::build_with(source, dir, &mut |_, _| true)
     }
 
     /// [`Index::build`], calling `progress(done, total)`: copying the messages is the first half, the stats the next
     /// quarter, the full-text index the last.
-    pub fn build_with(source: &Connection, dir: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<Self> {
+    pub fn build_with(source: &Connection, dir: &Path, progress: &mut dyn FnMut(u64, u64) -> bool) -> Result<Self> {
         let started = Instant::now();
         let file = tempfile::Builder::new()
             .prefix("index-")
             .tempfile_in(dir)
             .map_err(|e| crate::AppError::io("creating the search index", e))?;
         let mut db = Connection::open(file.path()).map_err(oopz::Error::from)?;
-        build_into(source, &mut db, progress).map_err(oopz::Error::from)?;
+        build_into(source, &mut db, progress)?;
         let (messages, with_text) = db
             .query_row("SELECT count(*), count(text) FROM msg", [], |r| Ok((r.get(0)?, r.get(1)?)))
             .map_err(oopz::Error::from)?;
@@ -370,11 +370,18 @@ impl Index {
 }
 
 /// Copies what the index needs from `source` (whatever columns this WhatsApp version has) and builds FTS5 over it.
-fn build_into(source: &Connection, db: &mut Connection, progress: &mut dyn FnMut(u64, u64)) -> rusqlite::Result<()> {
+fn build_into(
+    source: &Connection,
+    db: &mut Connection,
+    progress: &mut dyn FnMut(u64, u64) -> bool,
+) -> std::result::Result<(), oopz::Error> {
+    let stop = || oopz::Error::Cancelled;
     let messages: u64 =
         source.query_row("SELECT count(*) FROM message WHERE chat_row_id IS NOT NULL", [], |r| r.get(0))?;
     let total = 4 * messages.max(1);
-    progress(0, total);
+    if !progress(0, total) {
+        return Err(stop());
+    }
     db.execute_batch(
         "PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA cache_size = -32768;
          CREATE TABLE msg (id INTEGER PRIMARY KEY, chat INTEGER NOT NULL, ts INTEGER NOT NULL, from_me INTEGER NOT NULL,
@@ -458,8 +465,8 @@ fn build_into(source: &Connection, db: &mut Connection, progress: &mut dyn FnMut
                 ])?;
             }
             copied += 1;
-            if copied % 4096 == 0 {
-                progress(2 * copied.min(messages), total);
+            if copied % 4096 == 0 && !progress(2 * copied.min(messages), total) {
+                return Err(stop());
             }
             let this: i64 = r.get(1)?;
             if chat != Some(this) {
@@ -479,7 +486,9 @@ fn build_into(source: &Connection, db: &mut Connection, progress: &mut dyn FnMut
             ])?;
             pos += 1;
         }
-        progress(2 * messages.max(1), total);
+        if !progress(2 * messages.max(1), total) {
+            return Err(stop());
+        }
         // The answered messages' rows, by their key in the same chat: one pass over the keys, only when replies exist.
         if !quoted.is_empty() && has("message", "key_id")? {
             let mut set = tx.prepare("UPDATE extra SET reply_id = ?2 WHERE id = ?1")?;
@@ -563,7 +572,9 @@ fn build_into(source: &Connection, db: &mut Connection, progress: &mut dyn FnMut
              WHERE from_me = 0 AND sender IS NOT NULL GROUP BY chat, sender;
          CREATE INDEX agg_sender_chat ON agg_sender (chat);",
     )?;
-    progress(3 * messages.max(1), total);
+    if !progress(3 * messages.max(1), total) {
+        return Err(stop());
+    }
     tx.execute_batch(
         "CREATE VIRTUAL TABLE fts USING fts5(text, content = 'msg', content_rowid = 'id',
              tokenize = 'unicode61 remove_diacritics 2');

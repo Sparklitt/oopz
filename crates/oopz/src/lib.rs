@@ -31,6 +31,9 @@ pub enum Error {
     MergeCheck(String),
     #[error("{context}: {source}")]
     Io { context: String, source: std::io::Error },
+    /// A progress callback said to stop; what was written so far is removed.
+    #[error("stopped before the end, as asked")]
+    Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,12 +54,17 @@ impl Backup {
     /// Opens it with its decrypted copy in `dir` (an app's private cache: Android has no shared temporary folder).
     /// Memory holds the backup file once, never the whole database: it's decrypted in place and streamed to disk.
     pub fn open_in(path: &Path, key: &Key, dir: &Path) -> Result<Self> {
-        Self::open_in_with(path, key, dir, &mut |_, _| {})
+        Self::open_in_with(path, key, dir, &mut |_, _| true)
     }
 
     /// [`Backup::open_in`], calling `progress(done, total)` as it reads the file, decompresses it and indexes the copy
     /// for reading ([`index_for_reading`]): on a phone, a backup of a million messages takes a while, and the bar moves.
-    pub fn open_in_with(path: &Path, key: &Key, dir: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<Self> {
+    pub fn open_in_with(
+        path: &Path,
+        key: &Key,
+        dir: &Path,
+        progress: &mut dyn FnMut(u64, u64) -> bool,
+    ) -> Result<Self> {
         let io = |source| Error::Io { context: format!("reading {}", path.display()), source };
         // Reading, decompressing and indexing weigh about the same; each a third of the bar.
         let len = fs::metadata(path).map_err(io)?.len().max(1);
@@ -71,7 +79,9 @@ impl Backup {
                     break;
                 }
                 file.extend_from_slice(&buf[..n]);
-                progress((file.len() as u64).min(len), total);
+                if !progress((file.len() as u64).min(len), total) {
+                    return Err(Error::Cancelled);
+                }
             }
         }
         let io = |source| Error::Io { context: "writing the decrypted database to a temporary file".into(), source };
@@ -79,7 +89,7 @@ impl Backup {
         {
             let mut out = std::io::BufWriter::with_capacity(1 << 20, plain.as_file_mut());
             crypt15::decrypt_to_with(file, key, &mut out, &mut |done, of| {
-                progress(len + done * len / of.max(1), total);
+                progress(len + done * len / of.max(1), total)
             })?;
             out.flush().map_err(io)?;
         }
@@ -394,14 +404,16 @@ const READ_INDEXES: &[(&str, &[&str])] = &[
 /// Adds the [`READ_INDEXES`] the decrypted copy at `path` lacks (a copy of ours, removed after: the original is
 /// never written). An index is lacking unless one starts with the same columns (or the column is the table's row
 /// id). Seconds on a phone, once; `progress(done, total)` by index.
-fn index_for_reading(path: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<()> {
+fn index_for_reading(path: &Path, progress: &mut dyn FnMut(u64, u64) -> bool) -> Result<()> {
     let db = Connection::open(path)?;
     // A copy we throw away: no journal to write, nothing to sync.
     db.execute_batch("PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA cache_size = -16384;")?;
     normalize_types(&db)?;
     let total = READ_INDEXES.len() as u64;
     for (n, (table, columns)) in READ_INDEXES.iter().enumerate() {
-        progress(n as u64, total);
+        if !progress(n as u64, total) {
+            return Err(Error::Cancelled);
+        }
         let present: Vec<(String, bool)> = db
             .prepare("SELECT name, pk = 1 AND upper(type) = 'INTEGER' FROM pragma_table_info(?1)")?
             .query_map([table], |r| Ok((r.get(0)?, r.get(1)?)))?

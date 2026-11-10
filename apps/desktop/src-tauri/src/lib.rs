@@ -2,7 +2,9 @@
 //! are used for that one call and wiped; nothing is logged, and nothing but the person's own results is written.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
 
 use oopz_app::index::{BuildInfo, Hit, Line, Stats};
 use oopz_app::receive::{self, Receiver};
@@ -10,7 +12,7 @@ use oopz_app::session::{
     self, BackupFile, Fact, MergeOutcome, MergeRequest, Missing, Session, Summary, TableInfo, TypeInfo,
 };
 use oopz_app::{AppError, Filter, ReceiveInfo, ReceiveStatus};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
@@ -22,6 +24,8 @@ pub struct AppState {
     tmp: tempfile::TempDir,
     /// Folders this run of the app made (merge results, the folders pages were saved in): the only ones it opens.
     made: Mutex<Vec<PathBuf>>,
+    /// Set by `cancel_work`: the check or index running now stops at its next progress report.
+    cancel: AtomicBool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -50,10 +54,22 @@ impl AppState {
             .prefix("session-")
             .tempdir_in(&dir)
             .map_err(|e| AppError::new("io", format!("creating the app's cache: {e}")))?;
-        Ok(Self { session: Mutex::default(), receiver: Mutex::default(), tmp, made: Mutex::default() })
+        Ok(Self {
+            session: Mutex::default(),
+            receiver: Mutex::default(),
+            tmp,
+            made: Mutex::default(),
+            cancel: AtomicBool::new(false),
+        })
     }
 
-    pub fn check(&self, path: &Path, key: &str, progress: &mut dyn FnMut(u64, u64)) -> Result<Summary, AppError> {
+    pub fn check(
+        &self,
+        path: &Path,
+        key: &str,
+        progress: &mut dyn FnMut(u64, u64) -> bool,
+    ) -> Result<Summary, AppError> {
+        self.cancel.store(false, Ordering::SeqCst);
         lock(&self.session).check_with(path, key, self.tmp.path(), progress)
     }
 
@@ -99,6 +115,21 @@ impl AppState {
         let _ = std::fs::remove_dir_all(self.tmp.path());
     }
 
+    /// "Wipe now": stops what's running, closes every backup and removes every decrypted copy and index, keeping the
+    /// private folder for the next check. Returns how many files were left in it (0 when the wipe is complete).
+    pub fn wipe(&self) -> usize {
+        self.cancel.store(true, Ordering::SeqCst);
+        *lock(&self.session) = Session::default();
+        drop(lock(&self.receiver).take());
+        if let Ok(entries) = std::fs::read_dir(self.tmp.path()) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let _ = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
+            }
+        }
+        std::fs::read_dir(self.tmp.path()).map_or(0, Iterator::count)
+    }
+
     /// Only a folder this run made, so a page can't ask the app to open just anything.
     pub fn made(&self, folder: &Path) -> Result<(), AppError> {
         if lock(&self.made).iter().any(|m| m == folder) {
@@ -120,7 +151,8 @@ impl AppState {
     }
 
     /// Builds a backup's search index without holding the session, so the other commands answer meanwhile.
-    pub fn build_index(&self, id: u32, progress: &mut dyn FnMut(u64, u64)) -> Result<BuildInfo, AppError> {
+    pub fn build_index(&self, id: u32, progress: &mut dyn FnMut(u64, u64) -> bool) -> Result<BuildInfo, AppError> {
+        self.cancel.store(false, Ordering::SeqCst);
         let job = {
             let session = lock(&self.session);
             if let Some(info) = session.index_built(id)? {
@@ -141,16 +173,55 @@ impl AppState {
     }
 }
 
-/// Progress for the UI's bar, in thousandths, sent only when it moves (a channel message per thousandth at most).
-fn per_mille(channel: &Channel<u16>) -> impl FnMut(u64, u64) + '_ {
-    let mut last = None;
+/// What the UI's bar shows while a backup opens or is indexed.
+#[derive(Clone, Serialize)]
+pub struct Step {
+    /// `fingerprint`, `read`, `unpack`, `prepare` ([`session::check_step`]) or `index`.
+    pub step: &'static str,
+    pub per_mille: u16,
+    /// An estimate from the pace so far; none in the first second or the first 2%.
+    pub secs_left: Option<u32>,
+}
+
+/// Progress for the UI, sent only when it moves (a channel message per thousandth at most); false, to stop, once
+/// `cancel_work` was called.
+fn progress<'a>(
+    channel: &'a Channel<Step>,
+    cancel: &'a AtomicBool,
+    step: fn(u64, u64) -> &'static str,
+) -> impl FnMut(u64, u64) -> bool + 'a {
+    let (started, mut last) = (Instant::now(), None);
     move |done, total| {
-        let now = (done.min(total) * 1000 / total.max(1)) as u16;
-        if last != Some(now) {
-            last = Some(now);
-            let _ = channel.send(now);
+        let per_mille = (done.min(total) * 1000 / total.max(1)) as u16;
+        let name = step(done, total);
+        if last != Some((name, per_mille)) {
+            last = Some((name, per_mille));
+            let elapsed = started.elapsed().as_secs_f64();
+            let secs_left = (per_mille >= 20 && elapsed >= 1.0)
+                .then(|| (elapsed * f64::from(1000 - per_mille) / f64::from(per_mille)).round() as u32);
+            let _ = channel.send(Step { step: name, per_mille, secs_left });
         }
+        !cancel.load(Ordering::SeqCst)
     }
+}
+
+/// Stops the check or index running now; it fails with `cancelled` and removes what it decrypted.
+#[tauri::command]
+fn cancel_work(state: State<'_, AppState>) {
+    state.cancel.store(true, Ordering::SeqCst);
+}
+
+/// A photo message's thumbnail (JPEG bytes) from the phone's Media folder the person chose; empty when there's none.
+#[tauri::command(async)]
+fn thumbnail(
+    state: State<'_, AppState>,
+    id: u32,
+    message: i64,
+    media: PathBuf,
+    max: u32,
+) -> Result<tauri::ipc::Response, AppError> {
+    let jpeg = lock(&state.session).thumbnail(id, message, &media, max.clamp(16, 1024))?;
+    Ok(tauri::ipc::Response::new(jpeg.unwrap_or_default()))
 }
 
 #[tauri::command(async)]
@@ -163,9 +234,9 @@ fn check_backup(
     state: State<'_, AppState>,
     path: PathBuf,
     key: Zeroizing<String>,
-    progress: Channel<u16>,
+    progress: Channel<Step>,
 ) -> Result<Summary, AppError> {
-    state.check(&path, &key, &mut per_mille(&progress))
+    state.check(&path, &key, &mut self::progress(&progress, &state.cancel, session::check_step))
 }
 
 #[tauri::command]
@@ -202,6 +273,26 @@ fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppErr
     open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
 }
 
+/// "Wipe now" (see [`AppState::wipe`]).
+#[tauri::command(async)]
+fn wipe_now(state: State<'_, AppState>) -> usize {
+    state.wipe()
+}
+
+/// Opens one of the app's own pages in the browser; the page names which, never a URL, so it can't open anything else.
+#[tauri::command(async)]
+fn open_link(which: String) -> Result<(), AppError> {
+    let url = match which.as_str() {
+        "source" => "https://github.com/Sparklitt/oopz",
+        "report" => "https://github.com/Sparklitt/oopz/issues/new",
+        "security" => "https://github.com/Sparklitt/oopz/security/advisories/new",
+        "licences" => "https://github.com/Sparklitt/oopz/blob/main/LICENSE",
+        "releases" => "https://github.com/Sparklitt/oopz/releases",
+        _ => return Err(AppError::new("not_found", format!("no link named {which}"))),
+    };
+    open::that_detached(url).map_err(|e| AppError::new("io", format!("opening the browser: {e}")))
+}
+
 #[tauri::command(async)]
 fn missing(state: State<'_, AppState>, a: u32, chat_a: i64, b: u32, chat_b: i64) -> Result<Missing, AppError> {
     lock(&state.session).missing(a, chat_a, b, chat_b)
@@ -223,8 +314,8 @@ fn receive_stop(state: State<'_, AppState>) -> ReceiveStatus {
 }
 
 #[tauri::command(async)]
-fn build_index(state: State<'_, AppState>, id: u32, progress: Channel<u16>) -> Result<BuildInfo, AppError> {
-    state.build_index(id, &mut per_mille(&progress))
+fn build_index(state: State<'_, AppState>, id: u32, progress: Channel<Step>) -> Result<BuildInfo, AppError> {
+    state.build_index(id, &mut self::progress(&progress, &state.cancel, |_, _| "index"))
 }
 
 #[tauri::command(async)]
@@ -287,7 +378,7 @@ mod update {
     use tauri::{AppHandle, Manager, State};
     use tauri_plugin_updater::{Update, UpdaterExt};
 
-    use super::{AppState, lock, per_mille};
+    use super::{AppState, Step, lock, progress};
 
     /// The update the last check found, until the person installs it.
     #[derive(Default)]
@@ -296,6 +387,27 @@ mod update {
     #[derive(Serialize)]
     pub struct Found {
         pub version: String,
+        /// The release notes, as the release's latest.json carries them (Markdown).
+        pub notes: Option<String>,
+        pub date_ms: Option<i64>,
+    }
+
+    /// What a check found, and when it ran.
+    #[derive(Serialize)]
+    pub struct Checked {
+        pub found: Option<Found>,
+        pub checked_ms: i64,
+    }
+
+    /// The file holding when the last check succeeded: a number of milliseconds, nothing else.
+    fn checked_file(app: &AppHandle) -> Option<std::path::PathBuf> {
+        app.path().app_config_dir().ok().map(|d| d.join("update-checked"))
+    }
+
+    /// When the last update check succeeded, for "Last checked …".
+    #[tauri::command]
+    pub fn update_last_checked(app: AppHandle) -> Option<i64> {
+        std::fs::read_to_string(checked_file(&app)?).ok()?.trim().parse().ok()
     }
 
     fn failed(e: tauri_plugin_updater::Error) -> AppError {
@@ -303,7 +415,7 @@ mod update {
     }
 
     #[tauri::command]
-    pub async fn update_check(app: AppHandle, pending: State<'_, Pending>) -> Result<Option<Found>, AppError> {
+    pub async fn update_check(app: AppHandle, pending: State<'_, Pending>) -> Result<Checked, AppError> {
         // On Windows the installer is started and the app quits at once, without its exit event: wipe first.
         let handle = app.clone();
         let updater = app
@@ -315,9 +427,19 @@ mod update {
             .build()
             .map_err(failed)?;
         let update = updater.check().await.map_err(failed)?;
-        let found = update.as_ref().map(|u| Found { version: u.version.clone() });
+        let found = update.as_ref().map(|u| Found {
+            version: u.version.clone(),
+            notes: u.body.clone(),
+            date_ms: u.date.map(|d| d.unix_timestamp() * 1000),
+        });
         *lock(&pending.0) = update;
-        Ok(found)
+        let checked_ms =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64);
+        if let Some(file) = checked_file(&app) {
+            let _ = file.parent().map(std::fs::create_dir_all);
+            let _ = std::fs::write(file, checked_ms.to_string());
+        }
+        Ok(Checked { found, checked_ms })
     }
 
     /// Downloads, checks the signature, installs and restarts (the restart runs the exit event, which wipes).
@@ -325,10 +447,12 @@ mod update {
     pub async fn update_install(
         app: AppHandle,
         pending: State<'_, Pending>,
-        progress: Channel<u16>,
+        progress: Channel<Step>,
     ) -> Result<(), AppError> {
         let update = lock(&pending.0).take().ok_or_else(|| AppError::new("update", "no update to install"))?;
-        let mut report = per_mille(&progress);
+        // A download isn't cancelled: the flag stays false.
+        let never = std::sync::atomic::AtomicBool::new(false);
+        let mut report = self::progress(&progress, &never, |_, _| "download");
         let mut done = 0u64;
         update
             .download_and_install(
@@ -380,11 +504,17 @@ pub fn run() {
             chat_lines,
             message_position,
             position_at,
+            cancel_work,
+            wipe_now,
+            open_link,
+            thumbnail,
             backup_tables,
             chat_types,
             chat_facts,
             #[cfg(desktop)]
             update::update_check,
+            #[cfg(desktop)]
+            update::update_last_checked,
             #[cfg(desktop)]
             update::update_install,
         ])
@@ -417,10 +547,10 @@ mod tests {
         let (_cache, state) = state();
         let two = fixture::two_phones();
         let out = tempfile::tempdir().unwrap();
-        let source = state.check(&two.source, KEY_HEX, &mut |_, _| {}).unwrap();
-        let target = state.check(&two.target, TARGET_KEY_HEX, &mut |_, _| {}).unwrap();
+        let source = state.check(&two.source, KEY_HEX, &mut |_, _| true).unwrap();
+        let target = state.check(&two.target, TARGET_KEY_HEX, &mut |_, _| true).unwrap();
         assert_eq!(state.summaries().len(), 2);
-        assert_eq!(state.check(&two.target, KEY_HEX, &mut |_, _| {}).unwrap_err().code, "wrong_key");
+        assert_eq!(state.check(&two.target, KEY_HEX, &mut |_, _| true).unwrap_err().code, "wrong_key");
 
         // The form as the UI sends it, JSON with the key in it: the key goes no further than the merge.
         let json = format!(
@@ -440,7 +570,12 @@ mod tests {
 
         // Explore: the index is built on demand, then search and stats answer.
         // While the index builds, the session answers other commands.
-        let info = state.build_index(target.id, &mut |_, _| assert_eq!(state.summaries().len(), 2)).unwrap();
+        let info = state
+            .build_index(target.id, &mut |_, _| {
+                assert_eq!(state.summaries().len(), 2);
+                true
+            })
+            .unwrap();
         assert_eq!(info.messages, target.messages);
         assert!(lock(&state.session).stats(target.id, None).unwrap().messages > 0);
 
@@ -506,5 +641,44 @@ mod tests {
     /// Tauri's deserializer for command arguments is serde_json.
     fn serde_json_from<T: serde::de::DeserializeOwned>(json: &str) -> T {
         serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn a_check_stops_when_cancelled_and_wipe_now_empties_the_private_folder() {
+        let (_cache, state) = state();
+        let two = fixture::two_phones();
+        // `cancel_work` while it runs: the next progress report stops it, and nothing it decrypted is left.
+        let cancelled = state.check(&two.source, KEY_HEX, &mut |_, _| {
+            state.cancel.store(true, Ordering::SeqCst);
+            false
+        });
+        assert_eq!(cancelled.unwrap_err().code, "cancelled");
+        assert_eq!(std::fs::read_dir(state.tmp.path()).unwrap().count(), 0);
+        // A new check resets the flag.
+        let s = state.check(&two.source, KEY_HEX, &mut |_, _| true).unwrap();
+        state.build_index(s.id, &mut |_, _| true).unwrap();
+        assert!(std::fs::read_dir(state.tmp.path()).unwrap().count() > 0);
+        assert_eq!(state.wipe(), 0);
+        assert!(state.summaries().is_empty());
+        // The folder is still there for the next check.
+        assert!(state.check(&two.source, KEY_HEX, &mut |_, _| true).is_ok());
+    }
+
+    #[test]
+    fn only_the_apps_own_links_open() {
+        assert_eq!(open_link("https://example.com".into()).unwrap_err().code, "not_found");
+    }
+
+    #[test]
+    fn a_check_reports_its_steps_in_order() {
+        let mut steps = Vec::new();
+        let total = 400;
+        for done in (0..=total).step_by(50) {
+            let step = session::check_step(done, total);
+            if steps.last() != Some(&step) {
+                steps.push(step);
+            }
+        }
+        assert_eq!(steps, ["fingerprint", "read", "unpack", "prepare"]);
     }
 }

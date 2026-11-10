@@ -19,7 +19,7 @@ pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Missing, Sess
 #[error("{detail}")]
 pub struct AppError {
     /// `key_format`, `wrong_key`, `not_crypt15`, `crypt14`, `damaged`, `unsupported`, `merge_check`, `changed`,
-    /// `exists`, `io`, `not_found`, `network`, `no_space`, `update`.
+    /// `exists`, `io`, `not_found`, `network`, `no_space`, `update`, `cancelled`.
     pub code: &'static str,
     pub detail: String,
 }
@@ -45,6 +45,7 @@ impl From<oopz::Error> for AppError {
             oopz::Error::Crypt15(C::BadContents(_)) | oopz::Error::Sqlite(_) => "damaged",
             oopz::Error::Unsupported(_) => "unsupported",
             oopz::Error::MergeCheck(_) => "merge_check",
+            oopz::Error::Cancelled | oopz::Error::Crypt15(C::Cancelled) => "cancelled",
             _ => "io",
         };
         Self::new(code, e.to_string())

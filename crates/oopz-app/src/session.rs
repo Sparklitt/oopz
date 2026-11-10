@@ -93,11 +93,11 @@ fn ensure_space(path: &Path, need: u64) -> Result<()> {
 
 /// SHA-256 of a file, streamed, as lowercase hex: to show that an original is unchanged.
 pub fn sha256_file(path: &Path) -> Result<String> {
-    sha256_file_with(path, &mut |_| {})
+    sha256_file_with(path, &mut |_| true)
 }
 
 /// [`sha256_file`], calling `progress(bytes read)` after each megabyte.
-fn sha256_file_with(path: &Path, progress: &mut dyn FnMut(u64)) -> Result<String> {
+fn sha256_file_with(path: &Path, progress: &mut dyn FnMut(u64) -> bool) -> Result<String> {
     let mut file = fs::File::open(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
@@ -109,9 +109,22 @@ fn sha256_file_with(path: &Path, progress: &mut dyn FnMut(u64)) -> Result<String
         }
         hasher.update(&buf[..n]);
         done += n as u64;
-        progress(done);
+        if !progress(done) {
+            return Err(oopz::Error::Cancelled.into());
+        }
     }
     Ok(hex::encode(hasher.finalize()))
+}
+
+/// The step a check is in, from its `progress(done, total)`: the original's fingerprint (the first quarter), then
+/// reading, unpacking and preparing the private copy (a quarter each, as [`Backup::open_in_with`] reports them).
+pub fn check_step(done: u64, total: u64) -> &'static str {
+    match done.saturating_mul(4) / total.max(1) {
+        0 => "fingerprint",
+        1 => "read",
+        2 => "unpack",
+        _ => "prepare",
+    }
 }
 
 /// What a checked backup holds: counts, dates and masked ids.
@@ -162,6 +175,9 @@ pub struct Preview {
 }
 
 pub const PREVIEW_CHARS: usize = 80;
+
+/// The largest file [`Session::thumbnail`] reads.
+pub const THUMBNAIL_MAX_FILE: u64 = 64 << 20;
 
 /// Merge `source_chat` of checked backup `source` into `target_chat` of checked backup `target`, writing a new
 /// folder in `out_parent`; with `media` (a copy of the source phone's `Media/` folder), the files the result needs.
@@ -252,7 +268,7 @@ pub struct IndexJob {
 }
 
 impl IndexJob {
-    pub fn run(&self, tmp: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<Index> {
+    pub fn run(&self, tmp: &Path, progress: &mut dyn FnMut(u64, u64) -> bool) -> Result<Index> {
         let db = rusqlite::Connection::open_with_flags(&self.source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(oopz::Error::from)?;
         Index::build_with(&db, tmp, progress)
@@ -270,17 +286,18 @@ impl Session {
     /// Opens `path` with `key_text` (64 hex digits, spaces allowed), decrypting it into `tmp` (a private folder),
     /// and keeps it open for a merge. The key is dropped, wiped, when this returns.
     pub fn check(&mut self, path: &Path, key_text: &str, tmp: &Path) -> Result<Summary> {
-        self.check_with(path, key_text, tmp, &mut |_, _| {})
+        self.check_with(path, key_text, tmp, &mut |_, _| true)
     }
 
     /// [`Session::check`], calling `progress(done, total)` as it hashes the original (the first quarter) and opens it
-    /// (the rest). `total` stays the same during one check.
+    /// (the rest; [`check_step`] names each part). `total` stays the same during one check. When `progress` returns
+    /// false the check stops with a `cancelled` error, and what it decrypted so far is removed.
     pub fn check_with(
         &mut self,
         path: &Path,
         key_text: &str,
         tmp: &Path,
-        progress: &mut dyn FnMut(u64, u64),
+        progress: &mut dyn FnMut(u64, u64) -> bool,
     ) -> Result<Summary> {
         let key = Key::from_hex(key_text)?;
         let bytes = fs::metadata(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?.len();
@@ -358,11 +375,16 @@ impl Session {
 
     /// Builds the search index of a checked backup in `tmp`, once; later calls return the first build's numbers.
     pub fn build_index(&mut self, id: u32, tmp: &Path) -> Result<BuildInfo> {
-        self.build_index_with(id, tmp, &mut |_, _| {})
+        self.build_index_with(id, tmp, &mut |_, _| true)
     }
 
     /// [`Session::build_index`], calling `progress(done, total)` as [`Index::build_with`] does.
-    pub fn build_index_with(&mut self, id: u32, tmp: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<BuildInfo> {
+    pub fn build_index_with(
+        &mut self,
+        id: u32,
+        tmp: &Path,
+        progress: &mut dyn FnMut(u64, u64) -> bool,
+    ) -> Result<BuildInfo> {
         if let Some(info) = self.index_built(id)? {
             return Ok(info);
         }
@@ -428,6 +450,38 @@ impl Session {
 
     pub fn search(&self, id: u32, query: &str, filter: &Filter, limit: u32) -> Result<Vec<Hit>> {
         self.index(id)?.search(query, filter, limit)
+    }
+
+    /// A small JPEG of a picture message's file, at most `max` pixels on its longer side, from `media` (the phone's
+    /// `Media/` folder, or the `WhatsApp` folder holding it; only read). `None` when the backup names no file, the
+    /// file isn't there, or it isn't a picture oopz reads (JPEG, PNG, WebP).
+    pub fn thumbnail(&self, id: u32, message: i64, media: &Path, max: u32) -> Result<Option<Vec<u8>>> {
+        let db = self.get(id)?.backup.db();
+        let file_path: Option<String> = db
+            .query_row("SELECT file_path FROM message_media WHERE message_row_id = ?1", [message], |r| r.get(0))
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                // An older WhatsApp without message_media, or a value of another type: no file to show.
+                rusqlite::Error::SqliteFailure(..) | rusqlite::Error::InvalidColumnType(..) => Ok(None),
+                e => Err(e),
+            })
+            .map_err(oopz::Error::from)?;
+        let Some(rel) = file_path.as_deref().and_then(oopz::media_relative) else { return Ok(None) };
+        let root = if media.join("Media").is_dir() { media.join("Media") } else { media.to_path_buf() };
+        let path = root.join(rel);
+        // A picture this large isn't a photo WhatsApp sent; don't read it into memory.
+        match fs::metadata(&path) {
+            Ok(m) if m.is_file() && m.len() <= THUMBNAIL_MAX_FILE => {}
+            _ => return Ok(None),
+        }
+        let Ok(reader) = image::ImageReader::open(&path).and_then(|r| r.with_guessed_format()) else { return Ok(None) };
+        let Ok(picture) = reader.decode() else { return Ok(None) };
+        let small = picture.thumbnail(max.max(1), max.max(1)).into_rgb8();
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+            .encode_image(&small)
+            .map_err(|e| AppError::new("io", format!("making a thumbnail: {e}")))?;
+        Ok(Some(out.into_inner()))
     }
 
     /// The position in `chat` of its first message at or after `ts` (ms): "jump to a date".
@@ -655,15 +709,25 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mut session = Session::default();
         let mut seen = Vec::new();
-        let s = session.check_with(&fx.backup, KEY_HEX, tmp.path(), &mut |d, t| seen.push((d, t))).unwrap();
+        let s = session
+            .check_with(&fx.backup, KEY_HEX, tmp.path(), &mut |d, t| {
+                seen.push((d, t));
+                true
+            })
+            .unwrap();
         assert_progress(&seen);
         seen.clear();
-        session.build_index_with(s.id, tmp.path(), &mut |d, t| seen.push((d, t))).unwrap();
+        session
+            .build_index_with(s.id, tmp.path(), &mut |d, t| {
+                seen.push((d, t));
+                true
+            })
+            .unwrap();
         assert_progress(&seen);
 
         // A backup forgotten while its index was building keeps nothing.
         let again = session.check(&fx.backup, KEY_HEX, tmp.path()).unwrap();
-        let index = session.index_job(again.id).unwrap().run(tmp.path(), &mut |_, _| {}).unwrap();
+        let index = session.index_job(again.id).unwrap().run(tmp.path(), &mut |_, _| true).unwrap();
         session.forget(again.id);
         assert_eq!(session.keep_index(again.id, index).unwrap_err().code, "not_found");
     }
@@ -797,5 +861,32 @@ mod tests {
         let req = MergeRequest { target_key: TARGET_KEY_HEX, ..req };
         assert_eq!(session.merge(&req).unwrap_err().code, "changed");
         assert_eq!(fs::read_dir(out.path()).unwrap().count(), 0, "nothing written");
+    }
+
+    #[test]
+    fn a_thumbnail_comes_from_the_media_folder_and_only_for_a_picture() {
+        let fx = fixture::build();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let s = session.check(&fx.backup, KEY_HEX, tmp.path()).unwrap();
+        // Message 3 names Media/WhatsApp Images/IMG-00000001-WA0001.jpg; put a real 1000 x 500 picture there.
+        let media = tempfile::tempdir().unwrap();
+        let file = media.path().join("Media/WhatsApp Images/IMG-00000001-WA0001.jpg");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        image::RgbImage::from_pixel(1000, 500, image::Rgb([20, 120, 60]))
+            .save_with_format(&file, image::ImageFormat::Png)
+            .unwrap();
+        // The WhatsApp folder or its Media folder both work; the result is a JPEG at most 256 px wide.
+        for root in [media.path().to_path_buf(), media.path().join("Media")] {
+            let jpeg = session.thumbnail(s.id, 3, &root, 256).unwrap().expect("a thumbnail");
+            let small = image::load_from_memory_with_format(&jpeg, image::ImageFormat::Jpeg).unwrap();
+            assert_eq!((small.width(), small.height()), (256, 128));
+        }
+        // Not a picture, no file, no media row, a message that doesn't exist: nothing, never an error.
+        fs::write(&file, b"not a picture").unwrap();
+        assert_eq!(session.thumbnail(s.id, 3, media.path(), 256).unwrap(), None);
+        assert_eq!(session.thumbnail(s.id, 5, media.path(), 256).unwrap(), None);
+        assert_eq!(session.thumbnail(s.id, 1, media.path(), 256).unwrap(), None);
+        assert_eq!(session.thumbnail(s.id, -7, media.path(), 256).unwrap(), None);
     }
 }

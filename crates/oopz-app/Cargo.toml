@@ -12,6 +12,7 @@ oopz.workspace = true
 fs4.workspace = true
 getrandom.workspace = true
 hex.workspace = true
+image.workspace = true
 jiff.workspace = true
 qrcode.workspace = true
 rusqlite.workspace = true

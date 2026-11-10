@@ -37,6 +37,8 @@ pub struct ReceiveStatus {
     pub refused: u64,
     /// Why it stopped: `done` (the phone said so), `stopped` (the app), `idle`, `refused` (too many wrong requests).
     pub stopped: Option<&'static str>,
+    /// Seconds until the page stops by itself if nothing arrives (0 once stopped).
+    pub idle_secs_left: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -51,6 +53,10 @@ pub struct Progress {
     pub name: String,
     pub done: u64,
     pub total: u64,
+    /// The pace since this file started, in bytes a second (0 in its first half second).
+    pub bytes_per_sec: u64,
+    /// At that pace; none until there's a pace.
+    pub secs_left: Option<u64>,
 }
 
 struct Shared {
@@ -207,6 +213,7 @@ fn random_token() -> Result<String> {
 
 fn serve(server: Server, token: &str, dest: &Path, idle: Duration, shared: &Shared) {
     let mut last = Instant::now();
+    shared.status().idle_secs_left = idle.as_secs();
     let reason = loop {
         if shared.stop.load(Ordering::SeqCst) {
             break "stopped";
@@ -222,13 +229,14 @@ fn serve(server: Server, token: &str, dest: &Path, idle: Duration, shared: &Shar
                 }
             }
             Ok(None) if last.elapsed() >= idle => break "idle",
-            Ok(None) => {}
+            Ok(None) => shared.status().idle_secs_left = idle.saturating_sub(last.elapsed()).as_secs(),
             Err(_) => break "stopped",
         }
     };
     let mut status = shared.status();
     status.running = false;
     status.current = None;
+    status.idle_secs_left = 0;
     status.stopped = Some(reason);
 }
 
@@ -288,7 +296,8 @@ fn receive_file(
     }
     let part = dest.join(format!(".{name}.part"));
     let mut out = fs::OpenOptions::new().write(true).create_new(true).open(&part).map_err(|_| (409, "busy"))?;
-    shared.status().current = Some(Progress { name: name.clone(), done: 0, total });
+    shared.status().current = Some(Progress { name: name.clone(), done: 0, total, bytes_per_sec: 0, secs_left: None });
+    let started = Instant::now();
     let mut hasher = Sha256::new();
     let mut done = 0u64;
     let mut buf = vec![0u8; 1 << 20];
@@ -307,6 +316,11 @@ fn receive_file(
                 done += n as u64;
                 if let Some(p) = shared.status().current.as_mut() {
                     p.done = done;
+                    let secs = started.elapsed().as_secs_f64();
+                    if secs >= 0.5 {
+                        p.bytes_per_sec = (done as f64 / secs) as u64;
+                        p.secs_left = (p.bytes_per_sec > 0).then(|| total.saturating_sub(done) / p.bytes_per_sec);
+                    }
                 }
             }
             Err(_) => break Err((400, "the transfer was cut off")),
@@ -493,5 +507,15 @@ mod tests {
         assert_eq!(safe_name("msgstore.db.crypt15").as_deref(), Some("msgstore.db.crypt15"));
         assert_eq!(safe_name("%zz"), None);
         assert!(same("abc", "abc") && !same("abc", "abd") && !same("abc", "ab"));
+    }
+
+    #[test]
+    fn the_page_counts_down_to_its_idle_stop() {
+        let dir = tempfile::tempdir().unwrap();
+        let rx = Receiver::start(&dir.path().join("r"), IpAddr::V4(Ipv4Addr::LOCALHOST), IDLE).unwrap();
+        std::thread::sleep(Duration::from_millis(250));
+        let left = rx.status().idle_secs_left;
+        assert!((IDLE.as_secs() - 2..=IDLE.as_secs()).contains(&left), "{left}");
+        assert_eq!(rx.stop().idle_secs_left, 0);
     }
 }

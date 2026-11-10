@@ -34,6 +34,8 @@ pub enum Error {
     NoRandomness,
     #[error("writing the decrypted database: {0}")]
     Write(std::io::Error),
+    #[error("stopped before the end, as asked")]
+    Cancelled,
 }
 
 /// The 64-digit key, wiped from memory when dropped. Its `Debug` never shows it.
@@ -114,7 +116,7 @@ pub fn decrypt(file: &[u8], key: &Key) -> Result<Vec<u8>, Error> {
 /// Like [`decrypt`], but decrypts `file` in place and streams the database into `out`: a phone holds the backup once
 /// (compressed), never its whole database as well (about three times larger).
 pub fn decrypt_to(file: Vec<u8>, key: &Key, out: &mut impl Write) -> Result<(), Error> {
-    decrypt_to_with(file, key, out, &mut |_, _| {})
+    decrypt_to_with(file, key, out, &mut |_, _| true)
 }
 
 /// [`decrypt_to`], calling `progress(done, total)` in compressed bytes as it decompresses (a large backup takes tens
@@ -123,7 +125,7 @@ pub fn decrypt_to_with(
     mut file: Vec<u8>,
     key: &Key,
     out: &mut impl Write,
-    progress: &mut dyn FnMut(u64, u64),
+    progress: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<(), Error> {
     let (_, body, iv) = split(&file)?;
     let at = file.len() - body.len();
@@ -168,7 +170,9 @@ pub fn decrypt_to_with(
         out.write_all(&buf[..n]).map_err(Error::Write)?;
         if zlib.total_in() >= shown + (8 << 20) {
             shown = zlib.total_in();
-            progress(shown, total);
+            if !progress(shown, total) {
+                return Err(Error::Cancelled);
+            }
         }
     }
 }

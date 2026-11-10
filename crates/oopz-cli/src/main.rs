@@ -78,6 +78,23 @@ enum Command {
         #[arg(long)]
         before: Option<jiff::civil::Date>,
     },
+    /// Save a photo message's thumbnail (a small JPEG) from the phone's Media folder to a file.
+    Thumbnail {
+        #[arg(long)]
+        backup: PathBuf,
+        /// The message's row number (as `oopz search` positions lead to).
+        #[arg(long)]
+        message: i64,
+        /// The phone's `Media/` folder, or the `WhatsApp` folder holding it; only read.
+        #[arg(long)]
+        media: PathBuf,
+        /// The longest side, in pixels.
+        #[arg(long, default_value_t = 256)]
+        size: u32,
+        /// The JPEG file to write; it must not exist.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// The position in a chat of its first message on or after a day (YYYY-MM-DD, UTC): "jump to a date".
     Jump {
         #[arg(long)]
@@ -341,6 +358,16 @@ fn run(cli: Cli) -> Result<()> {
                 if hits.len() as u32 == session::SEARCH_LIMIT { " (the first ones; narrow the search)" } else { "" };
             println!("{} results, newest first{more}", hits.len());
         }
+        Command::Thumbnail { backup, message, media, size, out } => {
+            let id = open.check(&backup, "backup")?.id;
+            match open.session.thumbnail(id, message, &media, size.clamp(16, 1024))? {
+                Some(jpeg) => {
+                    std::fs::OpenOptions::new().write(true).create_new(true).open(&out)?.write_all(&jpeg)?;
+                    println!("saved {} ({} bytes)", out.display(), jpeg.len());
+                }
+                None => anyhow::bail!("message {message} has no picture in {}", media.display()),
+            }
+        }
         Command::Jump { backup, chat, date } => {
             let id = open.indexed(&backup)?;
             match open.session.position_at(id, chat, day_ms(date)?)? {
@@ -410,7 +437,14 @@ fn run(cli: Cli) -> Result<()> {
                 }
                 shown = status.files.len();
                 if let Some(p) = &status.current {
-                    eprint!("\rreceiving {}: {} / {} MB   ", p.name, p.done / 1_000_000, p.total / 1_000_000);
+                    let left = p.secs_left.map_or_else(String::new, |s| format!(", {}:{:02} left", s / 60, s % 60));
+                    eprint!(
+                        "\rreceiving {}: {} / {} MB, {:.1} MB/s{left}   ",
+                        p.name,
+                        p.done / 1_000_000,
+                        p.total / 1_000_000,
+                        p.bytes_per_sec as f64 / 1e6
+                    );
                     let _ = io::stderr().flush();
                 }
                 if let Some(why) = status.stopped {
