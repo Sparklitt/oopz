@@ -168,12 +168,12 @@ fn kind_word(kind: m::MediaKind, es: bool) -> &'static str {
 }
 
 /// Times in the person's zone; a wall-clock source's as written.
-struct Clock {
+pub struct Clock {
     zone: jiff::tz::TimeZone,
 }
 
 impl Clock {
-    fn new(name: Option<&str>) -> Result<Self> {
+    pub fn new(name: Option<&str>) -> Result<Self> {
         let zone = match name {
             Some(n) => jiff::tz::TimeZone::get(n).map_err(|_| Error::new("library", format!("no time zone `{n}`")))?,
             None => jiff::tz::TimeZone::system(),
@@ -187,7 +187,7 @@ impl Clock {
     }
 
     /// `2024-01-31 21:05`
-    fn time(&self, ms: Option<i64>, wall_clock: bool) -> String {
+    pub fn time(&self, ms: Option<i64>, wall_clock: bool) -> String {
         ms.and_then(|ms| self.zoned(ms, wall_clock))
             .map_or_else(String::new, |z| z.strftime("%Y-%m-%d %H:%M").to_string())
     }
@@ -246,6 +246,18 @@ impl Out {
         }
         Err(Error::new("exists", "too many oopz exports here; choose another folder"))
     }
+}
+
+/// Writes `bytes` to a new `oopz-<stem>-N.<ext>` in `dir` (free space checked, never replacing a file, nothing left
+/// behind on failure), for writers that build their file in memory (the PDF).
+pub fn write_new_file(dir: &Path, stem: &str, ext: &'static str, bytes: &[u8]) -> Result<(PathBuf, u64)> {
+    let mut out = Out::new(dir, stem, ext, bytes.len() as u64)?;
+    {
+        let mut f = out.writer();
+        f.write_all(bytes).map_err(write_err)?;
+        f.flush().map_err(write_err)?;
+    }
+    out.finish()
 }
 
 fn write_err(e: std::io::Error) -> Error {
@@ -374,6 +386,33 @@ fn message_lines(row: &MessageRow, w: &Words) -> Vec<String> {
         lines.extend(part_lines(part, w));
     }
     lines
+}
+
+/// A message as lines of plain text (`lang` `en` or `es`), for other writers (the PDF).
+pub fn row_lines(row: &MessageRow, lang: &str) -> Vec<String> {
+    message_lines(row, if lang == "es" { &ES } else { &EN })
+}
+
+/// "You", or the sender's name.
+pub fn sender_label(row: &MessageRow, lang: &str) -> String {
+    sender(row, if lang == "es" { &ES } else { &EN })
+}
+
+/// The warning every export carries, and "Exported with oopz", in `lang`.
+pub fn note(lang: &str) -> (&'static str, &'static str) {
+    let w = if lang == "es" { &ES } else { &EN };
+    (w.note, w.exported)
+}
+
+/// Conversation (app, name) by id.
+pub type Names = HashMap<i64, (App, String)>;
+/// Reply excerpts by the answered message's id.
+pub type Replies = HashMap<i64, String>;
+
+/// Conversation names by id for these rows, and the excerpts their replies quote.
+pub fn names_and_replies(lib: &Library, rows: &[MessageRow]) -> Result<(Names, Replies)> {
+    let c = context(lib, rows)?;
+    Ok((c.conversations, c.replies))
 }
 
 fn sender(row: &MessageRow, w: &Words) -> String {

@@ -1,0 +1,23 @@
+[package]
+name = "oopz-export-pdf"
+description = "PDF exports of a selection from the oopz library, with right-to-left text and emoji (decision 0017)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+oopz-core.workspace = true
+oopz-export.workspace = true
+oopz-model.workspace = true
+krilla.workspace = true
+rustybuzz.workspace = true
+unicode-bidi.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

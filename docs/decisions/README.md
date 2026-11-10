@@ -16,6 +16,7 @@ Why oopz is the way it is. Numbers are kept from the hilo project, where oopz be
 - [0014](0014-whatsapp-as-an-adapter.md): WhatsApp Android's crate moves to `crates/adapters/whatsapp-android` and implements the adapter trait.
 - [0015](0015-official-text-exports.md): adapters for the apps' official text exports (WhatsApp, Telegram, SMS, LINE, Viber).
 - [0016](0016-the-library-selections-and-exports.md): the library (`oopz-core`), selections, the cross-app timeline, contacts and exports.
+- [0017](0017-pdf-exports.md): PDF exports with right-to-left text and emoji, using the system's fonts.
 
 Code comments also cite hilo's decision 0034 (WhatsApp groups and sticker packs). What it settled for oopz: a chat's
 names are read from `wa.db` only for the jid asked for (point 6, `contacts.rs`), and the synthetic fixtures include a
