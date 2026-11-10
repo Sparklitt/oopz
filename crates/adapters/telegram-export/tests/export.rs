@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use oopz_gen::exports::{Manifest, telegram_json};
-use oopz_model::{Adapter, CallOutcome, ConversationKind, Error, Loaded, Part};
+use oopz_model::{Adapter, CallOutcome, ConversationKind, Error, Event, Loaded, Message, Part};
 use oopz_telegram_export::{TelegramExportAdapter, read};
 
 fn tally(l: &Loaded) -> Manifest {
@@ -31,7 +31,13 @@ fn the_full_export_reads_as_its_manifest_says() {
     let kinds: Vec<ConversationKind> = loaded.conversations.iter().map(|c| c.kind).collect();
     assert_eq!(
         kinds,
-        [ConversationKind::Direct, ConversationKind::Group, ConversationKind::Notes, ConversationKind::Channel]
+        [
+            ConversationKind::Direct,
+            ConversationKind::Group,
+            ConversationKind::Notes,
+            ConversationKind::Channel,
+            ConversationKind::Channel
+        ]
     );
     assert!(loaded.people.iter().any(|p| p.id == "phone:+99990000003"));
     let m = &loaded.messages;
@@ -46,6 +52,27 @@ fn the_full_export_reads_as_its_manifest_says() {
         m.iter().any(|m| matches!(&m.parts[..], [Part::Call { outcome: CallOutcome::Answered, secs: Some(95), .. }]))
     );
     assert!(m.iter().any(|m| matches!(&m.parts[..], [Part::Unknown { code, .. }] if code == "boost_apply")));
+    // The rest of core.telegram.org/import-export's schema.
+    let text = |m: &Message| m.parts.iter().map(|p| format!("{p:?}")).collect::<String>();
+    let has = |needle: &str| m.iter().any(|x| text(x).contains(needle));
+    assert!(has("solo entidades"));
+    assert!(has("Entrada · Concierto · 1.45 USD"));
+    assert!(m.iter().any(|x| matches!(&x.parts[..], [Part::Text { text }, Part::Link { url, title: Some(t) }]
+        if text == "un juego" && url == "https://example.org/juego" && t == "Tetrominó")));
+    assert!(has("giveaway: 3 × 6 months, until 2024-03-01T00:00:00"));
+    assert!(has("Partidos 2024") && has("⚽") && has("score in game (score 120)") && has("send payment (500 JPY)"));
+    assert!(has("group call scheduled (2024-01-23 08:53 UTC)"));
+    assert!(m.iter().any(|x| matches!(&x.parts[..], [Part::Call { secs: Some(600), .. }])));
+    assert!(m.iter().any(|x| matches!(&x.parts[..], [Part::Contact { .. }, Part::Media(v)] if v.file.as_deref() == Some("contacts/contact_1.vcard"))));
+    assert!(
+        m.iter().any(
+            |x| matches!(&x.parts[..], [Part::Media(a)] if a.name.as_deref() == Some("Nadie – Canción de prueba"))
+        )
+    );
+    let owner_vote = format!("user{}", telegram_json::OWNER_ID);
+    assert!(m.iter().any(|x| matches!(&x.parts[..], [Part::Poll { options, .. }] if options[0].voters == [owner_vote.clone()] && options[1].voters.is_empty())));
+    let pinned = m.iter().find(|x| matches!(&x.parts[..], [Part::System { event: Event::Pinned, .. }])).expect("a pin");
+    assert_eq!(pinned.reply_to.as_deref(), Some("3"));
     let notes = loaded.info.notes.join("\n");
     assert!(notes.contains("`action boost_apply`") && notes.contains("`message type something_new`"), "{notes}");
 }

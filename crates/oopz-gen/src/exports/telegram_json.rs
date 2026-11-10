@@ -1,6 +1,6 @@
-//! Telegram Desktop's "Export Telegram data" as JSON (`result.json`): the owner, two address-book contacts and four
-//! chats (a personal chat with every kind of message, a supergroup with service messages, Saved Messages and a
-//! channel), with media that was and wasn't included.
+//! Telegram Desktop's "Export Telegram data" as JSON (`result.json`): the owner, two address-book contacts and five
+//! chats (a personal chat with every kind of message, a supergroup with service messages, Saved Messages, a
+//! channel and the Replies feed), with media that was and wasn't included.
 
 use oopz_model::Kind;
 use serde_json::{Value, json};
@@ -90,7 +90,7 @@ fn fillers(chat: &mut Chat, rng: &mut Rng, manifest: &mut Manifest, people: &[u6
 
 pub fn generate(seed: u64) -> Export {
     let mut rng = Rng::fork(seed, 0x7E1E);
-    let mut manifest = Manifest { conversations: 4, ..Default::default() };
+    let mut manifest = Manifest { conversations: 5, ..Default::default() };
     let m = &mut manifest;
     let me = OWNER_ID;
 
@@ -174,6 +174,23 @@ pub fn generate(seed: u64) -> Export {
         ),
         (Kind::Text, me, json!({ "text": "مرحبا، كيف حالك؟ Z̤͔ͧ̑̓ä͖̭̈̇lͮ̒ͫǫ̗̻" })),
         (Kind::Unknown, BEN, json!({ "type": "something_new", "text": "" })),
+        // Only `text_entities`, no `text`.
+        (Kind::Text, BEN, json!({ "text": "", "text_entities": [{"type": "plain", "text": "solo entidades"}] })),
+        (
+            Kind::Unknown,
+            BEN,
+            json!({ "invoice_information": {"title": "Entrada", "description": "Concierto", "amount": 145, "currency": "USD"} }),
+        ),
+        (
+            Kind::Link,
+            BEN,
+            json!({ "via_bot": "@juegobot", "game_title": "Tetrominó", "game_description": "un juego", "game_link": "https://example.org/juego" }),
+        ),
+        (
+            Kind::Unknown,
+            BEN,
+            json!({ "giveaway_information": {"quantity": 3, "months": 6, "until_date": "2024-03-01T00:00:00", "channels": [777]} }),
+        ),
     ];
     for (kind, from, fields) in specials {
         fillers(&mut personal, &mut rng, m, &duo);
@@ -231,6 +248,47 @@ pub fn generate(seed: u64) -> Export {
         json!({ "action": "remove_members", "members": ["Dani Ficticio"], "text": "" }),
     );
     group.service(&mut rng, m, Kind::Unknown, BEN, json!({ "action": "boost_apply", "boosts": 1, "text": "" }));
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        CARLA,
+        json!({ "action": "topic_created", "title": "Partidos", "text": "" }),
+    );
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        CARLA,
+        json!({ "action": "topic_edit", "new_title": "Partidos 2024", "text": "" }),
+    );
+    group.service(&mut rng, m, Kind::System, me, json!({ "action": "edit_chat_theme", "emoticon": "⚽", "text": "" }));
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        BEN,
+        json!({ "action": "score_in_game", "game_message_id": 2, "score": 120, "text": "" }),
+    );
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        me,
+        json!({ "action": "send_payment", "amount": 500, "currency": "JPY", "invoice_message_id": 4, "text": "" }),
+    );
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        BEN,
+        json!({ "action": "group_call_scheduled", "schedule_date": 1_706_000_000, "text": "" }),
+    );
+    group.service(&mut rng, m, Kind::Call, BEN, json!({ "action": "group_call", "duration_seconds": 600, "text": "" }));
+
+    // Telegram's own feed of replies to the owner's comments.
+    let mut replies = Chat::new(year_start(2024) + 4 * 86_400_000);
+    replies.push(&mut rng, m, Kind::Text, Some(CARLA), json!({ "text": "respuesta a tu comentario" }));
 
     let mut saved = Chat::new(year_start(2024) + 2 * 86_400_000);
     saved.push(&mut rng, m, Kind::Text, Some(me), json!({ "text": "nota para mí" }));
@@ -271,7 +329,8 @@ pub fn generate(seed: u64) -> Export {
                 {"name": "Ben Ejemplo", "type": "personal_chat", "id": BEN, "messages": personal.messages},
                 {"name": "Fútbol los jueves", "type": "private_supergroup", "id": 1_777_000_001u64, "messages": group.messages},
                 {"type": "saved_messages", "id": OWNER_ID, "messages": saved.messages},
-                {"name": "Canal de Pruebas", "type": "public_channel", "id": 777, "messages": channel.messages}
+                {"name": "Canal de Pruebas", "type": "public_channel", "id": 777, "messages": channel.messages},
+                {"name": "Replies", "type": "replies", "id": 708_513, "messages": replies.messages}
             ]
         }
     });

@@ -249,7 +249,8 @@ impl Reader {
         let kind = match code {
             "personal_chat" | "bot_chat" => ConversationKind::Direct,
             "private_group" | "private_supergroup" | "public_supergroup" => ConversationKind::Group,
-            "private_channel" | "public_channel" => ConversationKind::Channel,
+            // `replies` is Telegram's own feed of replies to the owner's comments in channels: read-only, like a channel.
+            "private_channel" | "public_channel" | "replies" => ConversationKind::Channel,
             "saved_messages" => ConversationKind::Notes,
             other => {
                 *self.notes.unknown.entry(format!("chat type {other}")).or_default() += 1;
@@ -339,12 +340,14 @@ impl Reader {
             "service" => {
                 out.sender = self.person(m.get("actor_id"), m.get("actor"));
                 out.parts = vec![self.service(m)];
+                // A pin, a game score: the message it is about.
+                out.reply_to = out.reply_to.or_else(|| m.get("message_id").and_then(id_of));
             }
             other => {
                 let code = if other.is_empty() { "no type" } else { other };
                 *self.notes.unknown.entry(format!("message type {code}")).or_default() += 1;
                 out.sender = self.person(m.get("from_id"), m.get("from"));
-                let text = text_of(m.get("text")).0;
+                let text = text_of(body(m)).0;
                 out.parts = vec![Part::Unknown { code: code.to_string(), text: Some(text).filter(|t| !t.is_empty()) }];
             }
         }
@@ -369,7 +372,7 @@ impl Reader {
     }
 
     fn parts(&mut self, m: &Map<String, Value>) -> Vec<Part> {
-        let (text, links) = text_of(m.get("text"));
+        let (text, links) = text_of(body(m));
         let mut parts = Vec::new();
         let mut media = None;
         if let Some(photo) = m.get("photo").and_then(Value::as_str) {
@@ -391,7 +394,14 @@ impl Reader {
                 }
             };
             let file = m.get("file").and_then(Value::as_str).unwrap_or("(File not included.)");
-            media = Some(Media { kind, ..file_facts(m, file) });
+            let mut x = Media { kind, ..file_facts(m, file) };
+            if x.name.is_none() && kind == MediaKind::Audio {
+                // A song's `performer` and `title` stand in for its file name.
+                let tag: Vec<&str> =
+                    ["performer", "title"].iter().filter_map(|k| m.get(*k).and_then(Value::as_str)).collect();
+                x.name = Some(tag.join(" – ")).filter(|n| !n.is_empty());
+            }
+            media = Some(x);
         }
         if let Some(mut x) = media {
             x.caption = Some(text.clone()).filter(|t| !t.is_empty());
@@ -417,7 +427,8 @@ impl Reader {
                 .filter_map(Value::as_object)
                 .map(|a| PollOption {
                     text: a.get("text").map(|t| text_of(Some(t)).0).unwrap_or_default(),
-                    voters: Vec::new(),
+                    // `chosen`: the owner's own vote; the export names no other voter.
+                    voters: self.owner.clone().filter(|_| a.get("chosen").is_some_and(truthy)).into_iter().collect(),
                     votes: a.get("voters").and_then(int_of).and_then(|n| u64::try_from(n).ok()).unwrap_or(0),
                 })
                 .collect();
@@ -426,7 +437,41 @@ impl Reader {
         if let Some(c) = m.get("contact_information").and_then(Value::as_object) {
             let phones = c.get("phone_number").and_then(Value::as_str).map(|p| vec![p.to_string()]).unwrap_or_default();
             parts.push(Part::Contact { name: full_name(c), phones, vcard: None });
+            // The card itself is a file beside the export (`contacts/contact_1.vcard`).
+            if let Some(card) = m.get("contact_vcard").and_then(Value::as_str) {
+                let mut x = Media { kind: MediaKind::Document, ..file_facts(m, card) };
+                x.mime = Some("text/vcard".into());
+                x.view_once = false;
+                parts.push(Part::Media(x));
+            }
         }
+        if let Some(i) = m.get("invoice_information").and_then(Value::as_object) {
+            let s = |k: &str| i.get(k).and_then(Value::as_str).unwrap_or("").trim();
+            let amount = i.get("amount").and_then(int_of).map(|a| money(a, s("currency")));
+            let line = [s("title"), s("description"), amount.as_deref().unwrap_or("")]
+                .into_iter()
+                .filter(|x| !x.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ");
+            parts.push(Part::Unknown { code: "invoice".into(), text: Some(line).filter(|l| !l.is_empty()) });
+            *self.notes.unknown.entry("invoice".into()).or_default() += 1;
+        }
+        if let Some(link) = m.get("game_link").and_then(Value::as_str).filter(|l| !l.is_empty()) {
+            let title = m.get("game_title").and_then(Value::as_str).map(str::to_string);
+            parts.push(Part::Link { url: link.to_string(), title });
+        }
+        if let Some(g) = m.get("giveaway_information").and_then(Value::as_object) {
+            let n = |k: &str| g.get(k).and_then(int_of).unwrap_or(0);
+            let until = g.get("until_date").and_then(Value::as_str).unwrap_or("");
+            let line = format!("giveaway: {} × {} months, until {until}", n("quantity"), n("months"));
+            parts.push(Part::Unknown { code: "giveaway".into(), text: Some(line) });
+            *self.notes.unknown.entry("giveaway".into()).or_default() += 1;
+        }
+        let game = m.get("game_description").and_then(Value::as_str).filter(|d| !d.is_empty());
+        let text = match (text.is_empty(), game) {
+            (true, Some(d)) => d.to_string(),
+            _ => text,
+        };
         if parts.is_empty() {
             parts.push(Part::text(text));
         } else if !matches!(parts[0], Part::Media(_)) && !text.is_empty() {
@@ -440,7 +485,7 @@ impl Reader {
         let action = m.get("action").and_then(Value::as_str).unwrap_or("");
         let members: Vec<&str> =
             m.get("members").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
-        let title = m.get("title").and_then(Value::as_str);
+        let title = m.get("title").or_else(|| m.get("new_title")).or_else(|| m.get("emoticon")).and_then(Value::as_str);
         let text = if !members.is_empty() {
             Some(members.join(", "))
         } else {
@@ -474,7 +519,34 @@ impl Reader {
             "pin_message" => Event::Pinned,
             "clear_history" => Event::HistoryCleared,
             "set_messages_ttl" => Event::Disappearing,
-            "migrate_to_supergroup" => Event::SettingsChanged,
+            "migrate_to_supergroup"
+            | "edit_chat_theme"
+            | "set_chat_wallpaper"
+            | "set_same_chat_wallpaper"
+            | "allow_sending_messages"
+            | "attach_menu_bot_allowed"
+            | "web_app_bot_allowed" => Event::SettingsChanged,
+            "topic_created" => Event::GroupCreated,
+            "topic_edit" => Event::Renamed,
+            "suggest_profile_photo" => Event::PictureChanged,
+            "joined_telegram" => Event::MemberJoined,
+            "invite_to_group_call" => Event::MemberAdded,
+            "score_in_game"
+            | "send_payment"
+            | "take_screenshot"
+            | "send_passport_values"
+            | "proximity_reached"
+            | "requested_phone_number"
+            | "group_call_scheduled"
+            | "send_webview_data"
+            | "send_premium_gift"
+            | "requested_peer"
+            | "gift_code_prize"
+            | "giveaway_launch" => {
+                let detail = notice(action, m);
+                let text = [Some(detail), text].into_iter().flatten().filter(|t| !t.is_empty()).collect::<Vec<_>>();
+                return Part::System { event: Event::Other, text: Some(text.join(": ")).filter(|t| !t.is_empty()) };
+            }
             other => {
                 let code = if other.is_empty() { "service" } else { other };
                 *self.notes.unknown.entry(format!("action {code}")).or_default() += 1;
@@ -483,6 +555,90 @@ impl Reader {
         };
         Part::System { event, text }
     }
+}
+
+/// The message's text: `text`, or `text_entities` when an export left `text` out.
+fn body(m: &Map<String, Value>) -> Option<&Value> {
+    match m.get("text") {
+        Some(Value::String(s)) if s.is_empty() => m.get("text_entities").or(m.get("text")),
+        None => m.get("text_entities"),
+        t => t,
+    }
+}
+
+fn truthy(v: &Value) -> bool {
+    matches!(v, Value::Bool(true)) || v.as_str() == Some("true")
+}
+
+/// An amount in the currency's smallest unit (145 USD → `1.45 USD`); Telegram Stars (`XTR`) and other
+/// currencies without cents are whole.
+fn money(amount: i64, currency: &str) -> String {
+    let places = match currency {
+        "XTR" | "BIF" | "CLP" | "DJF" | "GNF" | "ISK" | "JPY" | "KMF" | "KRW" | "PYG" | "RWF" | "UGX" | "VND"
+        | "VUV" | "XAF" | "XOF" | "XPF" => 0,
+        "BHD" | "IQD" | "JOD" | "KWD" | "LYD" | "OMR" | "TND" => 3,
+        _ => 2,
+    };
+    let unit = 10i64.pow(places);
+    let sign = if amount < 0 { "-" } else { "" };
+    let a = amount.unsigned_abs();
+    let whole = a / unit as u64;
+    let n =
+        if places == 0 { whole.to_string() } else { format!("{whole}.{:0w$}", a % unit as u64, w = places as usize) };
+    format!("{sign}{n} {currency}").trim().to_string()
+}
+
+/// What a Telegram notice without an oopz event of its own was about, in a few words.
+fn notice(action: &str, m: &Map<String, Value>) -> String {
+    let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    let n = |k: &str| m.get(k).and_then(int_of);
+    let what = action.replace('_', " ");
+    let extra = match action {
+        "score_in_game" => n("score").map(|x| format!("score {x}")),
+        "send_payment" | "send_premium_gift" => {
+            let paid = n("amount").or(n("cost")).map(|a| money(a, &s("currency")));
+            let months = n("months").map(|x| format!("{x} months"));
+            Some([paid, months].into_iter().flatten().collect::<Vec<_>>().join(", "))
+        }
+        "gift_code_prize" => n("months").map(|x| format!("{x} months")),
+        "send_passport_values" => Some(
+            m.get("values")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+        "proximity_reached" => n("distance").map(|d| format!("{} → {}, {d} m", s("from"), s("to"))),
+        "group_call_scheduled" => n("schedule_date").and_then(|t| t.checked_mul(1000)).and_then(|ms| {
+            let (y, mo, d, h, mi) = civil_of(ms)?;
+            Some(format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02} UTC"))
+        }),
+        "send_webview_data" => Some(s("text")).filter(|t| !t.is_empty()),
+        _ => None,
+    };
+    match extra.filter(|e| !e.trim().is_empty()) {
+        Some(e) => format!("{what} ({e})"),
+        None => what,
+    }
+}
+
+/// Year, month, day, hour, minute of a UTC time in milliseconds.
+fn civil_of(ms: i64) -> Option<(i64, u32, u32, u32, u32)> {
+    let days = ms.div_euclid(86_400_000);
+    let rem = ms.rem_euclid(86_400_000) / 60_000;
+    // Howard Hinnant's days-to-civil.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = u32::try_from(doy - (153 * mp + 2) / 5 + 1).ok()?;
+    let mo = u32::try_from(if mp < 10 { mp + 3 } else { mp - 9 }).ok()?;
+    let y = yoe + era * 400 + i64::from(mo <= 2);
+    Some((y, mo, d, u32::try_from(rem / 60).ok()?, u32::try_from(rem % 60).ok()?))
 }
 
 /// The facts of a `photo` or `file`: its path, or `omitted` when Telegram didn't include it.
