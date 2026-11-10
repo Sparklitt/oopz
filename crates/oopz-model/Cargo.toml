@@ -1,0 +1,15 @@
+[package]
+name = "oopz-model"
+description = "One model for every messaging app's history: people, conversations, messages and their parts (decision 0013)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

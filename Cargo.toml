@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/oopz", "crates/oopz-app", "crates/oopz-cli", "crates/oopz-gen", "crates/oopz-model"]
 # The Tauri shell has its own workspace: it needs a webview toolkit to build (docs/desktop-plan.md).
 exclude = ["apps/desktop/src-tauri"]
 
@@ -15,6 +15,7 @@ publish = false
 [workspace.dependencies]
 oopz = { path = "crates/oopz" }
 oopz-app = { path = "crates/oopz-app" }
+oopz-model = { path = "crates/oopz-model" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"
@@ -46,6 +47,12 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 fs4 = { version = "1.1", default-features = false }
 # Photo thumbnails for the chat viewer, from the phone's Media folder: pure-Rust decoders for the formats WhatsApp saves.
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+# docs/decisions/0015: reading the apps' official exports (Telegram's JSON, SMS Backup & Restore's XML, Viber's CSV,
+# MMS parts in base64).
+serde_json = "1"
+quick-xml = "0.39"
+csv = "1"
+base64 = "0.22"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
