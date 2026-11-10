@@ -46,6 +46,8 @@
   const MEDIA_ICON: Record<MediaPart["kind"], IconName> = { photo: "image", video: "video", video_note: "video", gif: "video", sticker: "smile", voice: "mic", audio: "mic", document: "file" };
   const facts = (p: MediaPart) => [p.secs != null ? dur(p.secs) : null, p.size ? mb(p.size) : null].filter(Boolean).join(" · ");
   let system = $derived(m.kind === "system" || m.kind === "call");
+  // Telegram's notices carry only their detail (who, a title), not what happened: the event's label leads.
+  let detailOnly = $derived(m.app === "telegram");
   let at = $derived(m.time_ms === null ? "" : m.wall_clock ? time(m.time_ms) : time(m.time_ms));
 </script>
 
@@ -66,7 +68,7 @@
         {#if p.type === "call"}
           <Icon name={p.video ? "video" : "call"} size={15} />{p.video ? t.videoCall : t.voiceCall} · {l.outcomes[p.outcome]}{p.secs ? ` · ${dur(p.secs)}` : ""}{m.from_me ? ` · ${t.you}` : ""}
         {:else if p.type === "system"}
-          {p.text ?? l.events[p.event] ?? p.event}
+          {p.text && !detailOnly ? p.text : [l.events[p.event] ?? p.event, p.text].filter(Boolean).join(": ")}
         {/if}
       {/each}
       {#if at} · <time>{at}</time>{/if}

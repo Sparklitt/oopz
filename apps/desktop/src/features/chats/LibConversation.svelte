@@ -152,7 +152,7 @@
   <button class="btn icon-only back" aria-label={t.allChatsBack} title={t.allChatsBack} onclick={() => (lib.conv = null)}><Icon name="chevron" class="flip" /></button>
   <div class="who">
     <h2>{convTitle(row)}</h2>
-    <p><strong>{appName(row.app)}</strong> · {fmt(len || row.messages)} {t.messages} · {t.lastMessage} {date(row.last_ms)}{#if row.wall_clock} · {l.wallClock}{/if}</p>
+    <p><strong>{appName(row.app)}</strong> · {fmt(len || row.messages)} {(len || row.messages) === 1 ? t.message : t.messages} · {t.lastMessage} {date(row.last_ms)}{#if row.wall_clock} · {l.wallClock}{/if}</p>
   </div>
   <div class="tools">
     <button class="btn icon-only" aria-label={t.searchThisChat} title={t.searchThisChat} onclick={() => { lib.searchConv = row.id; go("lsearch"); }}><Icon name="search" /></button>

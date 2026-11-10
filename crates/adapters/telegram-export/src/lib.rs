@@ -509,7 +509,10 @@ impl Reader {
                     secs,
                 };
             }
-            "group_call" => return Part::Call { video: false, outcome: CallOutcome::Unknown, secs },
+            "group_call" => {
+                let outcome = if secs.is_some_and(|s| s > 0) { CallOutcome::Answered } else { CallOutcome::Unknown };
+                return Part::Call { video: false, outcome, secs };
+            }
             "create_group" | "create_channel" | "migrate_from_group" => Event::GroupCreated,
             "invite_members" => Event::MemberAdded,
             "join_group_by_link" | "join_group_by_request" => Event::MemberJoined,

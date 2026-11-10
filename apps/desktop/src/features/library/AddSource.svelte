@@ -3,6 +3,7 @@
   // only when that app's file needs one, and watch it come in, with a way to stop. The key is used for this one
   // import and wiped; it is never kept.
   import ErrorNote from "../../lib/components/ErrorNote.svelte";
+  import { spans } from "../../lib/notes";
   import Icon from "../../lib/components/Icon.svelte";
   import KeyBoxes from "../../lib/components/KeyBoxes.svelte";
   import Ring from "../../lib/components/Ring.svelte";
@@ -82,7 +83,7 @@
       <p class="muted">{done.name}</p>
       <p>{fmt(done.conversations)} {l.conversations} · {fmt(done.people)} {l.people} · {fmt(done.messages)} {t.messages}</p>
       {#if !done.owner_known}<div class="note warn"><Icon name="user" /><span>{l.ownerUnknown}</span></div>{/if}
-      {#each done.notes as n, i (i)}<p class="muted small">{n}</p>{/each}
+      {#each done.notes as n, i (i)}<p class="muted small">{#each spans(n) as sp, j (j)}{#if sp.code}<code>{sp.text}</code>{:else}{sp.text}{/if}{/each}</p>{/each}
     </div>
   {:else}
     <form id="add-source" onsubmit={add}>
@@ -159,6 +160,8 @@
   }
   .field {
     display: grid;
+    /* A long option name mustn't widen the column past the screen (it did on a phone). */
+    grid-template-columns: minmax(0, 1fr);
     gap: 4px;
     margin: 12px 0;
     font-size: 13px;
@@ -167,6 +170,7 @@
   .field select,
   .field input {
     max-width: 100%;
+    min-width: 0;
   }
   .safe {
     display: flex;

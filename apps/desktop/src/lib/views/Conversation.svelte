@@ -155,7 +155,7 @@
   <span class="avatar big" class:group={isGroup(row)} aria-hidden="true"><Icon name={isGroup(row) ? "users" : "user"} size={18} /></span>
   <div class="who">
     <h2>{chatName(row)}</h2>
-    <p>{fmt(len || row.messages)} {t.messages} · {t.lastMessage} {date(row.last_ms)}</p>
+    <p>{fmt(len || row.messages)} {(len || row.messages) === 1 ? t.message : t.messages} · {t.lastMessage} {date(row.last_ms)}</p>
   </div>
   <div class="tools">
     <button class="btn icon-only" aria-label={t.searchThisChat} title={t.searchThisChat} onclick={() => { app.searchChat = row.number; go("search"); }}><Icon name="search" /></button>

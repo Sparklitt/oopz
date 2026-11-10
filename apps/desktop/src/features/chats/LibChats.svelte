@@ -70,7 +70,7 @@
               <span class="avatar" class:group={c.kind !== "direct"} aria-hidden="true"><Icon name={ICON[c.kind]} size={16} /></span>
               <span class="words">
                 <span class="name">{convTitle(c)}</span>
-                <span class="sub"><span class="app">{appName(c.app)}</span> {c.preview ?? `${fmt(c.messages)} ${t.messages}`}</span>
+                <span class="sub"><span class="app">{appName(c.app)}</span> {c.preview ?? `${fmt(c.messages)} ${c.messages === 1 ? t.message : t.messages}`}</span>
               </span>
               <span class="when">{date(c.last_ms)}</span>
             </button>

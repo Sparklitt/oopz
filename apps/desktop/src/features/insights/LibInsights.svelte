@@ -51,7 +51,7 @@
   {#if stats && stats.messages}
     <div class="tiles">
       <div class="tile"><Icon name="chats" /><span class="num">{fmt(stats.messages)}</span><span class="lbl">{t.messages}</span></div>
-      <div class="tile"><Icon name="arrow" /><span class="num">{Math.round(share * 100)}%</span><span class="lbl">{t.fromMe}</span><span class="sub">{fmt(stats.from_me)} {t.fromMe}</span></div>
+      <div class="tile"><Icon name="arrow" /><span class="num">{Math.round(share * 100)}%</span><span class="lbl">{t.fromMe}</span><span class="sub">{fmt(stats.from_me)} {t.fromMe}, {fmt(stats.messages - stats.from_me)} {t.fromOthers}</span></div>
       <div class="tile"><Icon name="mic" /><span class="num">{fmt(Math.round(stats.voice_secs / 60))}</span><span class="lbl">{t.audioMinutes}</span><span class="sub">{mb(stats.media_bytes)} {l.ofMedia}</span></div>
       <div class="tile"><Icon name="calendar" /><span class="num">{year(stats.first_ms)} – {year(stats.last_ms)}</span><span class="lbl">{t.dates}</span><span class="sub">{date(stats.first_ms)} – {date(stats.last_ms)}</span></div>
     </div>

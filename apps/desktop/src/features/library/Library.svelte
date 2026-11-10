@@ -2,6 +2,7 @@
   // The library's sources: what's in it, from which app, the owner when an export doesn't say, and adding or
   // removing one. Where the library lives (wiped on close, or kept) is said up front; Settings changes it.
   import { onMount } from "svelte";
+  import { spans } from "../../lib/notes";
   import ErrorNote from "../../lib/components/ErrorNote.svelte";
   import Icon from "../../lib/components/Icon.svelte";
   import PageHead from "../../lib/components/PageHead.svelte";
@@ -83,7 +84,7 @@
           </p>
           <p class="muted small">{l.added} {date(s.added_ms)}{#if s.wall_clock} · {l.wallClock}{/if}{#if !s.has_media} · {l.noMedia}{/if}</p>
           {#if s.notes.length}
-            <ul class="notes">{#each s.notes as n, i (i)}<li>{n}</li>{/each}</ul>
+            <ul class="notes">{#each s.notes as n, i (i)}<li>{#each spans(n) as sp, j (j)}{#if sp.code}<code>{sp.text}</code>{:else}{sp.text}{/if}{/each}</li>{/each}</ul>
           {/if}
           {#if !s.owner_known}
             <div class="note warn">
