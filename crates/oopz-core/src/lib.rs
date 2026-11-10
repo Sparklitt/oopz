@@ -360,6 +360,9 @@ pub struct Library {
 }
 
 /// The `WHERE` part for a filter over `msg m JOIN conv c JOIN source s`, and its values.
+/// The filter's words, as a set of matching ids.
+const FTS_SET: &str = "m.id IN (SELECT rowid FROM fts WHERE fts MATCH ?)";
+
 fn narrow(filter: &Filter) -> (String, Vec<Value>) {
     let mut sql = vec!["1".to_owned()];
     let mut values: Vec<Value> = Vec::new();
@@ -415,7 +418,7 @@ fn narrow(filter: &Filter) -> (String, Vec<Value>) {
             values.push(Value::Text(format!("%{escaped}%")));
         }
     } else if let Some(q) = fts_query(words) {
-        sql.push("m.id IN (SELECT rowid FROM fts WHERE fts MATCH ?)".into());
+        sql.push(FTS_SET.into());
         values.push(Value::Text(q));
     }
     (sql.join(" AND "), values)
@@ -429,7 +432,11 @@ impl Library {
     pub fn open(dir: &Path) -> Result<Self> {
         fs::create_dir_all(dir).map_err(|e| Error::new("io", format!("making {}: {e}", dir.display())))?;
         let db = Connection::open(dir.join(FILE))?;
-        db.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA recursive_triggers = ON;")?;
+        // 64 MB of page cache: a large import keeps its indexes in memory instead of re-reading them.
+        db.execute_batch(
+            "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA recursive_triggers = ON;
+             PRAGMA cache_size = -65536; PRAGMA temp_store = MEMORY;",
+        )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         if version > SCHEMA {
             return Err(Error::new("unsupported", "this library was made by a newer oopz"));
@@ -461,6 +468,8 @@ impl Library {
                  CREATE INDEX IF NOT EXISTS msg_conv_pos ON msg(conv, pos);
                  CREATE INDEX IF NOT EXISTS msg_conv_key ON msg(conv, key);
                  CREATE INDEX IF NOT EXISTS msg_ts ON msg(ts);
+                 CREATE INDEX IF NOT EXISTS msg_time ON msg((ts IS NULL), ts, conv, pos);
+                 CREATE INDEX IF NOT EXISTS msg_newest ON msg((ts IS NULL), ts DESC, id DESC);
                  CREATE INDEX IF NOT EXISTS msg_sender ON msg(sender);
                  CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(text, content = 'msg', content_rowid = 'id',
                      tokenize = 'unicode61 remove_diacritics 2');
@@ -735,7 +744,16 @@ impl Library {
         let (cond, mut values) = narrow(filter);
         values.push(Value::Integer(limit.into()));
         values.push(Value::Integer(offset as i64));
-        self.rows(&format!("{cond} ORDER BY {} LIMIT ? OFFSET ?", order_by(order)), params_from_iter(values))
+        // The page's ids first, then their rows: the rows' columns (body, names, replies) are built for the page
+        // only, never for the rows skipped or sorted.
+        let order = order_by(order);
+        self.rows(
+            &format!(
+                "m.id IN (SELECT m.id FROM msg m JOIN conv c ON c.id = m.conv JOIN source s ON s.id = c.source
+                     WHERE {cond} ORDER BY {order} LIMIT ? OFFSET ?) ORDER BY {order}"
+            ),
+            params_from_iter(values),
+        )
     }
 
     /// How many messages match `filter`.
@@ -758,26 +776,39 @@ impl Library {
         }
         let (cond, mut values) = narrow(filter);
         let fts = (!has_cjk(&filter.words)).then(|| fts_query(&filter.words)).flatten();
-        let snippet = match &fts {
-            Some(_) => {
-                "(SELECT snippet(fts, 0, char(2), char(3), '…', 12) FROM fts WHERE fts MATCH ? AND rowid = m.id)"
+        // Words in a large share of the messages: walking the newest-first index and keeping the matches fills the
+        // first page within a few hundred rows; reading every match's row to sort them would take seconds.
+        let mut walk = "";
+        if let Some(q) = &fts {
+            let matches: i64 = self.db.query_row("SELECT count(*) FROM fts WHERE fts MATCH ?1", [q], |r| r.get(0))?;
+            if matches > 20_000 {
+                walk = "INDEXED BY msg_newest";
             }
-            None => "substr(m.text, 1, 120)",
-        };
-        let mut all = Vec::new();
-        if let Some(q) = fts {
-            all.push(Value::Text(q));
         }
-        all.append(&mut values);
-        all.push(Value::Integer(limit.into()));
+        values.push(Value::Integer(limit.into()));
+        // The hits' ids first (an index walk, newest first), then names for those only; snippets after, in one pass
+        // over the word index (asking it once per hit costs a pass each).
+        let newest = order_by(Order::Newest);
+        let ids: Vec<i64> = self
+            .db
+            .prepare_cached(&format!(
+                "SELECT m.id FROM msg m {walk} JOIN conv c ON c.id = m.conv JOIN source s ON s.id = c.source
+                 WHERE {cond} ORDER BY {newest} LIMIT ?"
+            ))?
+            .query_map(params_from_iter(values), |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let list = ids.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT m.id, m.conv, s.app, m.ts, m.from_me, {NAME_OF_SENDER}, coalesce({snippet}, '')
+            "SELECT m.id, m.conv, s.app, m.ts, m.from_me, {NAME_OF_SENDER}, substr(m.text, 1, 120)
              FROM msg m JOIN conv c ON c.id = m.conv JOIN source s ON s.id = c.source
-             WHERE {cond} ORDER BY m.ts DESC NULLS LAST, m.id DESC LIMIT ?"
+             WHERE m.id IN ({list}) ORDER BY {newest}"
         );
-        let mut stmt = self.db.prepare_cached(&sql)?;
-        let hits = stmt
-            .query_map(params_from_iter(all), |r| {
+        let mut stmt = self.db.prepare(&sql)?;
+        let mut hits = stmt
+            .query_map([], |r| {
                 Ok(Hit {
                     id: r.get(0)?,
                     conversation: r.get(1)?,
@@ -785,10 +816,32 @@ impl Library {
                     time_ms: r.get(3)?,
                     from_me: r.get(4)?,
                     sender_name: r.get(5)?,
-                    snippet: r.get(6)?,
+                    snippet: r.get::<_, Option<String>>(6)?.unwrap_or_default(),
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        if let (Some(q), false) = (fts, hits.is_empty()) {
+            // The hits' texts in a small word index of their own (in memory): marking them in the library's index
+            // would read every match's entry to reach these few.
+            self.db.execute_batch(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS temp.hit USING fts5(text, tokenize = 'unicode61 remove_diacritics 2');
+                 DELETE FROM temp.hit;",
+            )?;
+            self.db.execute(
+                &format!("INSERT INTO temp.hit (rowid, text) SELECT id, text FROM msg WHERE id IN ({list})"),
+                [],
+            )?;
+            let mut stmt = self
+                .db
+                .prepare("SELECT rowid, snippet(hit, 0, char(2), char(3), '…', 12) FROM temp.hit WHERE hit MATCH ?1")?;
+            let snippets: HashMap<i64, String> =
+                stmt.query_map([q], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+            for h in &mut hits {
+                if let Some(s) = snippets.get(&h.id) {
+                    h.snippet = s.clone();
+                }
+            }
+        }
         Ok(hits)
     }
 
@@ -860,52 +913,64 @@ impl Library {
         let (cond, values) = narrow(filter);
         let from = "FROM msg m JOIN conv c ON c.id = m.conv JOIN source s ON s.id = c.source";
         let mut s = Stats { by_hour: vec![0; 24], by_day_hour: vec![vec![0; 24]; 7], ..Default::default() };
-        (s.messages, s.from_me, s.first_ms, s.last_ms, s.media_bytes, s.voice_secs) = self.db.query_row(
-            &format!(
-                "SELECT count(*), coalesce(sum(m.from_me), 0), min(m.ts), max(m.ts), coalesce(sum(m.bytes), 0),
-                     coalesce(sum(m.voice), 0) {from} WHERE {cond}"
-            ),
-            params_from_iter(values.iter()),
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
-        )?;
+        // One pass over the messages, grouped finely, summed here: each further pass would read every row again.
         let mut stmt = self.db.prepare(&format!(
-            "SELECT m.month, count(*) {from} WHERE {cond} AND m.month IS NOT NULL GROUP BY m.month ORDER BY m.month"
+            "SELECT m.month, m.dow, m.hour, m.kind, s.app, m.sender, count(*), coalesce(sum(m.from_me), 0),
+                 coalesce(sum(m.bytes), 0), coalesce(sum(m.voice), 0), min(m.ts), max(m.ts)
+             {from} WHERE {cond} GROUP BY m.month, m.dow, m.hour, m.kind, s.app, m.sender"
         ))?;
-        s.by_month = stmt
-            .query_map(params_from_iter(values.iter()), |r| Ok((r.get(0)?, r.get(1)?)))?
-            .collect::<rusqlite::Result<_>>()?;
-        let mut stmt = self.db.prepare(&format!(
-            "SELECT m.dow, m.hour, count(*) {from} WHERE {cond} AND m.hour IS NOT NULL GROUP BY m.dow, m.hour"
-        ))?;
-        for row in stmt.query_map(params_from_iter(values.iter()), |r| {
-            Ok((r.get::<_, usize>(0)?, r.get::<_, usize>(1)?, r.get::<_, u64>(2)?))
-        })? {
-            let (dow, hour, n) = row?;
-            if let (Some(day), true) = (s.by_day_hour.get_mut(dow), hour < 24) {
+        let mut months: BTreeMap<String, u64> = BTreeMap::new();
+        let mut kinds: HashMap<String, (u64, u64)> = HashMap::new();
+        let mut apps: HashMap<String, u64> = HashMap::new();
+        let mut senders: HashMap<Option<i64>, u64> = HashMap::new();
+        let mut rows = stmt.query(params_from_iter(values.iter()))?;
+        while let Some(r) = rows.next()? {
+            let n: u64 = r.get(6)?;
+            let bytes: u64 = r.get(8)?;
+            s.messages += n;
+            s.from_me += r.get::<_, u64>(7)?;
+            s.media_bytes += bytes;
+            s.voice_secs += r.get::<_, u64>(9)?;
+            if let Some(t) = r.get::<_, Option<i64>>(10)? {
+                s.first_ms = Some(s.first_ms.map_or(t, |f| f.min(t)));
+            }
+            if let Some(t) = r.get::<_, Option<i64>>(11)? {
+                s.last_ms = Some(s.last_ms.map_or(t, |l| l.max(t)));
+            }
+            if let Some(month) = r.get::<_, Option<String>>(0)? {
+                *months.entry(month).or_default() += n;
+            }
+            if let (Some(dow), Some(hour)) = (r.get::<_, Option<usize>>(1)?, r.get::<_, Option<usize>>(2)?)
+                && let (Some(day), true) = (s.by_day_hour.get_mut(dow), hour < 24)
+            {
                 day[hour] += n;
                 s.by_hour[hour] += n;
             }
+            let k = kinds.entry(r.get(3)?).or_default();
+            k.0 += n;
+            k.1 += bytes;
+            *apps.entry(r.get(4)?).or_default() += n;
+            *senders.entry(r.get(5)?).or_default() += n;
         }
-        let mut stmt = self.db.prepare(&format!(
-            "SELECT m.kind, count(*), coalesce(sum(m.bytes), 0) {from} WHERE {cond} GROUP BY m.kind ORDER BY count(*) DESC"
-        ))?;
-        s.by_kind = stmt
-            .query_map(params_from_iter(values.iter()), |r| {
-                Ok((kind_of(&r.get::<_, String>(0)?), r.get(1)?, r.get(2)?))
-            })?
-            .collect::<rusqlite::Result<_>>()?;
-        let mut stmt = self
-            .db
-            .prepare(&format!("SELECT s.app, count(*) {from} WHERE {cond} GROUP BY s.app ORDER BY count(*) DESC"))?;
-        s.by_app = stmt
-            .query_map(params_from_iter(values.iter()), |r| Ok((app_of(r.get(0)?)?, r.get(1)?)))?
-            .collect::<rusqlite::Result<_>>()?;
-        let mut stmt = self.db.prepare(&format!(
-            "SELECT m.sender, {NAME_OF_SENDER}, count(*) {from} WHERE {cond} GROUP BY m.sender ORDER BY count(*) DESC LIMIT 50"
-        ))?;
-        s.by_person = stmt
-            .query_map(params_from_iter(values.iter()), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-            .collect::<rusqlite::Result<_>>()?;
+        s.by_month = months.into_iter().collect();
+        let mut by_kind: Vec<(Kind, u64, u64)> = kinds.into_iter().map(|(k, (n, b))| (kind_of(&k), n, b)).collect();
+        by_kind.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        s.by_kind = by_kind;
+        let mut by_app: Vec<(App, u64)> =
+            apps.into_iter().map(|(a, n)| Ok((app_of(a)?, n))).collect::<rusqlite::Result<_>>()?;
+        by_app.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        s.by_app = by_app;
+        let mut top: Vec<(Option<i64>, u64)> = senders.into_iter().collect();
+        top.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        top.truncate(50);
+        let mut name = self.db.prepare(&format!("SELECT {NAME_OF_SENDER} FROM (SELECT ?1 AS sender) m"))?;
+        for (sender, n) in top {
+            let who = match sender {
+                Some(_) => name.query_row([sender], |r| r.get::<_, Option<String>>(0))?,
+                None => None,
+            };
+            s.by_person.push((sender, who, n));
+        }
         Ok(s)
     }
 
@@ -1133,8 +1198,9 @@ impl Library {
 fn order_by(order: Order) -> &'static str {
     match order {
         Order::Conversation => "m.conv, m.pos",
-        Order::Time => "m.ts NULLS LAST, m.conv, m.pos",
-        Order::Newest => "m.ts DESC NULLS LAST, m.id DESC",
+        // `(m.ts IS NULL)` first is "nulls last", written so the msg_time and msg_newest indexes serve it.
+        Order::Time => "(m.ts IS NULL), m.ts, m.conv, m.pos",
+        Order::Newest => "(m.ts IS NULL), m.ts DESC, m.id DESC",
     }
 }
 
