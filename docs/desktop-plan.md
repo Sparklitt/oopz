@@ -73,7 +73,7 @@ switching is cheap because each screen is one function of the state.
 
 ## 3. The screens
 
-Every screen says what it does and why in one or two plain sentences; every word is in `src/i18n.ts` in English and
+Every screen says what it does and why in one or two plain sentences; every word is in `src/lib/i18n/<code>.ts` (one file per language) in English and
 Spanish (the app follows the system language; a button switches it).
 
 1. **Welcome.** The four rules (own backups and key; never around WhatsApp's encryption; originals never changed;
@@ -366,7 +366,7 @@ The README's planned `oopz view` (an offline HTML file of one's own backup) beco
 `crates/oopz-app/src/export.rs`): on Explore, "Save as a web page" writes a new `oopz-export-N.html` in a folder the
 person picks, with the stats of what is shown (the whole backup, or a chat) and, for a chat, all its messages by day,
 for keeping or printing. One file, light and dark, no scripts or outside resources (a Content-Security-Policy forbids
-them), every value escaped, ids masked; the words come from the UI's `i18n.ts`. The screen and the page say it holds
+them), every value escaped, ids masked; the words come from the UI's language files (`src/lib/i18n/`). The screen and the page say it holds
 the person's messages and isn't encrypted. The app itself never needs a browser tab.
 
 ## 9. What runs today

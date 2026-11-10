@@ -400,6 +400,8 @@ pub enum Event {
     SecurityCodeChanged,
     NumberChanged,
     GroupCreated,
+    /// A topic (a thread inside a group) was created.
+    TopicCreated,
     Renamed,
     DescriptionChanged,
     PictureChanged,

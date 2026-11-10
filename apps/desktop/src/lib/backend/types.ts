@@ -67,7 +67,7 @@ export interface MergeOutcome {
   original_untouched: boolean;
 }
 
-/** The export page's words, from i18n.ts. */
+/** The export page's words, from the language files (src/lib/i18n/). */
 export interface ExportLabels {
   lang: string;
   heading: string;

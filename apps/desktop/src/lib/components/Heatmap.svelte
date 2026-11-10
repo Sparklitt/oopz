@@ -2,7 +2,7 @@
   // Messages by day of the week and hour: 7 rows (Sunday first, as Rust sends them, shown from the week's first day
   // in the chosen language) of 24 cells, darker for more. Each cell's count is in its title and for screen readers.
   import { fmt } from "../format";
-  import { strings } from "../i18n";
+  import { locale, strings } from "../i18n";
   import { app } from "../state.svelte";
 
   let { values }: { values: number[][] } = $props();
@@ -10,7 +10,7 @@
   // No flat(): Chrome 67 (old phones' WebViews) doesn't have it.
   let top = $derived(values.reduce((most, row) => Math.max(most, ...row), 1));
   // Spanish weeks start on Monday, English ones on Sunday.
-  let order = $derived(app.lang === "es" ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6]);
+  let order = $derived([0, 1, 2, 3, 4, 5, 6].map((d) => (d + locale(app.lang).firstDay) % 7));
   // 2023-01-01 was a Sunday.
   const dayName = (d: number, style: "short" | "long") => new Date(2023, 0, 1 + d).toLocaleDateString(app.lang, { weekday: style });
 </script>

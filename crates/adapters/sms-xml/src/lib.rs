@@ -73,7 +73,6 @@ struct Book {
     no_time: usize,
     unknown_elements: BTreeMap<String, usize>,
     bad_data: usize,
-    inline_files: usize,
     empty_mms: usize,
 }
 
@@ -183,12 +182,6 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
     }
     if book.bad_data > 0 {
         notes.push(format!("{} MMS parts whose data isn't valid base64", book.bad_data));
-    }
-    if book.inline_files > 0 {
-        notes.push(format!(
-            "{} MMS files are held inside the XML: their sizes are read, the files themselves aren't kept yet",
-            book.inline_files
-        ));
     }
     if book.empty_mms > 0 {
         notes.push(format!("{} MMS with no part oopz reads kept as unknown", book.empty_mms));
@@ -497,9 +490,6 @@ impl Book {
                 "audio" => MediaKind::Audio,
                 _ => MediaKind::Document,
             };
-            if data.is_some() {
-                self.inline_files += 1;
-            }
             out.push(Part::Media(Media {
                 kind,
                 name,

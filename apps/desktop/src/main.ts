@@ -5,6 +5,7 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import "./app.css";
 import { loadBackend } from "./lib/backend";
+import { initialLang, strings } from "./lib/i18n";
 import { app, checkUpdates, setBackend } from "./lib/state.svelte";
 import { trackBack } from "./lib/back.svelte";
 
@@ -25,7 +26,7 @@ void loadBackend()
     const err = document.createElement("p");
     err.className = "err";
     err.textContent =
-      (document.documentElement.lang === "es" ? "oopz no ha podido arrancar: " : "oopz couldn't start: ") + String(e);
+      strings(initialLang()).cantStart + String(e);
     splash.appendChild(err);
   });
 

@@ -22,7 +22,7 @@
   let order = $state<Order>("conversation");
   let title = $state(lib.exporting?.title ?? "");
   let skipSystem = $state(false);
-  let page = $state<"a4" | "letter">(app.lang === "en" && /US|CA/.test(navigator.language) ? "letter" : "a4");
+  let page = $state<"a4" | "letter">(/-(US|CA)$/i.test(navigator.language) ? "letter" : "a4");
   let thumbs = $state(true);
   let cover = $state(true);
   let contents = $state(true);

@@ -41,8 +41,8 @@ the records before the cut, and the notes say so (and when the root's `count` di
 
 ## Not yet
 
-MMS files are held inside the XML in base64: their size is read, but the bytes aren't kept, because `oopz_model::Media`
-has no place for them yet (a model change to decide). Call logs don't say whether a call was video.
+Call logs don't say whether a call was video. (MMS files, held inside the XML in base64, are kept: the library writes
+them to its own media folder on import.)
 
 ## Tested
 

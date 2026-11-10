@@ -529,7 +529,7 @@ impl Reader {
             | "allow_sending_messages"
             | "attach_menu_bot_allowed"
             | "web_app_bot_allowed" => Event::SettingsChanged,
-            "topic_created" => Event::GroupCreated,
+            "topic_created" => Event::TopicCreated,
             "topic_edit" => Event::Renamed,
             "suggest_profile_photo" => Event::PictureChanged,
             "joined_telegram" => Event::MemberJoined,
