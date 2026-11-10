@@ -567,7 +567,7 @@ export function createMock(): Backend {
     async thumbnail(_id, message, _media, max) {
       await sleep(150);
       // Every fifth photo's file is missing from the Media folder.
-      if (message % 5 === 0) return new ArrayBuffer(0);
+      if (hash(message, 5) % 5 === 0) return new ArrayBuffer(0);
       const canvas = document.createElement("canvas");
       [canvas.width, canvas.height] = [max, Math.round((max * 3) / 4)];
       const g = canvas.getContext("2d")!;
