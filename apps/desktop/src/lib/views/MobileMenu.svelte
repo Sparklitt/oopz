@@ -6,11 +6,21 @@
   import { strings } from "../i18n";
   import { app, current, go, onPhone, selectBackup, type View } from "../state.svelte";
 
-  let { section }: { section: "backups" | "tools" } = $props();
+  let { section }: { section: "backups" | "tools" | "library" } = $props();
   let t = $derived(strings(app.lang));
   let has = $derived(current() !== null);
   let rows = $derived<[View, IconName, string, boolean][]>(
-    section === "backups"
+    section === "library"
+      ? [
+          ["library", "folder", t.lib.navSources, true],
+          ["lchats", "chats", t.navChats, true],
+          ["lsearch", "search", t.navSearch, true],
+          ["timeline", "calendar", t.lib.timelineTitle, true],
+          ["linsights", "chart", t.navInsights, true],
+          ["contacts", "users", t.lib.contactsTitle, true],
+          ["select", "check", t.lib.selectTitle, true],
+        ]
+      : section === "backups"
       ? [
           ["overview", "grid", t.navOverview, has],
           ["insights", "chart", t.navInsights, has],
@@ -26,7 +36,7 @@
 </script>
 
 <div class="page">
-  <PageHead title={section === "backups" ? t.navBackups : t.navTools} />
+  <PageHead title={section === "backups" ? t.navBackups : section === "library" ? t.lib.nav : t.navTools} />
   {#if section === "backups"}
     <ul class="inset menu">
       {#each app.summaries as s (s.id)}
@@ -40,7 +50,7 @@
     </ul>
     {#if has}<h2 class="h3">{t.navThisBackup}</h2>{/if}
   {/if}
-  {#if section === "tools" || has}
+  {#if section !== "backups" || has}
     <ul class="inset menu">
       {#each rows as [view, icon, label, on] (view)}
         <li><button class="row" disabled={!on} onclick={() => go(view)}><Icon name={icon} /><span class="grow">{label}</span><Icon name="chevron" size={16} /></button></li>

@@ -1,4 +1,14 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import LibChats from "./features/chats/LibChats.svelte";
+  import Contacts from "./features/contacts/Contacts.svelte";
+  import LibExportSheet from "./features/export/LibExportSheet.svelte";
+  import LibInsights from "./features/insights/LibInsights.svelte";
+  import Library from "./features/library/Library.svelte";
+  import LibSearch from "./features/search/LibSearch.svelte";
+  import Select from "./features/select/Select.svelte";
+  import Timeline from "./features/timeline/Timeline.svelte";
+  import { refreshLibrary } from "./lib/library.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import TabBar from "./lib/components/TabBar.svelte";
   import MobileMenu from "./lib/views/MobileMenu.svelte";
@@ -26,6 +36,10 @@
   // No receiving over Wi-Fi on a phone.
   let view = $derived((!has && ["overview", "chats", "search", "insights", "diagnostics"].includes(app.view)) || (app.view === "receive" && onPhone()) ? "add" : app.view);
 
+  onMount(() => {
+    refreshLibrary().catch(() => {});
+  });
+
   $effect(() => {
     if (app.theme === "system") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = app.theme;
@@ -50,7 +64,7 @@
 
 <div class="shell">
   <Sidebar />
-  <main class="content" class:full={view === "chats"} data-view={view}>
+  <main class="content" class:full={view === "chats" || view === "lchats"} data-view={view}>
     {#key view}
       {#if view === "add"}<AddBackup />
       {:else if view === "receive"}<Receive />
@@ -64,7 +78,15 @@
       {:else if view === "done"}<Done />
       {:else if view === "settings"}<Settings />
       {:else if view === "diagnostics"}<Diagnostics />
+      {:else if view === "library"}<Library />
+      {:else if view === "lchats"}<LibChats />
+      {:else if view === "lsearch"}<LibSearch />
+      {:else if view === "linsights"}<LibInsights />
+      {:else if view === "contacts"}<Contacts />
+      {:else if view === "select"}<Select />
+      {:else if view === "timeline"}<Timeline />
       {:else if view === "backups" || view === "tools"}<MobileMenu section={view} />
+      {:else if view === "librarymenu"}<MobileMenu section="library" />
       {/if}
     {/key}
   </main>
@@ -76,6 +98,7 @@
 {:else if app.sheet === "unlock" && app.unlocking}<UnlockSheet />
 {:else if app.sheet === "export" && has}<ExportSheet />
 {:else if app.sheet === "update"}<UpdateSheet />
+{:else if app.sheet === "libexport"}<LibExportSheet />
 {/if}
 
 <style>

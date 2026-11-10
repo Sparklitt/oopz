@@ -18,6 +18,15 @@
     ["search", "search", t.navSearch],
     ["insights", "chart", t.navInsights],
   ]);
+  let libraryItems = $derived<[View, IconName, string][]>([
+    ["library", "folder", t.lib.navSources],
+    ["lchats", "chats", t.navChats],
+    ["lsearch", "search", t.navSearch],
+    ["timeline", "calendar", t.lib.timelineTitle],
+    ["linsights", "chart", t.navInsights],
+    ["contacts", "users", t.lib.contactsTitle],
+    ["select", "check", t.lib.selectTitle],
+  ]);
   let toolItems = $derived<[View, IconName, string][]>([
     ["compare", "compare", t.navCompare],
     ["restore", "restore", t.navRestore],
@@ -64,6 +73,17 @@
       {#each backupItems as [view, icon, label] (view)}
         <li>
           <button class="item" disabled={!has} aria-current={at === view ? "page" : undefined} onclick={() => go(view)} title={label}>
+            <Icon name={icon} /><span class="label">{label}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+
+    <h2 class="label">{t.lib.nav}</h2>
+    <ul>
+      {#each libraryItems as [view, icon, label] (view)}
+        <li>
+          <button class="item" aria-current={at === view ? "page" : undefined} onclick={() => go(view)} title={label}>
             <Icon name={icon} /><span class="label">{label}</span>
           </button>
         </li>

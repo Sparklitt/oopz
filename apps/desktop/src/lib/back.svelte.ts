@@ -1,6 +1,7 @@
 // The Back button (Android's, a mouse's back button, Alt+Left): it goes back inside oopz instead of leaving it. The
 // web view's history holds one extra entry; Back takes it, oopz undoes one step (an open sheet, an open chat, the last
 // screen) and puts the entry back. With nothing left to undo, Back goes on: Android closes the app as usual.
+import { lib } from "./library.svelte";
 import { app } from "./state.svelte";
 import type { View } from "./state.svelte";
 
@@ -39,6 +40,10 @@ function stepBack(): boolean {
   if (app.sheet === "welcome") return false;
   if (app.view === "chats" && app.chat !== null) {
     app.chat = null;
+    return true;
+  }
+  if (app.view === "lchats" && lib.conv !== null) {
+    lib.conv = null;
     return true;
   }
   const previous = screens.pop();

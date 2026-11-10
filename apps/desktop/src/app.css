@@ -410,6 +410,9 @@ input[type="radio"] {
 .btn:disabled {
   opacity: 0.5;
 }
+.btn.danger {
+  color: var(--danger);
+}
 .btn.small {
   min-height: 30px;
   padding: 4px 10px;
@@ -447,6 +450,11 @@ input[type="radio"] {
   appearance: none;
   max-width: 100%;
   text-overflow: ellipsis;
+}
+/* A text field styled like the menus, without their arrow. */
+input.select:not([type="date"]) {
+  background-image: none;
+  padding-right: 10px;
 }
 .select.small {
   min-height: 30px;

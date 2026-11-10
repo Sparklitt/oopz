@@ -5,7 +5,8 @@
   import Icon, { type IconName } from "../components/Icon.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
   import type { LinkName } from "../backend/types";
-  import { dateTime } from "../format";
+  import { dateTime, fmt, mb } from "../format";
+  import { lib, libraryWiped, refreshLibrary, setKeep } from "../library.svelte";
   import { app, be, checkUpdates, loadLastChecked, setAutoUpdates, setHideNames, setLang, setTheme, wipeNow, type Theme } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
@@ -18,9 +19,12 @@
     ["licences", t.linkLicences],
   ]);
 
+  let confirmWipe = $state(false);
   async function wipe() {
+    confirmWipe = false;
     wiped = null;
     wiped = (await wipeNow()) ?? null;
+    if (wiped !== null) libraryWiped();
   }
   let tab = $state<"general" | "updates" | "privacy" | "about">("general");
   let version = $state("");
@@ -39,6 +43,7 @@
 
   onMount(() => {
     void loadLastChecked();
+    refreshLibrary().catch(() => {});
     be()
       .appVersion()
       .then((v) => (version = v))
@@ -112,11 +117,25 @@
         <li><strong>{t.keyTitle}</strong><span class="muted">{t.keyNever}</span></li>
         <li><strong>{t.navChats}</strong><span class="muted">{t.screenOnly}</span></li>
       </ul>
+      <h3 class="h3">{t.lib.keepTitle}</h3>
+      <div class="inset">
+        <div class="set-row">
+          <label for="keep-library">{t.lib.keepLabel}<span class="muted hint-line">{lib.info?.kept ? t.lib.keepOn : t.lib.keepOff}</span></label>
+          <input id="keep-library" class="switch" type="checkbox" role="switch" disabled={app.busy || !lib.info} checked={lib.info?.kept ?? false} onchange={(e) => setKeep(e.currentTarget.checked)} />
+        </div>
+      </div>
+      {#if lib.info}<p class="muted">{t.lib.keepWhere}: <code>{lib.info.dir}</code> · {fmt(lib.info.sources)} {t.lib.sources} · {fmt(lib.info.messages)} {t.messages} · {mb(lib.info.bytes)}</p>{/if}
       <h3 class="h3">{t.wipeTitle}</h3>
-      <p class="muted">{t.wipeText}</p>
+      <p class="muted">{t.wipeText} {t.lib.wipeAlso}</p>
       <ErrorNote error={app.error} />
       <p class="wipe-row">
-        <button class="btn" disabled={app.busy} onclick={wipe}><Icon name="ban" />{t.wipeNow}</button>
+        {#if confirmWipe}
+          <span role="alert">{t.lib.wipeConfirm}</span>
+          <button class="btn danger" disabled={app.busy} onclick={wipe}><Icon name="ban" />{t.wipeNow}</button>
+          <button class="btn" onclick={() => (confirmWipe = false)}>{t.cancel}</button>
+        {:else}
+          <button class="btn" disabled={app.busy} onclick={() => (confirmWipe = true)}><Icon name="ban" />{t.wipeNow}</button>
+        {/if}
         {#if wiped !== null}<span role="status" class:ok-line={wiped === 0}>{#if wiped === 0}<Icon name="check" size={16} />{t.wipeDone}{:else}{t.wipeLeft(wiped)}{/if}</span>{/if}
       </p>
     {:else}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ErrorNote from "../components/ErrorNote.svelte";
   import Icon from "../components/Icon.svelte";
   import PageHead from "../components/PageHead.svelte";
   import { chatName, date, fmt, isGroup, mb, year } from "../format";
@@ -34,6 +35,7 @@
       <button class="btn" onclick={() => closeBackup(s.id)}><Icon name="close" />{t.forget}</button>
     {/snippet}
   </PageHead>
+  <ErrorNote error={app.error} words={t.lib.errors} />
 
   {#if s.sound}
     <div class="note ok"><Icon name="check" /><span>{t.sound}</span></div>

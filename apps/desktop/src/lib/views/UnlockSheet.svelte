@@ -7,6 +7,7 @@
   import StepLine from "../components/StepLine.svelte";
   import type { AppError, Step } from "../backend/types";
   import { strings } from "../i18n";
+  import { refreshLibrary } from "../library.svelte";
   import { app, be, cancelWork, isCancelled, opened, toError } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
@@ -17,6 +18,8 @@
   let error = $state<AppError | null>(null);
   let showPassword = $state(false);
   let boxes = $state<KeyBoxes>();
+  /** Also add the backup to the library, with the same key, in the same step (the key is still not kept). */
+  let toLibrary = $state(false);
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -28,7 +31,17 @@
     error = null;
     try {
       const summary = await be().checkBackup(file.path, value, (p) => (progress = p));
+      // The backup opened: a failure adding it to the library doesn't undo that; it shows on the next screen.
+      // Already in the library is what was asked for, and a stop was the person's own.
+      let libraryError: AppError | null = null;
+      if (toLibrary) {
+        await be()
+          .libImport(file.path, "whatsapp-android", value, (p) => (progress = p))
+          .then(refreshLibrary)
+          .catch((e) => (libraryError = isCancelled(e) || toError(e).code === "exists" ? null : toError(e)));
+      }
       await opened(summary);
+      if (libraryError) app.error = libraryError;
     } catch (err) {
       // Cancelled: back to the key, quietly.
       error = isCancelled(err) ? null : toError(err);
@@ -64,6 +77,7 @@
       <ErrorNote {error} />
       <KeyBoxes bind:this={boxes} bind:value={key} id="unlock-key" label="{t.keyTitle}: {file?.name ?? ''}" describedby="unlock-never" />
       <p class="safe" id="unlock-never"><Icon name="shield" size={16} />{t.keyNever}</p>
+      <label class="check also"><input type="checkbox" bind:checked={toLibrary} /><span>{t.lib.alsoAdd}<span class="muted"> · {t.lib.alsoAddHint}</span></span></label>
     </form>
     <div class="disclosure">
       <button type="button" class="link" aria-expanded={showPassword} aria-controls="password-help" onclick={() => (showPassword = !showPassword)}>
@@ -131,6 +145,10 @@
     font-size: 13px;
     margin: 14px 0 6px;
     text-align: center;
+  }
+  .also {
+    justify-content: center;
+    margin-bottom: 8px;
   }
   .disclosure {
     text-align: center;

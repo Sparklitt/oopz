@@ -1,5 +1,5 @@
 <script lang="ts">
-  // On a phone-wide window, the sidebar becomes four tabs at the bottom; Backups and Tools open a list page.
+  // On a phone-wide window, the sidebar becomes five tabs at the bottom; Backups, Library and Tools open a list page.
   import { strings } from "../i18n";
   import { app, current, go, type View } from "../state.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
@@ -9,6 +9,7 @@
   const TAB_OF: Record<View, View> = {
     backups: "backups", add: "backups", overview: "backups", insights: "backups",
     chats: "chats", search: "search",
+    library: "librarymenu", lchats: "librarymenu", lsearch: "librarymenu", linsights: "librarymenu", contacts: "librarymenu", select: "librarymenu", timeline: "librarymenu", librarymenu: "librarymenu",
     tools: "tools", diagnostics: "tools", receive: "tools", compare: "tools", restore: "tools", phone: "tools", done: "tools", settings: "tools",
   };
   let at = $derived(TAB_OF[app.view]);
@@ -16,6 +17,7 @@
     ["backups", "phone", t.navBackups, true],
     ["chats", "chats", t.navChats, has],
     ["search", "search", t.navSearch, has],
+    ["librarymenu", "folder", t.lib.nav, true],
     ["tools", "grid", t.navTools, true],
   ]);
 </script>
@@ -35,7 +37,7 @@
   @media (max-width: 599px) {
     .tabbar {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       flex: none;
       border-top: 1px solid var(--line);
       background: var(--surface);
