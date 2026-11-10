@@ -2,11 +2,11 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
-    <img alt="oopz: your own chat backups, open, check, recover. Offline." src="assets/banner-light.svg" width="100%">
+    <img alt="oopz: your own chat history, from every app, in one place. Search, select, export, restore a lost chat. Offline." src="assets/banner-light.svg" width="100%">
   </picture>
 </p>
 
-<p align="center"><b>Open your own WhatsApp backups with your own key, check them, and bring a lost chat back. Offline.</b></p>
+<p align="center"><b>Your own chat history from WhatsApp, Telegram, SMS, LINE and Viber, together on your own device: search it, select it, export it, and bring a lost WhatsApp chat back. Offline.</b></p>
 
 <p align="center">
   <a href="https://github.com/sparklitt/oopz/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sparklitt/oopz/actions/workflows/ci.yml/badge.svg"></a>
@@ -16,9 +16,25 @@
   <img alt="Network: an opt-in update check only" src="https://img.shields.io/badge/network-opt--in%20update%20check%20only-success">
 </p>
 
-oopz is a small command-line tool for WhatsApp's end-to-end encrypted Android backups (`*.crypt15`). It tells you
-whether your backups open and are sound, shows what is inside them (structure and counts, never content), and can
-restore a lost one-to-one chat from the other person's backup into a new, checked backup.
+oopz opens your own chat history: a desktop and Android app and a command-line tool. It reads only what is yours to
+read: an app's official export, or a backup opened with your own key or password.
+
+| Source | What you give oopz |
+|---|---|
+| WhatsApp on Android | the end-to-end encrypted backup (`msgstore.db.crypt15`) and its 64-digit key |
+| WhatsApp on iPhone | the Finder / iTunes backup of your iPhone, and its backup password when it is encrypted |
+| WhatsApp, any phone | a chat's "Export chat" (`.txt` or `.zip`) |
+| Telegram | Telegram Desktop's JSON export (`result.json`) |
+| SMS and calls (Android) | SMS Backup & Restore's XML |
+| LINE | "Export chat history" (`.txt`) |
+| Viber | "Export message history" (CSV) |
+
+Everything you add goes into one **library** on your device: search every app at once, read any conversation, a
+timeline across apps, insights, contacts linked across apps (with vCards in and out), saved selections, and exports
+to HTML, JSON, CSV, text, vCard, a media zip or PDF. For WhatsApp's Android backups, oopz also checks whether they
+open and are sound, and can restore a lost one-to-one chat from the other person's backup into a new, checked
+backup. Each adapter's page in [docs/adapters](docs/adapters/README.md) says what it reads and what a real export
+still needs to confirm.
 
 ## Why
 
@@ -32,6 +48,9 @@ hold and put a lost chat back, without sending anything anywhere and without tou
 - 🗂️ **Inspect** a backup: chats with masked ids, message types per chat, tables and columns. Counts only.
 - ↩️ **Restore** a lost one-to-one chat from the other person's backup, mirrored to your side, checked before it is
   written; optionally with the media files it needs.
+- 📚 **One library for every app**: add exports and backups from WhatsApp (Android and iPhone), Telegram, SMS, LINE and
+  Viber; search them together, read a merged timeline, see insights, link the same person across apps.
+- 📤 **Export what you select**: HTML, JSON, CSV, text, vCard, a media zip, or a PDF with emoji and right-to-left text.
 - 🔒 **Private by design**: offline, keys from a hidden prompt and wiped after use, output is counts and masked ids.
 
 ## Demo
@@ -120,6 +139,22 @@ The terminal shows counts, dates and masked ids only; message text goes only int
 | `oopz chat-facts --backup <file> --chat N` | How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only; useful to compare two phones. |
 
 `oopz --help` and `oopz <command> --help` describe every flag.
+
+### The library
+
+`oopz lib … --library <folder>` works on a library folder you name (it holds your messages unencrypted: keep it
+private, delete it when done). Like the rest of the CLI it prints counts, ids and dates; names only with `--names`;
+message text only into a file you ask for.
+
+| Command | What it does |
+|---|---|
+| `oopz lib adapters` | The apps and formats oopz reads, and which ask for a key or password. |
+| `oopz lib import <file or folder> [--adapter ID]` | Adds an export or a backup (the app is detected; the key or password is asked for when needed). |
+| `oopz lib sources`, `oopz lib remove --source N`, `oopz lib set-me --person N` | What's in the library; take a source out; say which person is you in a text export. |
+| `oopz lib convs`, `oopz lib search <words>`, `oopz lib timeline`, `oopz lib jump`, `oopz lib count`, `oopz lib stats` | Conversations, search, the timeline across apps, numbers. Filters: `--app`, `--source`, `--conv`, `--contact`, `--person`, `--kind`, `--from me\|them`, `--after`, `--before`, `--words`. |
+| `oopz lib people`, `oopz lib contacts`, `oopz lib suggest`, `oopz lib accept N`, `oopz lib link`, `oopz lib unlink`, `oopz lib rename`, `oopz lib forget`, `oopz lib vcard-import`, `oopz lib vcard-export` | The same person across apps, and vCards in and out. |
+| `oopz lib select`, `oopz lib selections`, `oopz lib unselect` | Saved selections: a filter, plus messages added or left out by id. |
+| `oopz lib export --format html\|json\|csv\|txt\|vcard\|media-zip\|pdf --out-dir <folder> (--all \| --selection N \| filters)` | Writes a new file, never over another. |
 
 ### Restoring a lost chat
 
@@ -216,7 +251,10 @@ No. Without its key a crypt15 backup cannot be opened, and oopz will never try.
 - [x] `restore`: a lost one-to-one chat, checked before it is written. `export`: a web page of your own backup.
 - [x] Desktop app (Tauri 2, English and Spanish), doing what the CLI does ([parity](docs/parity.md)).
 - [x] Release binaries for Linux, macOS and Windows.
-- [ ] A new desktop design; an Android app ([plan](docs/desktop-plan.md) §12).
+- [x] A new desktop design; an Android app ([plan](docs/desktop-plan.md) §12).
+- [x] One library for every app: WhatsApp (Android backups, iPhone backups, exports), Telegram, SMS, LINE, Viber
+  ([plan](docs/plan-all-apps.md)); exports including PDF.
+- [ ] Confirm each adapter against real exports ([docs/adapters](docs/adapters/README.md)); Signal and iMessage.
 - [ ] Signed installers (macOS notarization, Windows).
 
 ## Contributing

@@ -13,84 +13,100 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# Not WhatsApp's colours: a warm coral and amber on ink or paper.
+# The app's own colours (apps/desktop/src/app.css): forest green on warm paper, or on near-black.
 THEMES = {
-    "light": dict(bg="#FFF7EE", bg2="#FFE9D6", ink="#23244F", soft="#6B6C8F", card="#FFFFFF", line="#E4D9CC",
-                  coral="#F2604F", amber="#F7A928", bar="#D9D2E6", chip="#23244F", chiptext="#FFF7EE"),
-    "dark": dict(bg="#15162E", bg2="#1F2042", ink="#F6F0E7", soft="#A9AACB", card="#26284F", line="#34366A",
-                 coral="#FF7565", amber="#FFB940", bar="#4A4C80", chip="#F6F0E7", chiptext="#15162E"),
+    "light": dict(bg="#F6F4F0", bg2="#EBE7E0", ink="#1D201D", soft="#62665F", card="#FFFFFF", line="#E3DFD7",
+                  accent="#2F5D4F", accenttext="#2F5D4F", accentsoft="#DBE8E2", bar="#D6D2CA", chip="#2F5D4F", chiptext="#FFFFFF"),
+    "dark": dict(bg="#1B1D1C", bg2="#232625", ink="#E9EBE7", soft="#A5AAA3", card="#2A2D2C", line="#333735",
+                 accent="#3F7D68", accenttext="#7CBEA5", accentsoft="#24342E", bar="#3D4240", chip="#3A7562", chiptext="#FFFFFF"),
 }
 
 SANS = "Inter, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif"
 
+# Where a person's history comes from: names only, as text (no app's logo or colours).
+SOURCES = ["WhatsApp · Android", "WhatsApp · iPhone", "Telegram", "SMS", "LINE", "Viber"]
+
+
+def mark(x: float, y: float, size: float) -> str:
+    """The app's mark (app-icon.svg): a curled restore arrow on a rounded square."""
+    k = size / 64
+    return f"""<g transform="translate({x} {y}) scale({k})">
+    <rect class="markbg" width="64" height="64" rx="15"/>
+    <path d="M17.5 32a14.5 14.5 0 1 0 4.25-10.25" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+    <path d="M15.5 14.5v10.25h10.25" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"
+          stroke-linejoin="round"/>
+    <circle cx="32" cy="32" r="3.6" fill="#fff"/>
+  </g>"""
+
 
 def banner_body() -> str:
     """The artwork, coloured through CSS classes so one drawing serves both themes."""
+    chips = []
+    y = 118
+    for name in SOURCES:
+        w = 34 + len(name) * 10.2
+        right = 900
+        chips.append(f'<rect class="card" x="{right - w:.0f}" y="{y}" width="{w:.0f}" height="44" rx="22"/>'
+                     f'<text class="ink" x="{right - w / 2:.0f}" y="{y + 29}" text-anchor="middle" font-size="18" '
+                     f'font-weight="600">{name}</text>'
+                     f'<path class="flow" d="M{right + 6} {y + 22} C 960 {y + 22}, 950 320, 1010 320" '
+                     f'fill="none" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"/>')
+        y += 66
     return f"""
   <rect class="bg" width="1280" height="640"/>
-  <circle class="bg2" cx="1040" cy="300" r="250"/>
-  <circle class="bg2" cx="150" cy="590" r="120"/>
+  <circle class="bg2" cx="1130" cy="320" r="230"/>
 
-  <!-- wordmark: drawn with strokes, so it looks the same without any font -->
-  <g class="mark" fill="none" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="186" cy="262" r="54"/>
-    <circle cx="326" cy="262" r="54"/>
-    <circle cx="466" cy="262" r="54"/>
-    <path d="M412 262 V392"/>
-    <path d="M554 210 H636 L554 314 H640"/>
-  </g>
-  <circle class="coral" cx="696" cy="304" r="17"/>
+  {mark(132, 150, 112)}
+  <text class="ink" x="268" y="246" font-family="{SANS}" font-size="104" font-weight="800"
+        letter-spacing="-3">oopz</text>
 
-  <text class="ink" x="132" y="470" font-family="{SANS}" font-size="38" font-weight="700">Your own chat backups —</text>
-  <text class="ink" x="132" y="518" font-family="{SANS}" font-size="38" font-weight="700">open, check, recover. <tspan class="coraltext">Offline.</tspan></text>
+  <text class="ink" x="132" y="356" font-family="{SANS}" font-size="36" font-weight="700">Your own chat history,</text>
+  <text class="ink" x="132" y="402" font-family="{SANS}" font-size="36" font-weight="700">from every app, in one
+    place.</text>
+  <text class="soft" x="132" y="452" font-family="{SANS}" font-size="24">Search, select, export, restore a lost chat.
+    <tspan class="accenttext" font-weight="700">Offline.</tspan></text>
 
   <g font-family="{SANS}" font-size="19" font-weight="600">
-    <rect class="chip" x="132" y="552" width="88" height="36" rx="18"/>
-    <text class="chiptext" x="176" y="576" text-anchor="middle">Rust</text>
-    <rect class="chip" x="232" y="552" width="132" height="36" rx="18"/>
-    <text class="chiptext" x="298" y="576" text-anchor="middle">AGPL-3.0</text>
-    <rect class="chip" x="376" y="552" width="182" height="36" rx="18"/>
-    <text class="chiptext" x="467" y="576" text-anchor="middle">no network, ever</text>
+    <rect class="chip" x="132" y="510" width="88" height="36" rx="18"/>
+    <text class="chiptext" x="176" y="534" text-anchor="middle">Rust</text>
+    <rect class="chip" x="232" y="510" width="132" height="36" rx="18"/>
+    <text class="chiptext" x="298" y="534" text-anchor="middle">AGPL-3.0</text>
+    <rect class="chip" x="376" y="510" width="182" height="36" rx="18"/>
+    <text class="chiptext" x="467" y="534" text-anchor="middle">no network, ever</text>
+    <rect class="chip" x="570" y="510" width="214" height="36" rx="18"/>
+    <text class="chiptext" x="677" y="534" text-anchor="middle">desktop · Android · CLI</text>
   </g>
 
-  <!-- motif: a chat whose lost message comes back -->
+  <!-- motif: each app's export or backup flows into one library -->
+  <g font-family="{SANS}">
+    {"".join(chips)}
+  </g>
   <g>
-    <rect class="card" x="830" y="150" width="270" height="70" rx="26"/>
-    <rect class="bar" x="858" y="172" width="170" height="10" rx="5"/>
-    <rect class="bar" x="858" y="192" width="110" height="10" rx="5"/>
-
-    <rect class="ghost" x="900" y="250" width="290" height="74" rx="26" fill="none" stroke-width="3" stroke-dasharray="10 9"/>
-    <rect class="coral" x="880" y="262" width="290" height="74" rx="26"/>
-    <rect fill="#FFFFFF" opacity=".9" x="910" y="286" width="190" height="10" rx="5"/>
-    <rect fill="#FFFFFF" opacity=".7" x="910" y="306" width="120" height="10" rx="5"/>
-
-    <rect class="card" x="830" y="370" width="230" height="70" rx="26"/>
-    <rect class="bar" x="858" y="392" width="140" height="10" rx="5"/>
-    <rect class="bar" x="858" y="412" width="90" height="10" rx="5"/>
-
-    <circle class="amber" cx="1170" cy="262" r="34"/>
-    <g fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M1157 256 H1176 C1186 256 1192 263 1192 271 C1192 279 1186 285 1176 285 H1164"/>
-      <path d="M1166 246 L1156 256 L1166 266"/>
-    </g>
-    <g class="amberstroke" fill="none" stroke-width="5" stroke-linecap="round">
-      <path d="M1222 218 L1234 206"/><path d="M1228 240 H1246"/><path d="M1212 202 V186"/>
+    <rect class="card" x="1010" y="230" width="190" height="180" rx="30"/>
+    <rect class="accentsoft" x="1032" y="254" width="146" height="34" rx="17"/>
+    <rect class="bar" x="1032" y="304" width="120" height="10" rx="5"/>
+    <rect class="bar" x="1032" y="324" width="90" height="10" rx="5"/>
+    <rect class="bar" x="1032" y="352" width="130" height="10" rx="5"/>
+    <rect class="bar" x="1032" y="372" width="70" height="10" rx="5"/>
+    <g fill="none" class="accentstroke" stroke-width="5" stroke-linecap="round">
+      <circle cx="1052" cy="271" r="8"/><path d="M1058 277 L1065 284"/>
     </g>
   </g>
 """
 
 
 def css(t: dict) -> str:
-    return (f".bg{{fill:{t['bg']}}}.bg2{{fill:{t['bg2']}}}.mark{{stroke:{t['ink']}}}.ink{{fill:{t['ink']}}}"
-            f".coral{{fill:{t['coral']}}}.coraltext{{fill:{t['coral']}}}.amber{{fill:{t['amber']}}}"
-            f".amberstroke{{stroke:{t['amber']}}}.card{{fill:{t['card']};stroke:{t['line']};stroke-width:2}}"
-            f".bar{{fill:{t['bar']}}}.ghost{{stroke:{t['soft']}}}.chip{{fill:{t['chip']}}}"
-            f".chiptext{{fill:{t['chiptext']}}}")
+    return (f".bg{{fill:{t['bg']}}}.bg2{{fill:{t['bg2']}}}.ink{{fill:{t['ink']}}}.soft{{fill:{t['soft']}}}"
+            f".markbg{{fill:{t['accent']}}}.accenttext{{fill:{t['accenttext']}}}.accentsoft{{fill:{t['accentsoft']}}}"
+            f".accentstroke{{stroke:{t['accent']}}}.flow{{stroke:{t['accenttext']}}}"
+            f".card{{fill:{t['card']};stroke:{t['line']};stroke-width:2}}"
+            f".bar{{fill:{t['bar']}}}.chip{{fill:{t['chip']}}}.chiptext{{fill:{t['chiptext']}}}")
 
 
 def banner(style: str) -> str:
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" '
-            f'role="img" aria-label="oopz: your own chat backups, open, check, recover. Offline.">\n'
+            f'role="img" aria-label="oopz: your own chat history, from every app, in one place. Search, select, '
+            f'export, restore a lost chat. Offline.">\n'
             f"  <style>{style}</style>{banner_body()}</svg>\n")
 
 

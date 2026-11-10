@@ -1,6 +1,6 @@
 [package]
 name = "oopz-cli"
-description = "oopz from a terminal: a person's own WhatsApp backups (decision 0007)."
+description = "oopz from a terminal: a person's own WhatsApp backups (decision 0007) and every app's history in one library (0016)."
 license.workspace = true
 version.workspace = true
 edition.workspace = true
