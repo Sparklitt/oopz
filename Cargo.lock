@@ -1046,6 +1046,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "oopz-telegram-export"
+version = "0.1.0"
+dependencies = [
+ "oopz-gen",
+ "oopz-model",
+ "serde_json",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "oopz-whatsapp-export"
 version = "0.1.0"
 dependencies = [
