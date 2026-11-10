@@ -494,6 +494,26 @@ impl<'c, 'r> Merger<'c, 'r> {
             }
             return Ok(Vec::new());
         }
+        // A column the target requires and the source doesn't have (the target's WhatsApp is newer): refused by
+        // name, before anything is copied, rather than failing half-way as if a backup were damaged.
+        let needs: Vec<String> = query_all::<(String,), _>(
+            db,
+            "SELECT name FROM pragma_table_info(?1, 'main') WHERE \"notnull\" = 1 AND dflt_value IS NULL AND pk = 0",
+            [table],
+        )?
+        .into_iter()
+        .map(|(c,)| c)
+        .filter(|c| !source.contains(c))
+        .collect();
+        if let Some(column) = needs.first() {
+            let n: u64 = db.query_row(&format!("SELECT count(*) FROM src.{t} WHERE {filter}"), [], |r| r.get(0))?;
+            if n > 0 {
+                return Err(Error::MergeCheck(format!(
+                    "the target's `{table}.{column}` needs a value the source backup doesn't have (the target's \
+                     WhatsApp is newer); update WhatsApp on the source phone and make a new backup"
+                )));
+            }
+        }
         let read: Vec<String> = source.into_iter().filter(|c| target.contains(c) || c == "_id").collect();
         let write: Vec<bool> = read.iter().map(|c| target.contains(c) && (table == "message" || c != "_id")).collect();
         let id_at = read.iter().position(|c| c == "_id");

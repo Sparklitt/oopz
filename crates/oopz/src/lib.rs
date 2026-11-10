@@ -126,10 +126,11 @@ impl Backup {
     }
 
     /// WhatsApp's id and time (ms) of every message in a chat, oldest first. Ids, not content: they let two backups
-    /// of the same chat be matched.
+    /// of the same chat be matched. A row with no time reads 0 (unknown).
     pub fn key_ids(&self, chat_row_id: i64) -> Result<Vec<(String, i64)>> {
         let mut stmt = self.db.prepare(
-            "SELECT key_id, timestamp FROM message WHERE chat_row_id = ?1 AND key_id IS NOT NULL ORDER BY timestamp",
+            "SELECT key_id, coalesce(timestamp, 0) FROM message WHERE chat_row_id = ?1 AND key_id IS NOT NULL
+             ORDER BY coalesce(timestamp, 0), _id",
         )?;
         let ids = stmt.query_map([chat_row_id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
         Ok(ids)
@@ -258,13 +259,13 @@ impl Backup {
         Ok(out)
     }
 
-    /// For each `message_type` in a chat: how many messages, how many have text, and how many have a row in each
+    /// For each `message_type` in a chat (-1: none recorded): how many messages, how many have text, and how many have a row in each
     /// table that points at messages, plus their media types. Structure and counts only, to map type codes without
     /// reading content.
     pub fn type_profile(&self, chat_row_id: i64) -> Result<Vec<TypeProfile>> {
         let mut profiles: BTreeMap<i64, TypeProfile> = BTreeMap::new();
         let mut stmt = self.db.prepare(
-            "SELECT message_type, count(*), count(text_data) FROM message WHERE chat_row_id = ?1 GROUP BY 1",
+            "SELECT coalesce(message_type, -1), count(*), count(text_data) FROM message WHERE chat_row_id = ?1 GROUP BY 1",
         )?;
         let mut rows = stmt.query([chat_row_id])?;
         while let Some(r) = rows.next()? {
@@ -286,7 +287,7 @@ impl Backup {
             }
             let quoted = table.replace('"', "\"\"");
             let mut stmt = self.db.prepare(&format!(
-                "SELECT m.message_type, count(DISTINCT m._id) FROM message m JOIN \"{quoted}\" x
+                "SELECT coalesce(m.message_type, -1), count(DISTINCT m._id) FROM message m JOIN \"{quoted}\" x
                  ON x.message_row_id = m._id WHERE m.chat_row_id = ?1 GROUP BY 1"
             ))?;
             let mut rows = stmt.query([chat_row_id])?;
@@ -303,7 +304,7 @@ impl Backup {
             |r| r.get::<_, bool>(0),
         )? {
             let mut stmt = self.db.prepare(
-                "SELECT m.message_type, coalesce(mm.mime_type, '(none)'), count(*) FROM message m
+                "SELECT coalesce(m.message_type, -1), coalesce(mm.mime_type, '(none)'), count(*) FROM message m
                  JOIN message_media mm ON mm.message_row_id = m._id WHERE m.chat_row_id = ?1
                  GROUP BY 1, 2 ORDER BY 3 DESC",
             )?;
@@ -397,6 +398,7 @@ fn index_for_reading(path: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<
     let db = Connection::open(path)?;
     // A copy we throw away: no journal to write, nothing to sync.
     db.execute_batch("PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA cache_size = -16384;")?;
+    normalize_types(&db)?;
     let total = READ_INDEXES.len() as u64;
     for (n, (table, columns)) in READ_INDEXES.iter().enumerate() {
         progress(n as u64, total);
@@ -427,6 +429,53 @@ fn index_for_reading(path: &Path, progress: &mut dyn FnMut(u64, u64)) -> Result<
         }
     }
     progress(total, total);
+    Ok(())
+}
+
+/// Columns oopz reads as numbers, and as text, by table.
+const TYPED: &[(&str, &[&str], &[&str])] = &[
+    (
+        "message",
+        &["chat_row_id", "from_me", "timestamp", "message_type", "starred", "sender_jid_row_id", "sort_id"],
+        &["key_id", "text_data"],
+    ),
+    ("message_media", &["file_size", "width", "height", "media_duration"], &["file_path", "mime_type", "media_name"]),
+    ("message_add_on", &["chat_row_id", "from_me", "parent_message_row_id", "timestamp"], &["key_id"]),
+    ("call_log", &["video_call", "duration"], &[]),
+    ("chat", &["jid_row_id"], &["subject"]),
+    ("jid", &[], &["raw_string"]),
+];
+
+/// A value of the wrong type in a column oopz reads (one damaged row, an odd WhatsApp version) would stop every read
+/// of the backup. In this private copy (the original is never changed), a number column's odd value becomes a number
+/// (text that isn't one becomes 0, which oopz reads as unknown for a time), and a text column's bytes become NULL.
+/// One pass over each table.
+fn normalize_types(db: &Connection) -> Result<()> {
+    for (table, numbers, texts) in TYPED {
+        let present: Vec<String> = db
+            .prepare("SELECT name FROM pragma_table_info(?1)")?
+            .query_map([table], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let numbers: Vec<&str> = numbers.iter().copied().filter(|c| present.iter().any(|p| p == c)).collect();
+        let texts: Vec<&str> = texts.iter().copied().filter(|c| present.iter().any(|p| p == c)).collect();
+        if numbers.is_empty() && texts.is_empty() {
+            continue;
+        }
+        let set = numbers
+            .iter()
+            .map(|c| format!("\"{c}\" = CASE WHEN typeof(\"{c}\") IN ('integer', 'null') THEN \"{c}\" ELSE CAST(\"{c}\" AS INTEGER) END"))
+            .chain(texts.iter().map(|c| format!("\"{c}\" = CASE WHEN typeof(\"{c}\") = 'blob' THEN NULL ELSE \"{c}\" END")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let odd = numbers
+            .iter()
+            .map(|c| format!("typeof(\"{c}\") NOT IN ('integer', 'null')"))
+            .chain(texts.iter().map(|c| format!("typeof(\"{c}\") = 'blob'")))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+        // OR IGNORE: a row the change would make clash with another (a unique index) is left as it was.
+        db.execute(&format!("UPDATE OR IGNORE \"{table}\" SET {set} WHERE {odd}"), [])?;
+    }
     Ok(())
 }
 
@@ -501,6 +550,14 @@ impl fmt::Debug for Chat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Chat({}, {})", self.row_id, self.masked())
     }
+}
+
+/// Whether `name` is one of WhatsApp's other encrypted backups (contacts, chat settings, stickers, wallpaper,
+/// business data): they sit next to the message backups, end in `.crypt15` too, and hold no messages.
+pub fn is_other_whatsapp_backup(name: &str) -> bool {
+    const OTHERS: [&str; 5] = ["wa.db.", "chatsettingsbackup.", "commerce_backup.", "stickers.", "wallpapers."];
+    let name = name.to_ascii_lowercase();
+    OTHERS.iter().any(|o| name.starts_with(o))
 }
 
 /// A database `file_path` (relative `Media/…` or an old absolute path) relative to the `Media/` folder, or `None`
