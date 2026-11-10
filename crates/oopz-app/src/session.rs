@@ -10,7 +10,7 @@ use oopz::{Backup, ChatMerge, Key};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::index::{BuildInfo, Hit, Index, Line, Stats};
+use crate::index::{BuildInfo, Filter, Hit, Index, Line, Stats};
 use crate::{AppError, Result};
 
 /// A file in the folder the person picked, and what kind of backup it looks like.
@@ -146,7 +146,22 @@ pub struct ChatRow {
     pub ending: String,
     pub messages: u64,
     pub last_ms: Option<i64>,
+    /// A group's subject, or the contact's name from `wa.db.crypt15` beside the backup; the UI can hide it.
+    pub name: Option<String>,
+    /// The chat's last message, for the chat list.
+    pub preview: Option<Preview>,
 }
+
+/// See [`ChatRow::preview`].
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Preview {
+    pub kind: i64,
+    pub from_me: bool,
+    /// At most [`PREVIEW_CHARS`] characters of its text.
+    pub text: Option<String>,
+}
+
+pub const PREVIEW_CHARS: usize = 80;
 
 /// Merge `source_chat` of checked backup `source` into `target_chat` of checked backup `target`, writing a new
 /// folder in `out_parent`; with `media` (a copy of the source phone's `Media/` folder), the files the result needs.
@@ -283,16 +298,26 @@ impl Session {
             .query_row("SELECT min(timestamp) FROM message WHERE timestamp > 0", [], |r| r.get(0))
             .map_err(oopz::Error::from)?;
         let chats = backup.chats()?;
-        let chat_list: Vec<ChatRow> = chats
-            .iter()
-            .map(|c| ChatRow {
+        // Names: a group's own subject; a contact's from wa.db beside the backup, when it opens with the same key.
+        let contacts = oopz::contacts::Contacts::beside(path, &key, tmp).ok();
+        let mut previews = last_messages(backup.db()).map_err(oopz::Error::from)?;
+        let mut chat_list = Vec::with_capacity(chats.len());
+        for c in &chats {
+            let name = match (&c.subject, &contacts) {
+                (Some(s), _) if !s.trim().is_empty() => Some(s.trim().to_owned()),
+                (_, Some(book)) if !c.is_group() => book.name(c.jid())?,
+                _ => None,
+            };
+            chat_list.push(ChatRow {
                 number: c.row_id,
                 kind: kind(c),
                 ending: c.ending(),
                 messages: c.messages,
                 last_ms: c.last_ms,
-            })
-            .collect();
+                name,
+                preview: previews.remove(&c.row_id),
+            });
+        }
         self.next_id += 1;
         let summary = Summary {
             id: self.next_id,
@@ -401,8 +426,13 @@ impl Session {
         self.get(id)?.index.as_ref().ok_or_else(|| AppError::new("not_found", "the search index isn't built yet"))
     }
 
-    pub fn search(&self, id: u32, query: &str, chat: Option<i64>, limit: u32) -> Result<Vec<Hit>> {
-        self.index(id)?.search(query, chat, limit)
+    pub fn search(&self, id: u32, query: &str, filter: &Filter, limit: u32) -> Result<Vec<Hit>> {
+        self.index(id)?.search(query, filter, limit)
+    }
+
+    /// The position in `chat` of its first message at or after `ts` (ms): "jump to a date".
+    pub fn position_at(&self, id: u32, chat: i64, ts: i64) -> Result<Option<u64>> {
+        self.index(id)?.position_at(chat, ts)
     }
 
     pub fn stats(&self, id: u32, chat: Option<i64>) -> Result<Stats> {
@@ -524,6 +554,21 @@ impl Session {
     }
 }
 
+/// Each chat's newest message (by time, then row), its text cut to [`PREVIEW_CHARS`]: one pass over the messages.
+fn last_messages(db: &rusqlite::Connection) -> rusqlite::Result<std::collections::HashMap<i64, Preview>> {
+    let mut stmt = db.prepare(
+        "SELECT chat_row_id, coalesce(message_type, 0), coalesce(from_me, 0), text_data,
+             max(coalesce(timestamp, 0) * 1000000 + _id)
+         FROM message WHERE chat_row_id IS NOT NULL GROUP BY chat_row_id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        let text: Option<String> = r.get(3).or_else(|_| Ok::<_, rusqlite::Error>(None))?;
+        let text = text.map(|t| t.chars().take(PREVIEW_CHARS).collect::<String>()).filter(|t| !t.is_empty());
+        Ok((r.get(0)?, Preview { kind: r.get(1)?, from_me: r.get(2)?, text }))
+    })?;
+    rows.collect()
+}
+
 fn kind(chat: &oopz::Chat) -> &'static str {
     match chat.jid().rsplit_once('@').map(|(_, server)| server) {
         Some("s.whatsapp.net") => "contact",
@@ -642,10 +687,15 @@ mod tests {
             assert!(!json.contains(secret), "{secret:?} in the summary");
         }
         // Its decrypted copy and its search index are in `tmp`, and go when it's forgotten.
-        assert_eq!(session.search(s.id, "hola", None, 10).unwrap_err().code, "not_found");
+        assert_eq!(session.search(s.id, "hola", &Filter::default(), 10).unwrap_err().code, "not_found");
         let info = session.build_index(s.id, tmp.path()).unwrap();
         assert_eq!(info.messages, s.messages);
-        assert!(!session.search(s.id, "hola", Some(BEN_CHAT), 10).unwrap().is_empty());
+        assert!(
+            !session
+                .search(s.id, "hola", &Filter { chat: Some(BEN_CHAT), ..Default::default() }, 10)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(session.stats(s.id, Some(BEN_CHAT)).unwrap().messages, 18);
         assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 2);
         session.forget(s.id);

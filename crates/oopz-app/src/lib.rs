@@ -1,7 +1,7 @@
 //! The oopz desktop app's logic, without a UI toolkit (decision 0009): finding backups in a folder, checking them
 //! with their owner's key, merging a lost chat into a new folder, and the Wi-Fi page a phone sends its backup to. The
-//! Tauri shell in `apps/desktop` only wraps these; an Android app can wrap the same. Results hold counts, masked ids
-//! and file names, never message text, numbers or keys.
+//! Tauri shell in `apps/desktop` only wraps these; an Android app can wrap the same. Results hold counts, masked ids,
+//! file names, chat names and, for the person's own screen, message text; never whole numbers or keys.
 
 use serde::Serialize;
 
@@ -10,6 +10,7 @@ pub mod index;
 pub mod receive;
 pub mod session;
 
+pub use index::Filter;
 pub use receive::{ReceiveInfo, ReceiveStatus, Receiver};
 pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Missing, Session, Summary};
 

@@ -161,14 +161,14 @@ fn main() {
         ("in the biggest chat: playa", "playa", Some(1)),
         ("in a small chat: gracias", "gracias", Some(150)),
     ] {
-        time(label, || index.search(query, chat, 50).unwrap().len());
+        time(label, || index.search(query, &oopz_app::Filter { chat, ..Default::default() }, 50).unwrap().len());
     }
     let len = index.chat_len(1).unwrap();
     time(&format!("viewer: 60 lines at the end of chat 1 ({len})"), || {
         index.lines(1, len.saturating_sub(60), 60).unwrap().len()
     });
     time("viewer: 60 lines at the start", || index.lines(1, 0, 60).unwrap().len());
-    let hit = index.search("hola", Some(1), 1).unwrap()[0].id;
+    let hit = index.search("hola", &oopz_app::Filter { chat: Some(1), ..Default::default() }, 1).unwrap()[0].id;
     time("jump to a search hit (position)", || index.position(hit).unwrap().map_or(0, |_| 1));
     time("stats: whole backup", || index.stats(None).unwrap().by_month.len());
     time("stats: biggest chat", || index.stats(Some(1)).unwrap().by_month.len());

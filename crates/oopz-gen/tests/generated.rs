@@ -94,7 +94,7 @@ fn small_backup_opens_indexes_searches_and_exports() {
     for code in [0, 1, 2, 3, 7, 9, 20, 90] {
         assert!(stats.by_kind.iter().any(|(k, n, _)| *k == code && *n > 0), "type {code} in the stats");
     }
-    assert!(!session.search(summary.id, "hola", None, 20).expect("search").is_empty());
+    assert!(!session.search(summary.id, "hola", &oopz_app::Filter::default(), 20).expect("search").is_empty());
     let main = session.chat_len(summary.id, 1).expect("chat 1");
     assert_eq!(main, counts["main_chat_messages"]);
     assert_eq!(session.lines(summary.id, 1, 0, 50).expect("lines").len(), 50);
@@ -125,8 +125,8 @@ fn edge_backup_reads_without_errors() {
     let summary = session.check(&dir.path().join("Databases/msgstore.db.crypt15"), &key, tmp.path()).expect("check");
     session.build_index(summary.id, tmp.path()).expect("index");
     // Text that looks like SQL or markup is only text.
-    assert!(session.search(summary.id, "DROP TABLE", None, 5).is_ok());
-    assert!(session.search(summary.id, "\"unbalanced", None, 5).is_ok());
+    assert!(session.search(summary.id, "DROP TABLE", &oopz_app::Filter::default(), 5).is_ok());
+    assert!(session.search(summary.id, "\"unbalanced", &oopz_app::Filter::default(), 5).is_ok());
     let stats = session.stats(summary.id, Some(1)).expect("stats");
     assert!(stats.by_kind.iter().any(|(k, _, _)| *k == 12_345), "the unknown type is counted, not dropped");
 }
@@ -156,4 +156,77 @@ fn a_bad_spec_is_refused_before_anything_is_written() {
     let spec = Spec::preset("small").unwrap();
     assert!(oopz_gen::generate(&spec, &dir.path().join("y"), "not a key", &mut |_, _| {}).is_err());
     assert!(!dir.path().join("y").exists());
+}
+
+/// What the viewer shows besides text (replies, reactions, edits, forwards, polls, calls, media), the chat list's
+/// names and previews, search filters, "jump to a date" and the day × hour heatmap, against the manifest's counts.
+#[test]
+fn the_viewer_sees_everything_the_backup_holds() {
+    let spec = Spec::preset("small").unwrap();
+    let (dir, key) = generate(&spec);
+    let counts = manifest(dir.path());
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::default();
+    let s = session.check(&dir.path().join("Databases/msgstore.db.crypt15"), &key, tmp.path()).expect("check");
+    assert!(s.chat_list.iter().any(|c| c.kind == "group" && c.name.is_some()), "a group's subject");
+    assert!(s.chat_list.iter().any(|c| c.kind == "contact" && c.name.is_some()), "a contact's name from wa.db");
+    assert!(s.chat_list.iter().filter(|c| c.messages > 0).all(|c| c.preview.is_some()), "every chat has a preview");
+    assert!(s.chat_list.iter().filter_map(|c| c.preview.as_ref()?.text.as_ref()).all(|t| t.chars().count() <= 80));
+    session.build_index(s.id, tmp.path()).expect("index");
+
+    let (mut replies, mut found, mut reactions, mut edited, mut forwarded, mut polls, mut calls, mut media) =
+        (0, 0, 0, 0, 0, 0, 0, 0);
+    for chat in &s.chat_list {
+        let len = session.chat_len(s.id, chat.number).unwrap();
+        let mut from = 0;
+        while from < len {
+            for line in session.lines(s.id, chat.number, from, 500).unwrap() {
+                if let Some(reply) = &line.reply {
+                    replies += 1;
+                    found += u64::from(reply.id.is_some());
+                }
+                reactions += line.reactions.len() as u64;
+                edited += u64::from(line.edited);
+                forwarded += u64::from(line.forwarded > 0);
+                if line.kind == 46 {
+                    assert!(line.poll.len() >= 2, "a poll has its options");
+                    polls += 1;
+                }
+                calls += u64::from(line.call.is_some());
+                media += u64::from(line.media.as_ref().is_some_and(|m| m.mime.is_some()));
+            }
+            from += 500;
+        }
+    }
+    assert_eq!(replies, counts["replies"]);
+    assert!(found > 0 && found <= replies, "replies point at the answered message");
+    assert!(reactions > 0 && reactions <= counts["reactions"], "removed reactions aren't shown");
+    assert_eq!(edited, counts["edits"]);
+    assert!(forwarded > 0 && forwarded <= counts["forwarded"]);
+    assert_eq!(polls, counts["kind.poll"]);
+    assert_eq!(calls, counts["kind.call"]);
+    assert!(media > 0);
+
+    // Filters: only photos, only sent, a date range; with no words, the newest that match.
+    let photos = oopz_app::Filter { kinds: vec![1], ..Default::default() };
+    let hits = session.search(s.id, "", &photos, 50).unwrap();
+    assert!(!hits.is_empty());
+    let sent = oopz_app::Filter { from_me: Some(true), chat: Some(1), ..Default::default() };
+    assert!(session.search(s.id, "", &sent, 50).unwrap().iter().all(|h| h.from_me && h.chat == 1));
+    let mid = (spec.start_ms + spec.end_ms) / 2;
+    let late = oopz_app::Filter { after_ms: Some(mid), ..Default::default() };
+    assert!(session.search(s.id, "", &late, 50).unwrap().iter().all(|h| h.ts >= mid));
+    assert!(session.search(s.id, "", &oopz_app::Filter::default(), 50).unwrap().is_empty(), "nothing asked");
+
+    // Jump to a date: the first message at or after it.
+    let at = session.position_at(s.id, 1, mid).unwrap().expect("chat 1 has messages");
+    let line = &session.lines(s.id, 1, at, 1).unwrap()[0];
+    assert!(line.ts >= mid);
+    if at > 0 {
+        assert!(session.lines(s.id, 1, at - 1, 1).unwrap()[0].ts < mid);
+    }
+
+    let stats = session.stats(s.id, None).unwrap();
+    assert_eq!(stats.by_day_hour.len(), 7);
+    assert_eq!(stats.by_day_hour.iter().flatten().sum::<u64>(), stats.by_hour.iter().sum::<u64>());
 }

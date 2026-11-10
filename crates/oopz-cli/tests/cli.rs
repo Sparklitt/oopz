@@ -185,3 +185,26 @@ fn check_stats_search_export_missing_print_counts_only() {
         }
     }
 }
+
+#[test]
+fn search_filters_and_jump_to_a_date() {
+    let fx = fixture::two_phones();
+    let source = fx.source.to_str().unwrap();
+    // Chat 1 of the source: 10 messages, 3 of them photos.
+    let photos = oopz(&["search", "--backup", source, "--chat", "1", "--kind", "1"], Some(KEY_HEX));
+    assert!(text(&photos).contains("3 results"), "{}", text(&photos));
+    let sent = oopz(&["search", "--backup", source, "--chat", "1", "--from", "me"], Some(KEY_HEX));
+    assert!(sent.status.success() && !text(&sent).contains("received"), "{}", text(&sent));
+    let none = oopz(&["search", "--backup", source, "--after", "2999-01-01"], Some(KEY_HEX));
+    assert!(text(&none).contains("0 results"), "{}", text(&none));
+
+    let start = oopz(&["jump", "--backup", source, "--chat", "1", "--date", "1970-01-01"], Some(KEY_HEX));
+    assert!(text(&start).contains("position 1 of 10"), "{}", text(&start));
+    let end = oopz(&["jump", "--backup", source, "--chat", "1", "--date", "2999-01-01"], Some(KEY_HEX));
+    assert!(text(&end).contains("position 10 of 10"), "{}", text(&end));
+    let bad = oopz(&["jump", "--backup", source, "--chat", "1", "--date", "yesterday"], None);
+    assert!(!bad.status.success());
+
+    let stats = oopz(&["stats", "--backup", source], Some(KEY_HEX));
+    assert!(text(&stats).contains("by day and hour") && text(&stats).contains("Sat: "), "{}", text(&stats));
+}

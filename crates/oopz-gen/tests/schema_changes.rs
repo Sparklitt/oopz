@@ -45,7 +45,7 @@ fn use_it(backup: &Path, key: &str) -> Result<(), oopz_app::AppError> {
     let s = session.check(backup, key, tmp.path())?;
     session.build_index(s.id, tmp.path())?;
     session.stats(s.id, None)?;
-    session.search(s.id, "hola", None, 50)?;
+    session.search(s.id, "hola", &oopz_app::Filter::default(), 50)?;
     for chat in &s.chat_list {
         let n = session.chat_len(s.id, chat.number)?;
         session.lines(s.id, chat.number, n.saturating_sub(50), 50)?;

@@ -42,6 +42,9 @@ enum Command {
     Chats {
         #[arg(long)]
         backup: PathBuf,
+        /// Also print each chat's name (a group's subject, a contact's name from wa.db.crypt15 beside the backup).
+        #[arg(long)]
+        names: bool,
     },
     /// Numbers for the whole backup or one chat: messages by month, hour and type, voice minutes, top senders
     /// (masked).
@@ -57,10 +60,32 @@ enum Command {
     Search {
         #[arg(long)]
         backup: PathBuf,
-        #[arg(long)]
+        /// Words to find; without them, the newest messages that match the other options.
+        #[arg(long, default_value = "")]
         query: String,
         #[arg(long)]
         chat: Option<i64>,
+        /// Message type codes, comma-separated (0 text, 1 photo, 2 audio, 3 video, 9 document, …).
+        #[arg(long, value_delimiter = ',')]
+        kind: Vec<i64>,
+        /// `me`, `them`, or the last 3 characters of a sender's id (as `oopz stats` shows them).
+        #[arg(long)]
+        from: Option<String>,
+        /// From this day on (YYYY-MM-DD, UTC).
+        #[arg(long)]
+        after: Option<jiff::civil::Date>,
+        /// Before this day (YYYY-MM-DD, UTC).
+        #[arg(long)]
+        before: Option<jiff::civil::Date>,
+    },
+    /// The position in a chat of its first message on or after a day (YYYY-MM-DD, UTC): "jump to a date".
+    Jump {
+        #[arg(long)]
+        backup: PathBuf,
+        #[arg(long)]
+        chat: i64,
+        #[arg(long)]
+        date: jiff::civil::Date,
     },
     /// Save the stats (and, with --chat, that chat's messages) as a web page in a new file in a folder. The file holds
     /// message text and isn't encrypted.
@@ -248,11 +273,15 @@ fn run(cli: Cli) -> Result<()> {
             println!("dates: {} to {}", date(s.first_ms), date(s.last_ms));
             println!("sha256: {}", s.sha256);
         }
-        Command::Chats { backup } => {
+        Command::Chats { backup, names } => {
             let s = open.check(&backup, "backup")?;
             println!("{:>5}  {:<20} {:>9}  {:<12}", "chat", "who", "messages", "last message");
             for c in &s.chat_list {
-                println!("{:>5}  {:<20} {:>9}  {:<12}", c.number, who(c.kind, &c.ending), c.messages, date(c.last_ms));
+                print!("{:>5}  {:<20} {:>9}  {:<12}", c.number, who(c.kind, &c.ending), c.messages, date(c.last_ms));
+                match (&c.name, names) {
+                    (Some(name), true) => println!("  {name}"),
+                    _ => println!(),
+                }
             }
         }
         Command::Stats { backup, chat } => {
@@ -273,6 +302,10 @@ fn run(cli: Cli) -> Result<()> {
                 "by hour (this computer's time zone): {}",
                 s.by_hour.iter().map(u64::to_string).collect::<Vec<_>>().join(" ")
             );
+            println!("by day and hour (this computer's time zone; rows Sunday to Saturday, columns 0 to 23 h):");
+            for (day, hours) in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].iter().zip(&s.by_day_hour) {
+                println!("    {day}: {}", hours.iter().map(u64::to_string).collect::<Vec<_>>().join(" "));
+            }
             if !s.senders.is_empty() {
                 println!("who writes most:");
                 for (ending, n) in &s.senders {
@@ -280,9 +313,23 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
-        Command::Search { backup, query, chat } => {
+        Command::Search { backup, query, chat, kind, from, after, before } => {
             let id = open.indexed(&backup)?;
-            let hits = open.session.search(id, &query, chat, session::SEARCH_LIMIT)?;
+            let (from_me, sender) = match from.as_deref() {
+                None => (None, None),
+                Some("me") => (Some(true), None),
+                Some("them") => (Some(false), None),
+                Some(ending) => (Some(false), Some(ending.to_owned())),
+            };
+            let filter = oopz_app::Filter {
+                chat,
+                kinds: kind,
+                from_me,
+                sender,
+                after_ms: after.map(day_ms).transpose()?,
+                before_ms: before.map(day_ms).transpose()?,
+            };
+            let hits = open.session.search(id, &query, &filter, session::SEARCH_LIMIT)?;
             println!("{:>5}  {:<10}  {:<8}  {:>9}", "chat", "date", "side", "position");
             for h in &hits {
                 let position =
@@ -293,6 +340,13 @@ fn run(cli: Cli) -> Result<()> {
             let more =
                 if hits.len() as u32 == session::SEARCH_LIMIT { " (the first ones; narrow the search)" } else { "" };
             println!("{} results, newest first{more}", hits.len());
+        }
+        Command::Jump { backup, chat, date } => {
+            let id = open.indexed(&backup)?;
+            match open.session.position_at(id, chat, day_ms(date)?)? {
+                Some(at) => println!("position {} of {}", at + 1, open.session.chat_len(id, chat)?),
+                None => println!("chat {chat} has no messages"),
+            }
         }
         Command::Export { backup, chat, out_dir, lang } => {
             anyhow::ensure!(lang == "en" || lang == "es", "--lang is en or es");
@@ -413,6 +467,11 @@ fn read_key_text(which: &str) -> Result<Zeroizing<String>> {
         io::stdin().lock().read_line(&mut line)?;
         Ok(line)
     }
+}
+
+/// Midnight UTC of `day`, in milliseconds.
+fn day_ms(day: jiff::civil::Date) -> Result<i64> {
+    Ok(day.to_zoned(jiff::tz::TimeZone::UTC)?.timestamp().as_millisecond())
 }
 
 fn date(ms: Option<i64>) -> String {

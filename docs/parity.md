@@ -10,10 +10,11 @@ names (`oopz export`), or prints as counts and positions.
 | App command | CLI command | Shared code |
 |---|---|---|
 | `find_backups` | `oopz backups` | `session::find_backups` |
-| `check_backup` | `oopz check`, `oopz chats`, `oopz backups` | `Session::check` |
+| `check_backup` | `oopz check`, `oopz chats` (names with `--names`), `oopz backups` | `Session::check` |
 | `build_index` | `oopz stats`, `oopz search`, `oopz export` (built when needed) | `Session::build_index` |
 | `stats` | `oopz stats` | `Session::stats` |
-| `search`, `message_position` | `oopz search` (where, not what) | `Session::search`, `Session::position` |
+| `search`, `message_position` | `oopz search` (where, not what; filters by type, side or sender, dates) | `Session::search`, `Session::position` |
+| `position_at` | `oopz jump` | `Session::position_at` |
 | `chat_len`, `chat_lines` | `oopz export --chat` (the chat's text, to a file) | `Session::lines` |
 | `export_page` | `oopz export` | `Session::export` (the CLI's words: `Labels::builtin`) |
 | `missing` | `oopz missing` | `Session::missing` |

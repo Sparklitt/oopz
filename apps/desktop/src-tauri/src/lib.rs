@@ -9,7 +9,7 @@ use oopz_app::receive::{self, Receiver};
 use oopz_app::session::{
     self, BackupFile, Fact, MergeOutcome, MergeRequest, Missing, Session, Summary, TableInfo, TypeInfo,
 };
-use oopz_app::{AppError, ReceiveInfo, ReceiveStatus};
+use oopz_app::{AppError, Filter, ReceiveInfo, ReceiveStatus};
 use serde::Deserialize;
 use tauri::ipc::Channel;
 use tauri::{Manager, State};
@@ -228,8 +228,8 @@ fn build_index(state: State<'_, AppState>, id: u32, progress: Channel<u16>) -> R
 }
 
 #[tauri::command(async)]
-fn search(state: State<'_, AppState>, id: u32, query: String, chat: Option<i64>) -> Result<Vec<Hit>, AppError> {
-    lock(&state.session).search(id, &query, chat, session::SEARCH_LIMIT)
+fn search(state: State<'_, AppState>, id: u32, query: String, filter: Filter) -> Result<Vec<Hit>, AppError> {
+    lock(&state.session).search(id, &query, &filter, session::SEARCH_LIMIT)
 }
 
 #[tauri::command(async)]
@@ -267,6 +267,12 @@ fn chat_facts(state: State<'_, AppState>, id: u32, chat: i64) -> Result<Vec<Fact
 #[tauri::command(async)]
 fn message_position(state: State<'_, AppState>, id: u32, message: i64) -> Result<Option<(i64, u64)>, AppError> {
     lock(&state.session).position(id, message)
+}
+
+/// "Jump to a date": the position of the chat's first message at or after `ts` (ms).
+#[tauri::command(async)]
+fn position_at(state: State<'_, AppState>, id: u32, chat: i64, ts: i64) -> Result<Option<u64>, AppError> {
+    lock(&state.session).position_at(id, chat, ts)
 }
 
 /// The opt-in update check (decision 0011): only when the person switched it on or clicked, and installed only on
@@ -373,6 +379,7 @@ pub fn run() {
             chat_len,
             chat_lines,
             message_position,
+            position_at,
             backup_tables,
             chat_types,
             chat_facts,
