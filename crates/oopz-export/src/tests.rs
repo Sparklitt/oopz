@@ -1,0 +1,231 @@
+use std::io::Read as _;
+
+use oopz_core::Filter;
+use oopz_model::{Conversation, ConversationKind, Loaded, Media, MediaKind, Message, Person, SourceInfo};
+
+use super::*;
+
+const T0: i64 = 1_704_067_200_000;
+
+fn media(kind: MediaKind, file: &str) -> Part {
+    Part::Media(Media { kind, file: Some(file.into()), size: Some(5), ..Default::default() })
+}
+
+/// A library with one invented source whose media folder holds some of the files its messages name.
+fn setup() -> (tempfile::TempDir, Library) {
+    let dir = tempfile::tempdir().unwrap();
+    let media_root = dir.path().join("media-src");
+    fs::create_dir_all(media_root.join("sub")).unwrap();
+    fs::write(media_root.join("IMG-1.jpg"), b"jpeg!").unwrap();
+    fs::write(media_root.join("sub/IMG-1.jpg"), b"other").unwrap();
+    fs::write(dir.path().join("secret.txt"), b"outside").unwrap();
+    let c = "chat";
+    let msg = |id: &str, me: bool, t: i64, parts: Vec<Part>| Message {
+        id: id.into(),
+        conversation: c.into(),
+        sender: Some(if me { "me" } else { "ana" }.into()),
+        from_me: me,
+        time_ms: Some(t),
+        parts,
+        ..Default::default()
+    };
+    let mut source = Loaded {
+        info: SourceInfo {
+            app: App::WhatsApp,
+            adapter: "test".into(),
+            format: None,
+            owner: None,
+            media_root: Some(media_root),
+            wall_clock: false,
+            notes: vec![],
+        },
+        people: vec![
+            Person { id: "me".into(), me: true, ..Default::default() },
+            Person {
+                id: "ana".into(),
+                name: Some("Ana <b>".into()),
+                phone: Some("+999 555 0100".into()),
+                ..Default::default()
+            },
+        ],
+        conversations: vec![Conversation {
+            id: c.into(),
+            kind: ConversationKind::Direct,
+            name: Some("Ana & co".into()),
+            members: vec!["me".into(), "ana".into()],
+            created_ms: None,
+        }],
+        messages: vec![
+            msg("1", false, T0, vec![Part::text("<script>alert(1)</script> שלום \u{202E}evil")]),
+            Message {
+                reply_to: Some("1".into()),
+                ..msg("2", true, T0 + 60_000, vec![Part::text("=HYPERLINK(\"x\")")])
+            },
+            msg(
+                "3",
+                false,
+                T0 + 120_000,
+                vec![media(MediaKind::Photo, "IMG-1.jpg"), media(MediaKind::Photo, "sub/IMG-1.jpg")],
+            ),
+            msg(
+                "4",
+                false,
+                T0 + 180_000,
+                vec![media(MediaKind::Video, "gone.mp4"), media(MediaKind::Document, "../secret.txt")],
+            ),
+            msg(
+                "5",
+                false,
+                T0 + 240_000,
+                vec![Part::Media(Media {
+                    kind: MediaKind::Photo,
+                    view_once: true,
+                    caption: Some("never shown".into()),
+                    file: Some("IMG-1.jpg".into()),
+                    ..Default::default()
+                })],
+            ),
+            Message { deleted: true, ..msg("6", false, T0 + 300_000, vec![]) },
+            msg(
+                "7",
+                false,
+                T0 + 360_000,
+                vec![Part::System { event: m::Event::GroupCreated, text: Some("created".into()) }],
+            ),
+        ],
+    };
+    let mut lib = Library::open(&dir.path().join("lib")).unwrap();
+    lib.import(&mut source, "chat.txt", "fp", &mut |_, _| true).unwrap();
+    (dir, lib)
+}
+
+fn all() -> Selection {
+    Selection { filter: Filter { apps: vec![App::WhatsApp], ..Default::default() }, ..Default::default() }
+}
+
+fn utc() -> Options {
+    Options { time_zone: Some("UTC".into()), title: Some("Ana <test>".into()), ..Default::default() }
+}
+
+fn run(lib: &Library, dir: &Path, format: Format, options: &Options) -> Written {
+    export(lib, &all(), format, options, dir, &mut |_, _| true).unwrap()
+}
+
+fn read(p: &Path) -> String {
+    fs::read_to_string(p).unwrap()
+}
+
+#[test]
+fn html_is_escaped_offline_and_never_shows_view_once() {
+    let (dir, lib) = setup();
+    let w = run(&lib, dir.path(), Format::Html, &utc());
+    assert_eq!(w.path.file_name().unwrap(), "oopz-html-1.html");
+    assert_eq!(w.messages, 7);
+    let html = read(&w.path);
+    assert!(html.contains("&lt;script&gt;") && !html.contains("<script>"));
+    assert!(!html.contains('\u{202E}'), "bidi overrides are dropped");
+    assert!(html.contains("שלום") && html.contains("dir=\"auto\""));
+    assert!(html.contains("Content-Security-Policy") && !html.contains("http://") && !html.contains("https://"));
+    assert!(!html.contains("never shown"));
+    assert!(html.contains("Ana &lt;b&gt;") && html.contains("Ana &amp; co"));
+    assert!(html.contains("2024-01-01 00:01"), "times in the zone asked for");
+    assert!(html.contains("This message was deleted"));
+    assert!(html.contains("Reply to"));
+    // A second export never replaces the first.
+    assert_eq!(run(&lib, dir.path(), Format::Html, &utc()).path.file_name().unwrap(), "oopz-html-2.html");
+}
+
+#[test]
+fn json_parses_back_with_only_what_the_selection_touches() {
+    let (dir, lib) = setup();
+    let w = run(&lib, dir.path(), Format::Json, &utc());
+    let v: serde_json::Value = serde_json::from_str(&read(&w.path)).unwrap();
+    assert_eq!(v["messages"].as_array().unwrap().len(), 7);
+    assert_eq!(v["people"].as_array().unwrap().len(), 2);
+    assert_eq!(v["oopz"]["format"], "oopz-export");
+    assert!(!read(&w.path).contains("never shown"));
+    let first = &v["messages"][0];
+    assert_eq!(first["app"], "whatsapp");
+    assert_eq!(first["message"]["parts"][0]["type"], "text");
+}
+
+#[test]
+fn csv_rows_parse_and_formulas_stay_text() {
+    let (dir, lib) = setup();
+    let w = run(&lib, dir.path(), Format::Csv, &utc());
+    let mut r = csv::Reader::from_path(&w.path).unwrap();
+    let rows: Vec<csv::StringRecord> = r.records().map(|x| x.unwrap()).collect();
+    assert_eq!(rows.len(), 7);
+    assert_eq!(&rows[1][6], "'=HYPERLINK(\"x\")");
+    assert_eq!(&rows[0][2], "2024-01-01T00:00:00+00:00");
+    assert!(!rows[1][7].is_empty() && rows[0][7].is_empty(), "the reply points at the first message");
+    assert_eq!(&rows[5][9], "1", "deleted");
+}
+
+#[test]
+fn txt_reads_like_a_chat() {
+    let (dir, lib) = setup();
+    let merged = Options { order: Order::Time, ..utc() };
+    let w = run(&lib, dir.path(), Format::Txt, &merged);
+    let txt = read(&w.path);
+    assert!(txt.contains("[2024-01-01 00:01] WhatsApp · Ana & co · You: =HYPERLINK"), "{txt}");
+    assert!(txt.contains("    > Reply to: <script>"), "the reply quotes what it answers");
+    assert!(txt.contains("[Photo · 5 B]"));
+    assert!(!txt.contains("never shown"));
+    let skip = Options { skip_system: true, ..utc() };
+    assert!(!read(&run(&lib, dir.path(), Format::Txt, &skip).path).contains("created"));
+}
+
+#[test]
+fn media_zip_takes_present_files_and_lists_missing_ones_never_outside() {
+    let (dir, lib) = setup();
+    let w = run(&lib, dir.path(), Format::MediaZip, &utc());
+    assert_eq!(w.missing_files, 2, "gone.mp4 and the path outside the folder");
+    let mut zip = zip::ZipArchive::new(fs::File::open(&w.path).unwrap()).unwrap();
+    let names: Vec<String> = (0..zip.len()).map(|i| zip.by_index(i).unwrap().name().unwrap().into_owned()).collect();
+    assert_eq!(names, ["whatsapp-Ana _ co/IMG-1.jpg", "whatsapp-Ana _ co/2-IMG-1.jpg", "missing.txt"]);
+    let mut s = String::new();
+    zip.by_name("missing.txt").unwrap().read_to_string(&mut s).unwrap();
+    assert!(s.contains("gone.mp4") && s.contains("../secret.txt"));
+    let mut photo = Vec::new();
+    zip.by_name("whatsapp-Ana _ co/IMG-1.jpg").unwrap().read_to_end(&mut photo).unwrap();
+    assert_eq!(photo, b"jpeg!");
+}
+
+#[test]
+fn vcards_of_the_people_in_it() {
+    let (dir, lib) = setup();
+    let w = run(&lib, dir.path(), Format::Vcard, &utc());
+    let cards = oopz_core::vcard::parse(&read(&w.path));
+    assert_eq!(cards.len(), 1);
+    assert_eq!(cards[0].name, "Ana <b>");
+    assert_eq!(cards[0].phones, ["+999 555 0100"]);
+    assert!(export_contacts(&lib, &[], dir.path()).is_err());
+}
+
+#[test]
+fn a_stop_leaves_nothing_and_bad_requests_are_refused() {
+    let (dir, lib) = setup();
+    let out = dir.path().join("out");
+    fs::create_dir(&out).unwrap();
+    let e = export(&lib, &all(), Format::Html, &utc(), &out, &mut |_, _| false).unwrap_err();
+    assert_eq!(e.code, "cancelled");
+    assert_eq!(fs::read_dir(&out).unwrap().count(), 0, "no partial or temporary file");
+    let e = export(&lib, &Selection::default(), Format::Html, &utc(), &out, &mut |_, _| true).unwrap_err();
+    assert_eq!(e.code, "not_found");
+    let bad_zone = Options { time_zone: Some("Mars/Olympus".into()), ..utc() };
+    assert!(export(&lib, &all(), Format::Html, &bad_zone, &out, &mut |_, _| true).is_err());
+    let e = export(&lib, &all(), Format::Html, &utc(), &out.join("nope"), &mut |_, _| true).unwrap_err();
+    assert_eq!(e.code, "not_found");
+    for f in Format::ALL {
+        assert_eq!(Format::from_code(f.code()), Some(f));
+    }
+}
+
+#[test]
+fn spanish_words() {
+    let (dir, lib) = setup();
+    let es = Options { lang: "es".into(), ..utc() };
+    let html = read(&run(&lib, dir.path(), Format::Html, &es).path);
+    assert!(html.contains("lang=\"es\"") && html.contains("Se eliminó este mensaje"));
+}

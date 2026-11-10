@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oopz-app", "crates/oopz-cli", "crates/oopz-core", "crates/oopz-gen", "crates/oopz-model", "crates/adapters/*"]
+members = ["crates/oopz-app", "crates/oopz-cli", "crates/oopz-core", "crates/oopz-export", "crates/oopz-gen", "crates/oopz-model", "crates/adapters/*"]
 # The Tauri shell has its own workspace: it needs a webview toolkit to build (docs/desktop-plan.md).
 exclude = ["apps/desktop/src-tauri"]
 
@@ -17,6 +17,7 @@ oopz = { path = "crates/adapters/whatsapp-android" }
 oopz-app = { path = "crates/oopz-app" }
 oopz-model = { path = "crates/oopz-model" }
 oopz-core = { path = "crates/oopz-core" }
+oopz-export = { path = "crates/oopz-export" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"
