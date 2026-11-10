@@ -227,8 +227,9 @@ pub enum Part {
     },
     Media(Media),
     Location {
-        lat: f64,
-        lng: f64,
+        /// `None` when the source only says a place was shared (LINE's "[Location]").
+        lat: Option<f64>,
+        lng: Option<f64>,
         name: Option<String>,
         /// A live location shared for a while.
         live: bool,

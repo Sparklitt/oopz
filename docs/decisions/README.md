@@ -13,6 +13,7 @@ Why oopz is the way it is. Numbers are kept from the hilo project, where oopz be
 - [0011](0011-an-opt-in-update-check.md): the desktop app's update check, off unless switched on; signed updates.
 - [0012](0012-the-android-app.md): the Android app: old phones first, content references copied in, release signing.
 - [0013](0013-one-model-for-every-app.md): one model for every app (`oopz-model`) and the adapter trait.
+- [0014](0014-whatsapp-as-an-adapter.md): WhatsApp Android's crate moves to `crates/adapters/whatsapp-android` and implements the adapter trait.
 - [0015](0015-official-text-exports.md): adapters for the apps' official text exports (WhatsApp, Telegram, SMS, LINE, Viber).
 
 Code comments also cite hilo's decision 0034 (WhatsApp groups and sticker packs). What it settled for oopz: a chat's
