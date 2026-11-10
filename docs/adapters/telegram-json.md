@@ -3,6 +3,9 @@
 Crate `crates/adapters/telegram-export`, decision [0015](../decisions/0015-official-text-exports.md). No key, no
 password: Telegram Desktop's "Export chat history" or Settings > Advanced > "Export Telegram data", format
 "Machine-readable JSON".
+The export is made in Telegram Desktop (Windows, macOS, Linux), the only place Telegram documents it; Telegram's
+phone apps don't offer it. The result opens in oopz anywhere it runs, the Android app included (pick `result.json`, or
+the folder zipped).
 
 ## What's read
 

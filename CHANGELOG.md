@@ -7,6 +7,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **More apps, one library.** Besides WhatsApp on Android, oopz now reads an iPhone's own Finder/iTunes backup
+  (WhatsApp and WhatsApp Business; an encrypted one opens with the owner's backup password, decision 0018) and the
+  official exports of WhatsApp (Export chat), Telegram Desktop (JSON, checked against Telegram's published schema),
+  SMS Backup & Restore (messages, MMS pictures and calls), LINE and Viber (decisions 0013–0015). Each is added to a
+  library on this device (decision 0016): chats from every app side by side, search across all of them, a timeline,
+  insights, contacts joined across apps by hand (with suggestions, vCard in and out), saved selections, and exports
+  as a web page, PDF (right-to-left text and emoji, decision 0017), JSON, CSV, text, vCard or a zip of the media. The
+  library is wiped when oopz closes unless "Keep my library" is on. It stays fast at a million messages
+  ([docs/performance.md](docs/performance.md)).
+- `oopz lib …` in the CLI does everything the library screens do ([docs/parity.md](docs/parity.md)).
+- On a phone, swipe sideways to move between the bottom tabs.
+- The app's languages are one file each (`apps/desktop/src/lib/i18n/`); adding one needs no backend change. Import
+  notes from every app are shown in Spanish too.
+- A launch screen, the oopz icon everywhere, and Back inside the app on Android.
 - `oopz-gen` (not released): writes synthetic WhatsApp backups of any size for testing, with every kind of message.
 
 - The CLI does what the app does, with the same code ([docs/parity.md](docs/parity.md)): new `check`, `stats`,

@@ -24,7 +24,7 @@ read: an app's official export, or a backup opened with your own key or password
 | WhatsApp on Android | the end-to-end encrypted backup (`msgstore.db.crypt15`) and its 64-digit key |
 | WhatsApp on iPhone | the Finder / iTunes backup of your iPhone, and its backup password when it is encrypted |
 | WhatsApp, any phone | a chat's "Export chat" (`.txt` or `.zip`) |
-| Telegram | Telegram Desktop's JSON export (`result.json`) |
+| Telegram | Telegram Desktop's JSON export (`result.json`; made on a computer, opens on the phone too) |
 | SMS and calls (Android) | SMS Backup & Restore's XML |
 | LINE | "Export chat history" (`.txt`) |
 | Viber | "Export message history" (CSV) |
@@ -130,7 +130,7 @@ The terminal shows counts, dates and masked ids only; message text goes only int
 | `oopz chats --backup <file>` | Lists the chats in a backup: number, masked id, messages, last message's date. |
 | `oopz stats --backup <file> [--chat N]` | Messages by month, hour and type, voice minutes, who writes most (masked). |
 | `oopz search --backup <file> --query <words> [--chat N]` | Where your words appear (chat, date, sent or received, position), never the text. Accents and case don't matter. |
-| `oopz export --backup <file> [--chat N] --out-dir <folder> [--lang es]` | Saves the stats (and a chat's messages) as a web page in a new file. It isn't encrypted: keep it private. |
+| `oopz export --backup <file> [--chat N] --out-dir <folder>` | Saves the stats (and a chat's messages) as a web page in a new file. It isn't encrypted: keep it private. |
 | `oopz missing --a <file> --chat-a N --b <file> --chat-b M` | What's missing between two backups' copies of the same chat, matched by message id. |
 | `oopz restore --source <file> --source-chat N --target <file> --target-chat M --out-dir <folder> [--media <folder>]` | Restores a lost one-to-one chat into a new `oopz-result-N` folder (see below). |
 | `oopz receive --out-dir <folder>` | Receives a backup from the phone over your Wi-Fi: a QR code in the terminal, files saved in a new folder. |
