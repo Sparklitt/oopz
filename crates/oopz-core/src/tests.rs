@@ -388,11 +388,8 @@ fn inline_files_are_kept_in_the_librarys_media_folder() {
     };
     let source = || {
         let mut s = whatsapp();
-        s.messages[0].parts = vec![
-            inline(Some("../../etc/pic 1.png"), false),
-            inline(None, false),
-            inline(Some("secret.png"), true),
-        ];
+        s.messages[0].parts =
+            vec![inline(Some("../../etc/pic 1.png"), false), inline(None, false), inline(Some("secret.png"), true)];
         s
     };
     let mut stop = 0;

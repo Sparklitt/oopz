@@ -20,9 +20,24 @@ fn app_commands() -> BTreeSet<String> {
         .collect()
 }
 
-/// The CLI's subcommands, from its own `--help`.
+/// Commands that group others (`oopz lib import`): the table names their subcommands.
+const GROUPS: &[&str] = &["lib"];
+
+/// The CLI's subcommands, from its own `--help`; a group's as `lib import`.
 fn cli_commands() -> BTreeSet<String> {
-    let help = Command::new(env!("CARGO_BIN_EXE_oopz")).arg("--help").output().expect("oopz --help");
+    let mut all = BTreeSet::new();
+    for top in subcommands(&[]) {
+        if GROUPS.contains(&top.as_str()) {
+            all.extend(subcommands(&[&top]).into_iter().map(|sub| format!("{top} {sub}")));
+        }
+        all.insert(top);
+    }
+    all
+}
+
+/// The subcommands `oopz <prefix> --help` lists.
+fn subcommands(prefix: &[&str]) -> BTreeSet<String> {
+    let help = Command::new(env!("CARGO_BIN_EXE_oopz")).args(prefix).arg("--help").output().expect("oopz --help");
     let help = String::from_utf8(help.stdout).expect("utf-8 help");
     let commands = help.split_once("Commands:").expect("a commands list").1;
     let commands = commands.split_once("Options:").map_or(commands, |(c, _)| c);
@@ -39,13 +54,19 @@ fn cli_commands() -> BTreeSet<String> {
 fn table() -> (BTreeSet<String>, BTreeSet<String>) {
     let doc = std::fs::read_to_string(root().join("docs/parity.md")).expect("docs/parity.md");
     let (mut app, mut cli) = (BTreeSet::new(), BTreeSet::new());
-    for row in doc.lines().filter(|l| l.starts_with("| `")) {
+    for row in doc.lines().filter(|l| l.starts_with("| `") || l.starts_with("| | `")) {
         let cells: Vec<&str> = row.split('|').collect();
         for (i, cell) in cells.iter().enumerate().take(3).skip(1) {
             for code in cell.split('`').skip(1).step_by(2) {
                 match (i, code.strip_prefix("oopz ")) {
                     (1, None) => drop(app.insert(code.to_owned())),
-                    (2, Some(cmd)) => drop(cli.insert(cmd.split_whitespace().next().unwrap_or(cmd).to_owned())),
+                    (2, Some(cmd)) => {
+                        let words: Vec<&str> = cmd.split_whitespace().collect();
+                        cli.insert(words[0].to_owned());
+                        if GROUPS.contains(&words[0]) && words.len() > 1 && !words[1].starts_with('-') {
+                            cli.insert(format!("{} {}", words[0], words[1]));
+                        }
+                    }
                     _ => {}
                 }
             }

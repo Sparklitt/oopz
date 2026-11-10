@@ -15,8 +15,14 @@ use oopz_app::export::Labels;
 use oopz_app::session::{self, MergeRequest, Session, Summary};
 use zeroize::Zeroizing;
 
+mod library;
+
 #[derive(Parser)]
-#[command(name = "oopz", version, about = "Your own WhatsApp backups: inspect them, restore a lost chat")]
+#[command(
+    name = "oopz",
+    version,
+    about = "Your own chat history: WhatsApp backups (inspect, restore a lost chat) and every app's exports (oopz lib)"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -181,6 +187,9 @@ enum Command {
         #[arg(long)]
         chat: i64,
     },
+    /// The library: every app's exports and backups together, to search, link contacts, select and export
+    /// (`oopz lib --help`).
+    Lib(Box<library::Lib>),
 }
 
 fn main() -> ExitCode {
@@ -232,8 +241,12 @@ impl Drop for Open {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    if let Command::Lib(lib) = cli.command {
+        return library::run(*lib);
+    }
     let mut open = Open::new()?;
     match cli.command {
+        Command::Lib(_) => unreachable!("handled above"),
         Command::Backups { dir } => {
             let files = session::find_backups(&dir)?;
             let openable = files.iter().filter(|f| f.kind == "crypt15").count();
@@ -494,8 +507,13 @@ fn who(kind: &str, ending: &str) -> String {
 /// From a hidden prompt, or one line of stdin when it isn't a terminal (`oopz … < keyfile`). Never from an argument
 /// or the environment: both leak into shell history and process lists. Piped, one line per key, in the order asked.
 fn read_key_text(which: &str) -> Result<Zeroizing<String>> {
+    read_secret(&format!("64-digit {which} key"))
+}
+
+/// [`read_key_text`] for any secret: `what` names it in the prompt.
+fn read_secret(what: &str) -> Result<Zeroizing<String>> {
     if io::stdin().is_terminal() {
-        Ok(Zeroizing::new(rpassword::prompt_password(format!("64-digit {which} key (not shown): "))?))
+        Ok(Zeroizing::new(rpassword::prompt_password(format!("{what} (not shown): "))?))
     } else {
         let mut line = Zeroizing::new(String::new());
         io::stdin().lock().read_line(&mut line)?;

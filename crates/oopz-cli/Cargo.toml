@@ -11,8 +11,17 @@ publish.workspace = true
 name = "oopz"
 path = "src/main.rs"
 
+[features]
+default = ["pdf"]
+# PDF export (decision 0017).
+pdf = ["dep:oopz-export-pdf"]
+
 [dependencies]
 oopz-app.workspace = true
+oopz-core.workspace = true
+oopz-export.workspace = true
+oopz-export-pdf = { workspace = true, optional = true }
+oopz-model.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 jiff.workspace = true
@@ -22,6 +31,8 @@ zeroize.workspace = true
 
 [dev-dependencies]
 oopz = { workspace = true, features = ["fixtures"] }
+oopz-gen = { path = "../oopz-gen" }
+tempfile.workspace = true
 
 [lints]
 workspace = true

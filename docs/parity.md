@@ -31,3 +31,34 @@ names (`oopz export`), or prints as counts and positions.
 | `import_backup`, `save_result` | app only: Android's file picker hands the app references, not paths (decision 0012); the CLI takes paths | |
 | `open_link` | app only: the CLI's `--help` names the repository | |
 | `update_check`, `update_install`, `update_last_checked` | app only: the app updates itself (decision 0011); the CLI binary is replaced by hand | |
+
+## The library (every app, decision 0016)
+
+The library's commands run `oopz-core` (`Library`) and `oopz-export` / `oopz-export-pdf`. The CLI's library is the
+folder named with `--library`; the app's lives in its cache folder and is removed when it closes, unless "Keep my
+library" is on. Like the rest of the CLI, `oopz lib` prints counts, ids, dates and positions; names only with `--names`
+(a name that is a number or an address masked); text only into a file (`oopz lib export`).
+
+| App command | CLI command | Shared code |
+|---|---|---|
+| | `oopz lib` (the group) | |
+| | `oopz lib adapters` | `oopz_app::adapters` |
+| | `oopz lib import` | `Library::import_path` |
+| | `oopz lib sources` | `Library::sources` |
+| | `oopz lib remove` | `Library::remove_source` |
+| | `oopz lib set-me` | `Library::set_me` |
+| | `oopz lib convs` | `Library::conversations` |
+| | `oopz lib jump` | `Library::position_at`, `Library::conversation_len` |
+| | `oopz lib search` | `Library::search`, `Library::position` |
+| | `oopz lib timeline` | `Library::find` (`Order::Time`), `Library::count` |
+| | `oopz lib count` | `Library::count`, `Library::selected` |
+| | `oopz lib stats` | `Library::stats` |
+| | `oopz lib people` | `Library::people` |
+| | `oopz lib contacts` | `Library::contacts` |
+| | `oopz lib suggest`, `oopz lib accept` | `Library::suggestions`, `Library::accept` |
+| | `oopz lib link`, `oopz lib unlink` | `Library::link`, `Library::unlink` |
+| | `oopz lib rename`, `oopz lib forget` | `Library::rename_contact`, `Library::delete_contact` |
+| | `oopz lib vcard-import` | `Library::import_vcards` |
+| | `oopz lib vcard-export` | `oopz_export::export_contacts` |
+| | `oopz lib select`, `oopz lib selections`, `oopz lib unselect` | `Library::save_selection`, `Library::selections`, `Library::delete_selection` |
+| | `oopz lib export` (html, json, csv, txt, vcard, media-zip; pdf with the `pdf` feature) | `oopz_export::export`, `oopz_export_pdf::export_pdf` |
