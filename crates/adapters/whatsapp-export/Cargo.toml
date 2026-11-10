@@ -1,0 +1,19 @@
+[package]
+name = "oopz-whatsapp-export"
+description = "Reads WhatsApp's own \"Export chat\" (a .txt, a .zip with media, or a folder) into the oopz model (decision 0015)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+oopz-model.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+oopz-gen = { path = "../../oopz-gen" }
+tempfile.workspace = true
+
+[lints]
+workspace = true
