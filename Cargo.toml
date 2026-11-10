@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oopz-app", "crates/oopz-cli", "crates/oopz-core", "crates/oopz-export", "crates/oopz-export-pdf", "crates/oopz-gen", "crates/oopz-model", "crates/adapters/*"]
+members = ["crates/ios-backup", "crates/oopz-app", "crates/oopz-cli", "crates/oopz-core", "crates/oopz-export", "crates/oopz-export-pdf", "crates/oopz-gen", "crates/oopz-model", "crates/adapters/*"]
 # The Tauri shell has its own workspace: it needs a webview toolkit to build (docs/desktop-plan.md).
 exclude = ["apps/desktop/src-tauri"]
 
@@ -19,6 +19,8 @@ oopz-model = { path = "crates/oopz-model" }
 oopz-core = { path = "crates/oopz-core" }
 oopz-export = { path = "crates/oopz-export" }
 oopz-export-pdf = { path = "crates/oopz-export-pdf" }
+oopz-ios-backup = { path = "crates/ios-backup" }
+oopz-whatsapp-ios = { path = "crates/adapters/whatsapp-ios" }
 oopz-whatsapp-export = { path = "crates/adapters/whatsapp-export" }
 oopz-telegram-export = { path = "crates/adapters/telegram-export" }
 oopz-sms-xml = { path = "crates/adapters/sms-xml" }
@@ -37,6 +39,14 @@ flate2 = "1"
 # docs/decisions/0006: the backup footer (not for security) and a fresh IV.
 md-5 = "0.11"
 getrandom = "0.4"
+# docs/decisions/0018: an iPhone backup encrypted with its owner's password (keybag: PBKDF2 then AES key wrap; files:
+# AES-256-CBC), and its property lists.
+aes = "0.9"
+aes-kw = "0.3"
+cbc = "0.2"
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+sha1 = "0.11"
+plist = { version = "1", default-features = false }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }

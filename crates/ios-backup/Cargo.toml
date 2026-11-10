@@ -1,0 +1,32 @@
+[package]
+name = "oopz-ios-backup"
+description = "An iPhone's own Finder/iTunes backup, opened with the backup password its owner chose (decision 0018)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# Writes synthetic backups: for tests and oopz-gen only.
+write = ["dep:getrandom"]
+
+[dependencies]
+getrandom = { workspace = true, optional = true }
+aes.workspace = true
+aes-kw.workspace = true
+cbc.workspace = true
+pbkdf2.workspace = true
+plist.workspace = true
+rusqlite.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+oopz-ios-backup = { path = ".", features = ["write"] }
+
+[lints]
+workspace = true
