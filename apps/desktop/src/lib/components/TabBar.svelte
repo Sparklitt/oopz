@@ -1,5 +1,6 @@
 <script lang="ts">
   // On a phone-wide window, the sidebar becomes five tabs at the bottom; Backups, Library and Tools open a list page.
+  // Swiping sideways on the page moves between them.
   import { strings } from "../i18n";
   import { app, current, go, type View } from "../state.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
@@ -20,7 +21,53 @@
     ["librarymenu", "folder", t.lib.nav, true],
     ["tools", "grid", t.navTools, true],
   ]);
+
+  // A sideways swipe on the page moves to the next or previous open tab, as on most phone apps. Not on a sheet,
+  // a field, a slider or anything that scrolls sideways itself, and not from the screen's very edges (the system's).
+  const PHONE = "(max-width: 599px)";
+  let start: { x: number; y: number; at: number } | null = null;
+
+  function swipeable(target: EventTarget | null): boolean {
+    if (!(target instanceof Element) || target.closest("dialog, input, textarea, select, [data-noswipe]")) return false;
+    for (let el: Element | null = target; el && el !== document.body; el = el.parentElement) {
+      const x = getComputedStyle(el).overflowX;
+      if ((x === "auto" || x === "scroll") && el.scrollWidth > el.clientWidth + 1) return false;
+    }
+    return true;
+  }
+
+  function onTouchStart(e: TouchEvent) {
+    const p = e.touches[0];
+    const edge = 24;
+    start =
+      e.touches.length === 1 && matchMedia(PHONE).matches && p.clientX > edge && p.clientX < innerWidth - edge && swipeable(e.target)
+        ? { x: p.clientX, y: p.clientY, at: Date.now() }
+        : null;
+  }
+
+  function onTouchEnd(e: TouchEvent) {
+    const s = start;
+    start = null;
+    const p = e.changedTouches[0];
+    if (!s || !p || Date.now() - s.at > 700 || getSelection()?.toString()) return;
+    const dx = p.clientX - s.x;
+    const dy = p.clientY - s.y;
+    if (Math.abs(dx) < Math.max(64, innerWidth * 0.18) || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const open = tabs.filter(([, , , on]) => on).map(([view]) => view);
+    const next = open[open.indexOf(at) + (dx < 0 ? 1 : -1)];
+    if (!next) return;
+    go(next);
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const from = dx < 0 ? 32 : -32;
+      document.querySelector("main.content")?.animate(
+        [{ transform: `translateX(${from}px)`, opacity: 0.4 }, { transform: "none", opacity: 1 }],
+        { duration: 180, easing: "ease-out" },
+      );
+    }
+  }
 </script>
+
+<svelte:document ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={() => (start = null)} />
 
 <nav class="tabbar" aria-label={t.navLabel}>
   {#each tabs as [view, icon, label, on] (view)}
