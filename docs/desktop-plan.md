@@ -17,13 +17,13 @@ key, see what is inside, search it, merge a lost chat, put the result on the oth
 - **No message text, numbers or keys in logs, errors or tests.** The app does show the person's own messages on
   their own screen (search, chat viewer); that text never goes to a log or a file outside the app's private cache,
   except a web page the person asks to save (section 8.3).
-- **No home-made cryptography.** The app adds no cryptographic primitive; decryption stays in `crates/oopz`
+- **No home-made cryptography.** The app adds no cryptographic primitive; decryption stays in `crates/adapters/whatsapp-android` (the `oopz` crate)
   ([0004](decisions/0004-whatsapp-backup-decryption.md)).
 
 ## 1. Architecture
 
 ```
-crates/oopz          WhatsApp's format: crypt15, schema, Backup, ChatMerge, fixtures      (exists)
+crates/adapters/whatsapp-android (`oopz`) WhatsApp's format: crypt15, schema, Backup, ChatMerge, fixtures      (exists)
 crates/oopz-app      the app's logic without a UI toolkit: find/check/merge, the Wi-Fi     (new, in the workspace)
                      receive page, the search index and stats; plain Rust, tested
 apps/desktop/        Tauri 2 shell (src-tauri/: commands wrap oopz-app one to one)        (new, own Cargo workspace)

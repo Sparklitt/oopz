@@ -7,7 +7,7 @@ Thanks for helping. A few rules come first, because oopz works on people's priva
 - **Never attach a real backup, key, `Media/` file, screenshot of a chat or phone number** to an issue, pull request,
   test or commit, yours or anyone else's. Describe what you saw instead: the WhatsApp version, the command, oopz's
   output (it is counts and masked ids by design) and, if it helps, the table and column names from `oopz tables`.
-- Tests use the synthetic backups in `crates/oopz/src/fixture.rs` (the `fixtures` feature): invented people, numbers
+- Tests use the synthetic backups in `crates/adapters/whatsapp-android/src/fixture.rs` (the `fixtures` feature): invented people, numbers
   such as `999900000001`, invented messages, encrypted with a test key. Extend them to reproduce a new case.
 - For a backup to click through or to time, `oopz-gen` writes one of any size, phone-shaped (`Databases/`,
   `Media/`, `key.txt`, `manifest.txt` with the counts): `cargo run --release -p oopz-gen -- OUT --preset P`, where P

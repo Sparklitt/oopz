@@ -2786,6 +2786,7 @@ dependencies = [
  "image",
  "jiff",
  "oopz",
+ "oopz-model",
  "qrcode",
  "rusqlite",
  "serde",
@@ -2814,6 +2815,14 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "zeroize",
+]
+
+[[package]]
+name = "oopz-model"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

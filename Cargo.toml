@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/oopz", "crates/oopz-app", "crates/oopz-cli", "crates/oopz-gen", "crates/oopz-model"]
+members = ["crates/oopz-app", "crates/oopz-cli", "crates/oopz-gen", "crates/oopz-model", "crates/adapters/*"]
 # The Tauri shell has its own workspace: it needs a webview toolkit to build (docs/desktop-plan.md).
 exclude = ["apps/desktop/src-tauri"]
 
@@ -13,7 +13,7 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
-oopz = { path = "crates/oopz" }
+oopz = { path = "crates/adapters/whatsapp-android" }
 oopz-app = { path = "crates/oopz-app" }
 oopz-model = { path = "crates/oopz-model" }
 

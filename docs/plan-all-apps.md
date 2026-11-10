@@ -119,7 +119,7 @@ crates/
   oopz-core         library: open, index, search, select, stats, over the model (today's oopz-app logic, moved)
   oopz-export       HTML, JSON, CSV, TXT, vCard; oopz-export-pdf behind a feature (a PDF writer is a big dependency)
   adapters/
-    whatsapp-android   today's crates/oopz (crypt15, schema, merge)
+    whatsapp-android   the `oopz` crate (crypt15, schema, merge; moved here, decision 0014)
     whatsapp-export    WhatsApp "Export chat" text
     whatsapp-ios       iPhone backup → ChatStorage.sqlite
     telegram-export, signal-android, line-export, viber, sms-xml, meta-export, imessage

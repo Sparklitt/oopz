@@ -77,7 +77,7 @@ result is a new file.
 
 ## Built (2026-10-23)
 
-`oopz restore`, in `crates/oopz/src/merge.rs`, tested on a synthetic two-phone fixture. Where the code settles what
+`oopz restore`, in `crates/oopz/src/merge.rs` (now `crates/adapters/whatsapp-android`, 0014), tested on a synthetic two-phone fixture. Where the code settles what
 the text above left open:
 
 - **References are found by name, not listed by hand.** Schemas have about 200 tables pointing at messages, so every
