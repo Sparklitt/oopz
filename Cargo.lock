@@ -970,7 +970,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "oopz"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes-gcm",
  "flate2",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fs4",
  "getrandom",
@@ -1016,7 +1016,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fs4",
  "hex",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-export"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "csv",
  "fs4",
@@ -1065,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-export-pdf"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "krilla",
  "oopz-core",
@@ -1079,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-gen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-ios-backup"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes",
  "aes-kw",
@@ -1117,7 +1117,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-line-export"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "oopz-gen",
  "oopz-model",
@@ -1126,7 +1126,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-model"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1135,7 +1135,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-sms-xml"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "oopz-gen",
@@ -1146,7 +1146,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-telegram-export"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "oopz-gen",
  "oopz-model",
@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-viber-export"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "csv",
  "oopz-gen",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-whatsapp-export"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "oopz-gen",
  "oopz-model",
@@ -1178,7 +1178,7 @@ dependencies = [
 
 [[package]]
 name = "oopz-whatsapp-ios"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "oopz-gen",
  "oopz-ios-backup",

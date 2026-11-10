@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-10
+
 ### Added
 
 - **More apps, one library.** Besides WhatsApp on Android, oopz now reads an iPhone's own Finder/iTunes backup
