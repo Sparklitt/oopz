@@ -9,6 +9,11 @@ Thanks for helping. A few rules come first, because oopz works on people's priva
   output (it is counts and masked ids by design) and, if it helps, the table and column names from `oopz tables`.
 - Tests use the synthetic backups in `crates/oopz/src/fixture.rs` (the `fixtures` feature): invented people, numbers
   such as `999900000001`, invented messages, encrypted with a test key. Extend them to reproduce a new case.
+- For a backup to click through or to time, `oopz-gen` writes one of any size, phone-shaped (`Databases/`,
+  `Media/`, `key.txt`, `manifest.txt` with the counts): `cargo run --release -p oopz-gen -- OUT --preset P`, where P
+  is `small` (thousands of messages), `million` (one chat of a million, about 11 s), `stress` (thousands of chats) or
+  `edge` (every kind of message and the odd rows that break readers). `--help` lists the rest: seed, sizes, years,
+  `--only text,voice`, `--media none`, `--keep-plain`. The same seed gives the same backup.
 - Output, errors and logs never contain message text, media, numbers or keys. A change that prints one won't be merged.
 
 ## The rules of the code

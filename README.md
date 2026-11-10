@@ -69,13 +69,18 @@ The desktop app: download the installer for your system from the
   choose **Open Anyway**.
 - **Linux**: `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) or `.AppImage` (any; make it executable).
 
+The command-line tool `oopz`: `oopz-cli-<version>-<system>.tar.gz` (`.zip` on Windows) from the same release, for
+Linux (x86_64, arm64), Windows (x86_64) and macOS (universal). Unpack it and put `oopz` on your `PATH`; on macOS, if
+it's blocked, run `xattr -d com.apple.quarantine oopz` once.
+
 To check a download is the one built here from this source, compare its hash with the release's `SHA256SUMS.txt`
 (`sha256sum <file>`, or `Get-FileHash <file>` in PowerShell) and verify its provenance with the GitHub CLI:
 `gh attestation verify <file> --repo Sparklitt/oopz`.
 
 ## Quick start (command line)
 
-You need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C compiler (SQLite is built from source).
+Use a release binary (above), or build it: you need Rust 1.89 or newer ([rustup.rs](https://rustup.rs)) and a C
+compiler (SQLite is built from source).
 
 ```sh
 git clone https://github.com/sparklitt/oopz && cd oopz
@@ -96,14 +101,23 @@ Every command that opens a backup asks for its 64-digit key.
 
 ## Usage
 
+Each command does what the desktop app's matching screen does, with the same code ([docs/parity.md](docs/parity.md)).
+The terminal shows counts, dates and masked ids only; message text goes only into a file you name (`oopz export`).
+
 | Command | What it does |
 |---|---|
-| `oopz backups --dir <folder>` | Checks every `*.crypt15` in a folder with one key: does it open, is its database sound, how many chats and messages, the newest message's date. Fails if any backup doesn't pass (another key, damaged, cut off). |
+| `oopz backups --dir <folder or file>` | Checks every backup in a folder with one key: does it open, is its database sound, how many chats and messages, the newest message's date. Older formats are listed, not opened. Fails if any backup doesn't pass (another key, damaged, cut off). |
+| `oopz check --backup <file>` | What's inside one backup: soundness, counts, dates, the file's SHA-256 fingerprint. |
 | `oopz chats --backup <file>` | Lists the chats in a backup: number, masked id, messages, last message's date. |
+| `oopz stats --backup <file> [--chat N]` | Messages by month, hour and type, voice minutes, who writes most (masked). |
+| `oopz search --backup <file> --query <words> [--chat N]` | Where your words appear (chat, date, sent or received, position), never the text. Accents and case don't matter. |
+| `oopz export --backup <file> [--chat N] --out-dir <folder> [--lang es]` | Saves the stats (and a chat's messages) as a web page in a new file. It isn't encrypted: keep it private. |
+| `oopz missing --a <file> --chat-a N --b <file> --chat-b M` | What's missing between two backups' copies of the same chat, matched by message id. |
+| `oopz restore --source <file> --source-chat N --target <file> --target-chat M --out-dir <folder> [--media <folder>]` | Restores a lost one-to-one chat into a new `oopz-result-N` folder (see below). |
+| `oopz receive --out-dir <folder>` | Receives a backup from the phone over your Wi-Fi: a QR code in the terminal, files saved in a new folder. |
 | `oopz types --backup <file> --chat N` | For each WhatsApp message type in chat N: counts and which tables its rows link to. No content. |
 | `oopz tables --backup <file>` | Every table with its columns and row count. Structure only, no values. |
 | `oopz chat-facts --backup <file> --chat N` | How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only; useful to compare two phones. |
-| `oopz restore --source <file> --source-chat N --target <file> --target-chat M --out <new file> [--media <folder> --media-out <new folder>]` | Restores a lost one-to-one chat (see below). |
 
 `oopz --help` and `oopz <command> --help` describe every flag.
 
@@ -117,8 +131,9 @@ owner. It asks for the source's key, then the target's.
 - Nothing the target has is changed or lost; added messages are placed before the target's own, in order.
 - Before writing, the result is decrypted again and checked (database integrity, counts, ordering, references, every
   other chat identical). If any check fails, nothing is written.
-- With `--media` (a copy of the source phone's `Media/` folder) and `--media-out`, the files the result needs that the
-  target lacks are copied out, laid out like the target's `Media/` folder.
+- The result is a new `oopz-result-N` folder laid out like WhatsApp's (`Databases/msgstore.db.crypt15`); nothing is
+  ever overwritten. With `--media` (a copy of the source phone's `Media/` folder), the files it needs are copied into
+  its `Media/`.
 - Afterwards, run `oopz chat-facts` on the result.
 
 > [!WARNING]
@@ -156,8 +171,9 @@ account owner decides and accepts that risk. This is not legal advice.
 <details>
 <summary><b>Does it upload anything?</b></summary>
 
-No. oopz has no telemetry and never uploads backups, keys or results. The command line makes no network connections
-at all. The desktop app goes online only to check for updates, and only if you switch that on or click "Check for
+No. oopz has no telemetry and never uploads backups, keys or results. The command line connects to nothing; only
+`oopz receive` opens a page on your local network, for your phone, while it runs. The desktop app does the same for
+"Receive over Wi-Fi", and goes online only to check for updates, and only if you switch that on or click "Check for
 updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)).
 </details>
 
@@ -165,8 +181,17 @@ updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)).
 <summary><b>Which backups does it support?</b></summary>
 
 WhatsApp's end-to-end encrypted Android backups, `msgstore.db.crypt15`, opened with the 64-digit key. Older formats
-(`crypt12`, `crypt14`) and iPhone backups are not supported. WhatsApp's database changes between versions; oopz reads
-what it finds and checks its results, and `oopz tables` helps when something looks different.
+(`crypt12`, `crypt14`) and iPhone backups are not supported.
+</details>
+
+<details>
+<summary><b>What if a WhatsApp update changes its database?</b></summary>
+
+oopz reads tables and columns by name, not position. New tables and columns are ignored; missing optional ones (calls,
+reactions, polls…) just leave those details out; a value of an unexpected type in one row doesn't stop the rest. If
+something oopz needs is gone, it says which table or column, and opens nothing. A restore into a phone whose newer
+WhatsApp needs data the other phone's backup doesn't have is refused by name, before anything is written; what can't be
+carried over is listed. `oopz tables` shows the structure (never values) for a bug report.
 </details>
 
 <details>
@@ -175,15 +200,24 @@ what it finds and checks its results, and `oopz tables` helps when something loo
 No. Without its key a crypt15 backup cannot be opened, and oopz will never try.
 </details>
 
+## Privacy
+
+- Your backups, keys and messages never leave your computer: no account, no cloud, no telemetry, no analytics.
+- Keys are used once to open a backup, then wiped from memory; never saved, logged or sent.
+- Originals are only read. Decrypted copies live in a private temporary folder and are removed when oopz closes (after
+  a crash, on its next start).
+- The only network use is the local Wi-Fi page for your phone (while you use it) and the update check, which is off
+  unless you turn it on: it asks GitHub for the latest version's number, and GitHub sees your IP address.
+- Output, errors and logs hold counts and masked ids, never message text, phone numbers or keys.
+
 ## Roadmap
 
-- [x] `backups`, `chats`, `types`, `tables`, `chat-facts`: check and inspect.
-- [x] `restore`: a lost one-to-one chat, checked before it is written.
-- [ ] **`view`**: an offline HTML viewer of your own backup, with stats (coming).
-- [ ] **`check`**: a backup health report you can keep (coming).
-- [ ] **Desktop app** (Tauri 2, English and Spanish): step by step from the phone to a merged backup, with stats
-  and fast search; a first version is in [`apps/desktop`](apps/desktop) ([plan](docs/desktop-plan.md)).
-- [ ] Release binaries for Linux, macOS and Windows.
+- [x] `backups`, `check`, `chats`, `stats`, `search`, `missing`, `types`, `tables`, `chat-facts`: check and inspect.
+- [x] `restore`: a lost one-to-one chat, checked before it is written. `export`: a web page of your own backup.
+- [x] Desktop app (Tauri 2, English and Spanish), doing what the CLI does ([parity](docs/parity.md)).
+- [x] Release binaries for Linux, macOS and Windows.
+- [ ] A new desktop design; an Android app ([plan](docs/desktop-plan.md) §12).
+- [ ] Signed installers (macOS notarization, Windows).
 
 ## Contributing
 

@@ -5,6 +5,31 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `oopz-gen` (not released): writes synthetic WhatsApp backups of any size for testing, with every kind of message.
+
+- The CLI does what the app does, with the same code ([docs/parity.md](docs/parity.md)): new `check`, `stats`,
+  `search` (where, never the text), `export` (a web page, to a file), `missing` and `receive` (over Wi-Fi, a QR code
+  in the terminal). A test fails if a command is added to one and not the other.
+- The app has the CLI's diagnostics as commands (tables, types, chat facts) for problem reports.
+- Release binaries of the CLI for Linux (x86_64, arm64), Windows and macOS.
+
+### Changed
+
+- `oopz restore` writes a new `oopz-result-N` folder (`--out-dir`), media in its `Media/` (`--media`), as the app
+  does; `--out` and `--media-out` are gone.
+
+### Fixed
+
+- A folder scan no longer lists WhatsApp's contacts backup (`wa.db.crypt15`) and its other non-message backups as
+  message backups (the app could take `wa.db.crypt15` for the current backup; `oopz backups` failed on it).
+- "What's missing" no longer fails on a message row with no time.
+- One value of an unexpected type (a time that is text, a type that is missing) no longer stops a whole backup from
+  opening.
+- A restore into a phone whose newer WhatsApp requires data the source lacks is refused naming the column, instead of
+  failing as if the backup were damaged.
+
 ## [0.1.0] - 2026-10-31
 
 ### Added
