@@ -267,6 +267,13 @@ export interface Backend {
   /** The file and folder pickers: a path, or null when the person cancels. */
   pickFolder(): Promise<string | null>;
   pickFile(): Promise<string | null>;
+  /** The system's save picker, for a file named `name`: where to write it (on Android a content:// reference). */
+  pickSave(name: string): Promise<string | null>;
+  /** Android: copies a picked content:// backup into the app's private folder (free space checked first) and returns
+   *  the copy's path, which the other commands open like any path. Fails with no_space or io. */
+  importBackup(uri: string): Promise<string>;
+  /** Copies a file inside a result folder this run made to where the person picked; returns the bytes written. */
+  saveResult(from: string, to: string): Promise<number>;
   appVersion(): Promise<string>;
 
   findBackups(path: string): Promise<BackupFile[]>;

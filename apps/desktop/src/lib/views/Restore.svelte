@@ -5,9 +5,10 @@
   import PageHead from "../components/PageHead.svelte";
   import PairPicker from "../components/PairPicker.svelte";
   import PathRow from "../components/PathRow.svelte";
+  import SaveButton from "../components/SaveButton.svelte";
   import { date, fmt } from "../format";
   import { strings } from "../i18n";
-  import { app, be, go, run } from "../state.svelte";
+  import { app, be, go, onPhone, run } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let m = app.merge;
@@ -17,7 +18,9 @@
   let mi = $derived(app.missing);
   let o = $derived(app.outcome);
   let pairOk = $derived(!!m.sourceChat && !!m.targetChat && m.source !== m.target);
-  let ready = $derived(!app.busy && !!m.out && pairOk);
+  // On Android the result is made in the private folder and saved from there; no Media folder can be picked.
+  let out = $derived(onPhone() ? (app.privateDir ?? "") : m.out);
+  let ready = $derived(!app.busy && !!out && pairOk);
   const span = (first: number | null, last: number | null) => (first ? `${date(first)} – ${date(last)}` : undefined);
 
   async function folder(set: (v: string) => void) {
@@ -34,7 +37,7 @@
     const targetKey = key;
     key = "";
     const outcome = await run(() =>
-      be().mergeChat({ source: m.source, source_chat: m.sourceChat, target: m.target, target_chat: m.targetChat, target_key: targetKey, out_parent: m.out, media: m.media || null }),
+      be().mergeChat({ source: m.source, source_chat: m.sourceChat, target: m.target, target_chat: m.targetChat, target_key: targetKey, out_parent: out, media: onPhone() ? null : m.media || null }),
     );
     if (outcome) {
       app.outcome = outcome;
@@ -66,7 +69,11 @@
           {/if}
         </div>
         {#if o.original_untouched}<div class="note ok"><Icon name="shield" /><span>{t.untouched}</span></div>{/if}
-        <PathRow folder={o.folder} shown={o.backup} />
+        {#if onPhone()}
+          <SaveButton from="{o.folder}/Databases/msgstore.db.crypt15" name="msgstore.db.crypt15" />
+        {:else}
+          <PathRow folder={o.folder} shown={o.backup} />
+        {/if}
         <details class="checks">
           <summary>{t.checksDone(o.checks.length)}</summary>
           <ul>{#each o.checks as c, i (i)}<li class="mono">{c}</li>{/each}</ul>
@@ -97,6 +104,7 @@
           <KeyBoxes bind:value={key} id="target-key" label={t.targetKey} describedby="target-key-hint" compact disabled={app.busy} />
           <p class="hint" id="target-key-hint">{t.targetKeyHint}</p>
         </div>
+        {#if !onPhone()}
         <div class="field">
           <span class="label" id="out-label">{t.outFolder}</span>
           <div class="folder-row">
@@ -114,6 +122,7 @@
           </div>
           <p class="hint">{t.mediaFolderHint}</p>
         </div>
+        {/if}
       </li>
       <li>
         <h2 class="h2"><span class="n">3</span>{t.mergeRun}</h2>

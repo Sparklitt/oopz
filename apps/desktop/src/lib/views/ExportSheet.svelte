@@ -3,10 +3,11 @@
   import Icon from "../components/Icon.svelte";
   import IndexGate from "../components/IndexGate.svelte";
   import PathRow from "../components/PathRow.svelte";
+  import SaveButton from "../components/SaveButton.svelte";
   import Sheet from "../components/Sheet.svelte";
   import { chatName } from "../format";
   import { strings } from "../i18n";
-  import { app, be, current, run } from "../state.svelte";
+  import { app, be, current, onPhone, run } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let s = $derived(current()!);
@@ -15,7 +16,8 @@
   let saved = $state("");
 
   async function save() {
-    const dir = await be().pickFolder();
+    // On Android the page is made in the private folder, then saved where the person picks.
+    const dir = onPhone() ? app.privateDir : await be().pickFolder();
     if (!dir) return;
     const chat = withChat && chatRow ? chatRow.number : null;
     const heading = chat !== null && chatRow ? `${chatRow.number} · ${chatName(chatRow)}` : t.wholeBackup;
@@ -54,13 +56,17 @@
     <div class="note warn"><Icon name="unlock" /><span>{t.exportNote}</span></div>
     <ErrorNote error={app.error} />
     {#if saved}
-      <div class="note ok" role="status"><Icon name="check" /><span>{t.exportSaved}:</span></div>
-      <PathRow folder={saved.replace(/[\\/][^\\/]*$/, "")} shown={saved} />
+      {#if onPhone()}
+        <SaveButton from={saved} name={saved.replace(/^.*[\\/]/, "")} />
+      {:else}
+        <div class="note ok" role="status"><Icon name="check" /><span>{t.exportSaved}:</span></div>
+        <PathRow folder={saved.replace(/[\\/][^\\/]*$/, "")} shown={saved} />
+      {/if}
     {/if}
   </IndexGate>
   {#snippet footer()}
     <button class="btn" onclick={close}>{saved ? t.close : t.cancel}</button>
-    <button class="btn primary" disabled={app.busy || !app.index[s.id]?.built} onclick={save}><Icon name="download" />{t.exportButton}</button>
+    <button class="btn primary" disabled={app.busy || !app.index[s.id]?.built || (onPhone() && !app.privateDir)} onclick={save}><Icon name="download" />{t.exportButton}</button>
   {/snippet}
 </Sheet>
 

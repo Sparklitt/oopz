@@ -3,7 +3,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Backend, OnProgress, Step } from "./types";
 
 /** A channel Rust sends progress on: the step, thousandths done, seconds left. */
@@ -23,6 +23,9 @@ export const tauri: Backend = {
   platform: /Android/.test(navigator.userAgent) ? "android" : "desktop",
   pickFolder: () => pick(true),
   pickFile: () => pick(false),
+  pickSave: async (name) => (await save({ defaultPath: name })) ?? null,
+  importBackup: (uri) => invoke("import_backup", { uri }),
+  saveResult: (from, to) => invoke("save_result", { from, to }),
   appVersion: () => getVersion(),
   findBackups: (path) => invoke("find_backups", { path }),
   checkBackup: (path, key, onProgress) => invoke("check_backup", { path, key, progress: progress(onProgress) }),

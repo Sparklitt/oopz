@@ -6,7 +6,9 @@
 // 64 hex characters is the wrong key. "Choose a backup file" picks a crypt14 file. The 2025 backup opens with a
 // damaged database. Update checks answer in turn: a new version, none, a failure. ?platform=android in the address
 // shows what a phone shows. Any phone number in here starts with 9999 (no such numbers exist). In the console,
-// __oopzDrop(["/home/you/Phone/Databases/msgstore.db.crypt15"]) acts like dropping that file on the window.
+// __oopzDrop(["/home/you/Phone/Databases/msgstore.db.crypt15"]) acts like dropping that file on the window. With
+// ?platform=android, picking a file gives a content:// reference to import; add &nospace and the import fails for
+// lack of space.
 import pkg from "../../../package.json";
 import type { Backend, BackupFile, Call, ChatRow, Filter, Hit, Line, Media, Missing, OnProgress, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
 
@@ -326,6 +328,10 @@ export function createMock(): Backend {
     { path: `${FOLDER}/msgstore-2021-01-01.1.db.crypt14`, name: "msgstore-2021-01-01.1.db.crypt14", bytes: 412_000_000, kind: "crypt14" },
   ];
   const CRYPT14 = "/home/you/Downloads/msgstore-2021-01-01.1.db.crypt14";
+  const params = new URLSearchParams(location.search);
+  const android = params.get("platform") === "android";
+  const PICKED = "content://com.android.externalstorage.documents/document/primary%3AAndroid%2Fmedia%2Fcom.whatsapp%2FWhatsApp%2FDatabases%2Fmsgstore.db.crypt15";
+  const PRIVATE = "/data/user/0/app.oopz/cache/decrypted/session-x1y2/imported-a1b2";
   const opened = new Map<number, Summary & { path: string; older: boolean }>();
   const statsCache = new Map<string, Stats>();
   let nextId = 1;
@@ -400,9 +406,21 @@ export function createMock(): Backend {
 
   return {
     // ?platform=android shows the phone's screens in a browser.
-    platform: new URLSearchParams(location.search).get("platform") === "android" ? "android" : "desktop",
+    platform: android ? "android" : "desktop",
     pickFolder: async () => FOLDER,
-    pickFile: async () => CRYPT14,
+    pickFile: async () => (android ? PICKED : CRYPT14),
+    pickSave: async (name) => (android ? `content://com.android.providers.downloads.documents/document/${encodeURIComponent(name)}` : `/home/you/Downloads/${name}`),
+    async importBackup(uri) {
+      await sleep(600);
+      if (!uri.startsWith("content://")) fail("not_found", "not a file reference");
+      if (params.has("nospace")) fail("no_space", "310 MB free; this backup needs about 6020 MB");
+      return `${PRIVATE}/msgstore.db.crypt15`;
+    },
+    async saveResult(from) {
+      await sleep(400);
+      if (!from.startsWith(PRIVATE)) fail("io", "not a file oopz made");
+      return from.endsWith(".html") ? 2_310_000 : 1_204_000_000;
+    },
     appVersion: async () => pkg.version,
 
     async findBackups(path) {
@@ -410,6 +428,7 @@ export function createMock(): Backend {
       if (path === CRYPT14) return [{ path, name: "msgstore-2021-01-01.1.db.crypt14", bytes: 412_000_000, kind: "crypt14" }];
       const one = FILES.find((f) => f.path === path);
       if (one) return [one];
+      if (path === `${PRIVATE}/msgstore.db.crypt15`) return [{ ...FILES[0], path }];
       if (receive && path === receive.dest) return receiveStatus().files.map((f): BackupFile => ({ path: `${path}/${f.name}`, name: f.name, bytes: f.bytes, kind: "crypt15" }));
       return FILES;
     },

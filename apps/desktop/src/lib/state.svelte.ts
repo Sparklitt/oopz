@@ -58,6 +58,8 @@ export const app = $state({
   query: "",
   index: {} as Record<number, IndexState>,
   receive: null as { info: ReceiveInfo; status: ReceiveStatus } | null,
+  /** Android: the private folder the last picked backup was copied into; results are made there, then saved. */
+  privateDir: null as string | null,
   /** The Media (or WhatsApp) folder photos are shown from, picked by the person; null: placeholders. */
   mediaFolder: null as string | null,
   /** The chat the export sheet saves, or null for the whole backup. */
@@ -150,6 +152,16 @@ export async function listBackups(path: string) {
     app.files = files;
     app.sheet = "found";
   }
+}
+
+/** Android: the picked backup (a content:// reference) is copied into the private folder, then opened like a path. */
+export async function importPicked() {
+  const uri = await backend.pickFile();
+  if (!uri) return;
+  const path = await run(() => backend.importBackup(uri));
+  if (!path) return;
+  app.privateDir = path.replace(/[\\/][^\\/]*$/, "");
+  await dropBackup(path);
 }
 
 /** A file or folder dropped on Add backup: one crypt15 file goes straight to its key; anything else is listed. */
@@ -291,7 +303,7 @@ export async function installUpdate() {
 
 /** Forgets every open backup in the UI, after Rust closed them all. */
 function closedAll() {
-  Object.assign(app, { summaries: [], currentId: null, chat: null, searchChat: null, query: "", jump: null, index: {}, files: null, unlocking: null, outcome: null, missing: null, phoneChecks: [], receive: null });
+  Object.assign(app, { summaries: [], currentId: null, chat: null, searchChat: null, query: "", jump: null, index: {}, files: null, unlocking: null, outcome: null, missing: null, phoneChecks: [], receive: null, privateDir: null });
   window.clearInterval(poll);
 }
 

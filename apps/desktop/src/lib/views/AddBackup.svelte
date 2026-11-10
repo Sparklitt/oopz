@@ -4,7 +4,7 @@
   import Icon from "../components/Icon.svelte";
   import { strings } from "../i18n";
   import { onMount } from "svelte";
-  import { app, be, dropBackup, go, listBackups, onPhone } from "../state.svelte";
+  import { app, be, dropBackup, go, importPicked, listBackups, onPhone } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
 
@@ -16,6 +16,8 @@
   );
 
   async function pick(folder: boolean) {
+    // Android's picker gives a content:// reference: oopz copies the file in first.
+    if (onPhone()) return importPicked();
     const path = folder ? await be().pickFolder() : await be().pickFile();
     if (path) await listBackups(path);
   }
@@ -40,11 +42,13 @@
 
   <p class="get-lead">{t.getLead}</p>
   <div class="cards">
-    <button class="card" disabled={app.busy} onclick={() => pick(true)}>
-      <Icon name="folder" size={26} />
-      <strong>{t.pickFolder}</strong>
-      <span>{t.fromFolderHint}</span>
-    </button>
+    {#if !onPhone()}
+      <button class="card" disabled={app.busy} onclick={() => pick(true)}>
+        <Icon name="folder" size={26} />
+        <strong>{t.pickFolder}</strong>
+        <span>{t.fromFolderHint}</span>
+      </button>
+    {/if}
     <button class="card" disabled={app.busy} onclick={() => pick(false)}>
       <Icon name="file" size={26} />
       <strong>{t.pickFile}</strong>
