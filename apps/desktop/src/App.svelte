@@ -81,7 +81,7 @@
 <style>
   .shell {
     display: flex;
-    height: 100vh;
+    height: calc(100vh - var(--top-inset, 0px));
     min-height: 0;
   }
   .content {

@@ -212,7 +212,19 @@ body {
   height: 100%;
   overflow: hidden;
 }
+/* Android draws the page under the status bar: keep clear of it. Old WebViews (Chrome 67) have no env() or max(),
+   so a fixed 24px first; newer ones take the system's inset when it is larger. */
+:root[data-platform="android"] {
+  --top-inset: 24px;
+}
+@supports (padding-top: max(0px, env(safe-area-inset-top))) {
+  :root[data-platform="android"] {
+    --top-inset: max(24px, env(safe-area-inset-top));
+  }
+}
 body {
+  padding-top: var(--top-inset, 0px);
+  box-sizing: border-box;
   background: var(--bg);
   color: var(--text);
   font: 15px/1.5 var(--font);

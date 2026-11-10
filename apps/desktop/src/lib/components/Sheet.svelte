@@ -164,6 +164,8 @@
       max-width: 100%;
       height: 100%;
       max-height: 100%;
+      box-sizing: border-box;
+      padding-top: var(--top-inset, 0px);
       margin: 0;
       border: 0;
       border-radius: 0;

@@ -84,6 +84,8 @@ let backend: Backend;
 export function setBackend(b: Backend) {
   backend = b;
   usePhoneWords(onPhone());
+  // For the CSS: on Android the page starts below the status bar.
+  document.documentElement.dataset.platform = b.platform;
 }
 /** The app runs on the phone itself: no receiving over Wi-Fi from a phone. */
 export const onPhone = () => backend.platform === "android";
