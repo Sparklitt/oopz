@@ -1,5 +1,5 @@
-// Typed calls to the Rust commands (apps/desktop/src-tauri/src/lib.rs). The shapes mirror crates/oopz-app.
-import { Channel, invoke } from "@tauri-apps/api/core";
+// What the UI needs from the backend, and the data it gets back. The shapes mirror crates/oopz-app's serialized
+// structs; tauri.ts maps each call to a Rust command (apps/desktop/src-tauri/src/lib.rs), mock.ts invents the data.
 
 export type BackupKind = "crypt15" | "crypt14" | "crypt12" | "not_crypt15";
 
@@ -32,6 +32,16 @@ export interface Summary {
   one_to_one: number;
   groups: number;
   chat_list: ChatRow[];
+}
+
+export interface MergeForm {
+  source: number;
+  source_chat: number;
+  target: number;
+  target_chat: number;
+  target_key: string;
+  out_parent: string;
+  media: string | null;
 }
 
 export interface MergeOutcome {
@@ -111,8 +121,10 @@ export interface Line {
   id: number;
   ts: number;
   from_me: boolean;
+  /** WhatsApp's message type code (0 text, 1 photo, 2 audio, 3 video, 9 document, 20 sticker, …). */
   kind: number;
   text: string | null;
+  /** The last 3 characters of the sender's id, in a group. */
   sender: string | null;
 }
 
@@ -129,6 +141,10 @@ export interface Stats {
   senders: [string, number][];
 }
 
+export interface UpdateFound {
+  version: string;
+}
+
 /** An error from Rust: a stable code the UI words, and an English detail. */
 export interface AppError {
   code: string;
@@ -139,55 +155,39 @@ export function isAppError(e: unknown): e is AppError {
   return typeof e === "object" && e !== null && "code" in e && "detail" in e;
 }
 
-/** A channel Rust sends progress on, in thousandths. */
-function progress(onProgress: (perMille: number) => void): Channel<number> {
-  const channel = new Channel<number>();
-  channel.onmessage = onProgress;
-  return channel;
-}
+/** Thousandths done of a long step. */
+export type OnProgress = (perMille: number) => void;
 
-export const api = {
-  findBackups: (path: string) => invoke<BackupFile[]>("find_backups", { path }),
+export interface Backend {
+  /** The file and folder pickers: a path, or null when the person cancels. */
+  pickFolder(): Promise<string | null>;
+  pickFile(): Promise<string | null>;
+  appVersion(): Promise<string>;
+
+  findBackups(path: string): Promise<BackupFile[]>;
   /** The key goes to Rust for this one call; the caller clears its input right away. */
-  checkBackup: (path: string, key: string, onProgress: (perMille: number) => void) =>
-    invoke<Summary>("check_backup", { path, key, progress: progress(onProgress) }),
-  forgetBackup: (id: number) => invoke<void>("forget_backup", { id }),
-  checkedBackups: () => invoke<Summary[]>("checked_backups"),
-  mergeChat: (form: {
-    source: number;
-    source_chat: number;
-    target: number;
-    target_chat: number;
-    target_key: string;
-    out_parent: string;
-    media: string | null;
-  }) => invoke<MergeOutcome>("merge_chat", { form }),
+  checkBackup(path: string, key: string, onProgress: OnProgress): Promise<Summary>;
+  forgetBackup(id: number): Promise<void>;
+  checkedBackups(): Promise<Summary[]>;
+  mergeChat(form: MergeForm): Promise<MergeOutcome>;
   /** Saves stats (and a chat's messages) as a web page in a new file in `outDir`; returns its path. */
-  exportPage: (id: number, chat: number | null, labels: ExportLabels, outDir: string) =>
-    invoke<string>("export_page", { id, chat, labels, outDir }),
+  exportPage(id: number, chat: number | null, labels: ExportLabels, outDir: string): Promise<string>;
   /** Opens a folder this run of the app made (a result, or where a page was saved) in the file manager. */
-  showFolder: (folder: string) => invoke<void>("show_folder", { folder }),
-  missing: (a: number, chatA: number, b: number, chatB: number) =>
-    invoke<Missing>("missing", { a, chatA, b, chatB }),
-  buildIndex: (id: number, onProgress: (perMille: number) => void) =>
-    invoke<BuildInfo>("build_index", { id, progress: progress(onProgress) }),
-  search: (id: number, query: string, chat: number | null) => invoke<Hit[]>("search", { id, query, chat }),
-  stats: (id: number, chat: number | null) => invoke<Stats>("stats", { id, chat }),
-  chatLen: (id: number, chat: number) => invoke<number>("chat_len", { id, chat }),
-  chatLines: (id: number, chat: number, from: number, count: number) =>
-    invoke<Line[]>("chat_lines", { id, chat, from, count }),
-  messagePosition: (id: number, message: number) =>
-    invoke<[number, number] | null>("message_position", { id, message }),
-  receiveStart: (parent: string) => invoke<ReceiveInfo>("receive_start", { parent }),
-  receiveStatus: () => invoke<ReceiveStatus>("receive_status"),
-  receiveStop: () => invoke<ReceiveStatus>("receive_stop"),
+  showFolder(folder: string): Promise<void>;
+  missing(a: number, chatA: number, b: number, chatB: number): Promise<Missing>;
+  buildIndex(id: number, onProgress: OnProgress): Promise<BuildInfo>;
+  search(id: number, query: string, chat: number | null): Promise<Hit[]>;
+  stats(id: number, chat: number | null): Promise<Stats>;
+  chatLen(id: number, chat: number): Promise<number>;
+  /** `count` messages of a chat from position `from`, oldest first. */
+  chatLines(id: number, chat: number, from: number, count: number): Promise<Line[]>;
+  /** The chat and position of a message, for jumping from a search result to it. */
+  messagePosition(id: number, message: number): Promise<[number, number] | null>;
+  receiveStart(parent: string): Promise<ReceiveInfo>;
+  receiveStatus(): Promise<ReceiveStatus>;
+  receiveStop(): Promise<ReceiveStatus>;
   /** Asks GitHub for a newer oopz (decision 0011); null when this one is the newest. */
-  updateCheck: () => invoke<UpdateFound | null>("update_check"),
+  updateCheck(): Promise<UpdateFound | null>;
   /** Installs what the last check found, after checking its signature, and restarts the app. */
-  updateInstall: (onProgress: (perMille: number) => void) =>
-    invoke<void>("update_install", { progress: progress(onProgress) }),
-};
-
-export interface UpdateFound {
-  version: string;
+  updateInstall(onProgress: OnProgress): Promise<void>;
 }
