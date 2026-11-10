@@ -1077,6 +1077,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "oopz-viber-export"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "oopz-gen",
+ "oopz-model",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "oopz-whatsapp-export"
 version = "0.1.0"
 dependencies = [
