@@ -722,8 +722,23 @@ dependencies = [
  "clap",
  "jiff",
  "oopz",
+ "oopz-app",
  "rpassword",
+ "tempfile",
  "zeroize",
+]
+
+[[package]]
+name = "oopz-gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "oopz",
+ "oopz-app",
+ "rusqlite",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
