@@ -208,7 +208,7 @@ pub fn chat_name(file: &str) -> Option<String> {
 /// Text from bytes: UTF-16 when it starts with its byte-order mark, else UTF-8 (a BOM dropped, bad bytes replaced).
 fn decode(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let units: Vec<u16> = rest.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|&c| u16::from_le_bytes(c)).collect();
         return String::from_utf16_lossy(&units);
     }
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);

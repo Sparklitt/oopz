@@ -67,7 +67,7 @@ impl Adapter for ViberExportAdapter {
 
 fn decode(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let units: Vec<u16> = rest.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|&c| u16::from_le_bytes(c)).collect();
         return String::from_utf16_lossy(&units);
     }
     String::from_utf8_lossy(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)).into_owned()
@@ -221,10 +221,8 @@ impl Book {
     /// One CSV file: one conversation.
     fn csv(&mut self, name: &str, text: &str) -> Result<()> {
         let first_line = text.lines().next().unwrap_or("");
-        let delimiter = [b',', b';', b'\t']
-            .into_iter()
-            .max_by_key(|d| first_line.bytes().filter(|b| b == d).count())
-            .unwrap_or(b',');
+        let delimiter =
+            b",;\t".iter().copied().max_by_key(|d| first_line.bytes().filter(|b| b == d).count()).unwrap_or(b',');
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
             .flexible(true)
