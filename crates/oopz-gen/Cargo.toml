@@ -1,6 +1,6 @@
 [package]
 name = "oopz-gen"
-description = "Synthetic WhatsApp backups for testing oopz: invented people, chats and messages of every kind, at any size."
+description = "Synthetic WhatsApp backups and official text exports for testing oopz: invented people, chats and messages of every kind, at any size."
 license.workspace = true
 version.workspace = true
 edition.workspace = true
@@ -15,9 +15,13 @@ path = "src/main.rs"
 # The `fixtures` feature gives `crypt15::encrypt`: test data only, never for a real backup.
 oopz = { workspace = true, features = ["fixtures"] }
 anyhow.workspace = true
+base64.workspace = true
 clap.workspace = true
+oopz-model.workspace = true
 rusqlite.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 oopz-app.workspace = true

@@ -1023,14 +1023,17 @@ name = "oopz-gen"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "clap",
  "oopz",
  "oopz-app",
  "oopz-core",
  "oopz-model",
  "rusqlite",
+ "serde_json",
  "sha2",
  "tempfile",
+ "zip",
 ]
 
 [[package]]

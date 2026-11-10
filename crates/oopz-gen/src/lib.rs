@@ -9,6 +9,8 @@
 //! out/manifest.txt                    what's inside: counts by kind, for tests to compare
 //! ```
 //!
+//! [`exports`] writes the apps' official text exports instead (WhatsApp, Telegram, SMS, LINE, Viber; decision 0015).
+//!
 //! Parts: [`spec`] (what to make), [`world`] (people and chats), [`msgstore`] (the message rows), [`wadb`]
 //! (contacts), [`media`] (file names and placeholder files). Chats are written interleaved in time order, as a phone
 //! does, each from its own seeded stream, so memory stays flat whatever the size, and one seed gives one backup.
@@ -25,6 +27,7 @@ use oopz::crypt15::{self, Key};
 use rusqlite::Connection;
 
 pub mod corpus;
+pub mod exports;
 pub mod media;
 pub mod msgstore;
 pub mod rng;

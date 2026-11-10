@@ -60,6 +60,29 @@ struct Cli {
     /// Print the kinds of message and exit.
     #[arg(long)]
     list_kinds: bool,
+    /// Write an app's official text export instead of a backup: whatsapp-txt, telegram-json, sms-xml, line-txt or
+    /// viber-csv (with --seed; the other options don't apply).
+    #[arg(long)]
+    export: Option<String>,
+}
+
+/// Writes every export of `format` into `out`, each in its folder with its manifest.
+fn write_export(format: &str, seed: u64, out: &std::path::Path) -> Result<(), String> {
+    let exports = oopz_gen::exports::generate(format, seed)
+        .ok_or_else(|| format!("no export `{format}`; there are: {}", oopz_gen::exports::FORMATS.join(", ")))?;
+    for (folder, export) in exports {
+        let dir = out.join(&folder);
+        std::fs::create_dir_all(&dir).map_err(|e| format!("creating {}: {e}", dir.display()))?;
+        for (name, bytes) in &export.files {
+            let path = dir.join(name);
+            std::fs::write(&path, bytes).map_err(|e| format!("writing {}: {e}", path.display()))?;
+        }
+        let path = dir.join("manifest.txt");
+        std::fs::write(&path, export.manifest.to_text(format, seed))
+            .map_err(|e| format!("writing {}: {e}", path.display()))?;
+        println!("{}: {} messages in {} files", dir.display(), export.manifest.messages, export.files.len());
+    }
+    Ok(())
 }
 
 fn range(text: &str) -> Result<(u64, u64), String> {
@@ -137,6 +160,15 @@ fn main() -> ExitCode {
             println!("{:<14} message_type {}", kind.name(), kind.code());
         }
         return ExitCode::SUCCESS;
+    }
+    if let Some(format) = &cli.export {
+        return match write_export(format, cli.seed.unwrap_or(1), &cli.out) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("oopz-gen: {e}");
+                ExitCode::from(2)
+            }
+        };
     }
     let spec = match build(&cli) {
         Ok(spec) => spec,
