@@ -250,3 +250,61 @@ fn names_come_from_a_contacts_file_whatever_it_is_called() {
     let s = session.check(&db.join("picked-1.crypt15"), &key, tmp.path()).expect("check");
     assert!(s.chat_list.iter().filter(|c| c.kind == "contact").all(|c| c.name.is_none()));
 }
+
+#[test]
+fn the_whatsapp_adapter_gives_the_model_everything_the_backup_holds() {
+    use oopz_model::{Adapter, Kind, Part};
+    let spec = Spec::preset("small").unwrap();
+    let (dir, key) = generate(&spec);
+    let counts = manifest(dir.path());
+    let adapter = oopz_app::adapter::WhatsAppAdapter;
+    assert!(adapter.detect(dir.path()));
+    assert!(matches!(adapter.open(dir.path(), None), Err(oopz_model::Error::NeedsSecret)));
+    let wrong = oopz_gen::key_for(spec.seed + 1);
+    assert!(matches!(adapter.open(dir.path(), Some(&wrong)), Err(oopz_model::Error::WrongSecret)));
+    let mut source = adapter.open(dir.path(), Some(&key)).expect("open");
+    assert_eq!(source.conversations().len() as u64, counts["chats"]);
+    assert!(source.people().iter().any(|p| p.me));
+    // Names come from the contacts file beside the backup; phone numbers only from phone ids.
+    assert!(source.people().iter().any(|p| !p.me && p.name.is_some()));
+    assert!(source.people().iter().filter_map(|p| p.phone.as_deref()).all(|p| p.starts_with("+9999")));
+    let ids: Vec<String> = source.conversations().iter().map(|c| c.id.clone()).collect();
+    let (mut total, mut reactions, mut replies, mut edits, mut forwarded) = (0, 0, 0, 0, 0);
+    let mut kinds: HashMap<Kind, u64> = HashMap::new();
+    for id in &ids {
+        let mut last = i64::MIN;
+        source
+            .messages(id, &mut |msg| {
+                total += 1;
+                reactions += msg.reactions.len() as u64;
+                replies += u64::from(msg.reply_to.is_some());
+                edits += u64::from(msg.edited);
+                forwarded += u64::from(msg.forwarded);
+                *kinds.entry(msg.kind()).or_default() += 1;
+                assert_eq!(&msg.conversation, id);
+                assert!(msg.from_me == (msg.sender.as_deref() == Some(oopz_app::adapter::ME)));
+                if let Some(t) = msg.time_ms {
+                    assert!(t >= last, "oldest first");
+                    last = t;
+                }
+                for part in &msg.parts {
+                    if let Part::Media(m) = part {
+                        assert!(!m.view_once || m.caption.is_none(), "a view-once message's text is never kept");
+                    }
+                }
+                true
+            })
+            .expect("messages");
+    }
+    assert_eq!(total, counts["messages"]);
+    assert!(reactions > 0 && reactions <= counts["reactions"], "removed and replaced reactions aren't kept");
+    assert_eq!(edits, counts["edits"]);
+    assert_eq!(forwarded, counts["forwarded"]);
+    assert!(replies > 0 && replies <= counts["replies"]);
+    for (kind, key) in [(Kind::Call, "kind.call"), (Kind::Contact, "kind.contact"), (Kind::Poll, "kind.poll")] {
+        assert_eq!(kinds.get(&kind).copied().unwrap_or(0), counts[key], "{key}");
+    }
+    assert_eq!(kinds.get(&Kind::Deleted).copied().unwrap_or(0), counts["kind.deleted"]);
+    // Stopping the stream is reported, not swallowed.
+    assert!(matches!(source.messages(&ids[0], &mut |_| false), Err(oopz_model::Error::Cancelled)));
+}

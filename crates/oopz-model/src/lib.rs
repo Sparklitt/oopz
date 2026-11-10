@@ -133,7 +133,9 @@ pub struct Message {
     pub sender: Option<String>,
     pub from_me: bool,
     pub time_ms: Option<i64>,
+    /// When it was last edited, when the source says; [`Message::edited`] is set either way.
     pub edited_ms: Option<i64>,
+    pub edited: bool,
     /// Deleted for everyone: the placeholder is kept, the content isn't there.
     pub deleted: bool,
     pub forwarded: bool,

@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 
+pub mod adapter;
 pub mod export;
 pub mod index;
 pub mod receive;

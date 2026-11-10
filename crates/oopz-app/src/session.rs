@@ -2,6 +2,7 @@
 //! when forgotten), and the merge of a chat from one into a new copy of another. Keys are taken for one call and
 //! never kept: oopz asks again when it needs one.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -370,6 +371,23 @@ impl Session {
 
     pub fn summaries(&self) -> Vec<Summary> {
         self.checked.iter().map(|(_, c)| c.summary.clone()).collect()
+    }
+
+    /// Every id in the backup's `jid` table by row (whole ids: for the adapter, never for the UI).
+    pub fn jids(&self, id: u32) -> Result<HashMap<i64, String>> {
+        let db = self.get(id)?.backup.db();
+        let mut stmt =
+            db.prepare("SELECT _id, raw_string FROM jid WHERE raw_string IS NOT NULL").map_err(oopz::Error::from)?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .and_then(|rows| rows.collect::<rusqlite::Result<HashMap<_, _>>>())
+            .map_err(oopz::Error::from)?;
+        Ok(rows)
+    }
+
+    /// The whole id of each chat in a checked backup, by its row number (for the adapter, never for the UI).
+    pub fn chat_jids(&self, id: u32) -> Result<HashMap<i64, String>> {
+        Ok(self.get(id)?.backup.chats()?.iter().map(|c| (c.row_id, c.jid().to_owned())).collect())
     }
 
     /// Closes a checked backup and removes its decrypted copy.

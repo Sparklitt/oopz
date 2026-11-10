@@ -37,6 +37,9 @@ pub struct Line {
     pub text: Option<String>,
     /// The last 3 characters of the sender's id, in a group.
     pub sender: Option<String>,
+    /// The sender's row in WhatsApp's `jid` table, for the adapter (never sent to the UI).
+    #[serde(skip)]
+    pub sender_row: Option<i64>,
     /// The message this one answers, as WhatsApp kept a copy of it.
     pub reply: Option<Reply>,
     /// (emoji, from me), oldest first; a removed reaction isn't here.
@@ -229,7 +232,7 @@ impl Index {
         let mut stmt = self.db.prepare_cached(
             "SELECT m.id, m.ts, m.from_me, m.kind, m.text, w.ending, m.size, m.secs, x.id IS NOT NULL,
                  x.reply_id, x.reply_from_me, x.reply_kind, x.reply_text, x.reply_key IS NOT NULL, x.fwd, x.edited,
-                 x.mime, x.name, x.w, x.h, x.call_video, x.call_result, x.call_secs
+                 x.mime, x.name, x.w, x.h, x.call_video, x.call_result, x.call_secs, m.sender
              FROM msg m LEFT JOIN who w ON w.row = m.sender LEFT JOIN extra x ON x.id = m.id
              WHERE m.chat = ?1 AND m.pos >= ?3 ORDER BY m.pos LIMIT ?2",
         )?;
@@ -254,6 +257,7 @@ impl Index {
                     kind: r.get(3)?,
                     text: r.get(4)?,
                     sender: r.get(5)?,
+                    sender_row: r.get(23)?,
                     reply: if extra && r.get(13)? {
                         Some(Reply {
                             id: r.get(9)?,
