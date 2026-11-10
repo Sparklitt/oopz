@@ -1,13 +1,31 @@
 <script lang="ts">
-  // One message, drawn by its kind. A backup's index has no pictures or sound, so media show as labelled placeholders.
+  // One message, drawn by its kind, with what WhatsApp kept around it: the message it answers, reactions, edits,
+  // forwards, poll votes, call results and file facts. Photos show from the Media folder when the person picked one;
+  // other media are labelled placeholders.
   import Icon from "../components/Icon.svelte";
   import type { Line } from "../backend/types";
-  import { dateTime, time } from "../format";
+  import { dateTime, dur, mb, time } from "../format";
   import { strings } from "../i18n";
-  import { app } from "../state.svelte";
+  import { app, showMessage } from "../state.svelte";
+  import Thumb from "./Thumb.svelte";
 
-  let { line, highlight = false }: { line: Line; highlight?: boolean } = $props();
+  let { id, line, highlight = false }: { id: number; line: Line; highlight?: boolean } = $props();
   let t = $derived(strings(app.lang));
+  let mediaFacts = $derived(
+    [line.media?.secs != null ? dur(line.media.secs) : null, line.media?.size ? mb(line.media.size) : null].filter(Boolean).join(" · "),
+  );
+  let pollMax = $derived(Math.max(1, ...line.poll.map(([, v]) => v)));
+  let callText = $derived(
+    line.call
+      ? [
+          line.call.video ? t.videoCall : t.voiceCall,
+          line.call.result !== null && t.callResult[line.call.result] ? t.callResult[line.call.result] : t.callUnknown,
+          line.call.secs ? dur(line.call.secs) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : t.kinds[90],
+  );
   let kindName = $derived(t.kinds[line.kind] ?? `#${line.kind}`);
   let who = $derived(line.from_me ? t.you : line.sender ? `••••${line.sender}` : t.them);
   // A fixed waveform per message, so it doesn't change as the list scrolls.
@@ -17,16 +35,32 @@
 {#if line.kind === 7}
   <div class="system"><span>{line.text ?? kindName}</span></div>
 {:else if line.kind === 90}
-  <div class="system call" class:highlight>
-    <span><Icon name="call" size={15} />{kindName}{line.from_me ? ` · ${t.you}` : ""} · <time datetime={new Date(line.ts).toISOString()}>{time(line.ts)}</time></span>
+  <div class="system call" class:highlight class:missed={line.call?.result === 2 || line.call?.result === 3}>
+    <span><Icon name={line.call?.video ? "video" : "call"} size={15} />{callText}{line.from_me ? ` · ${t.you}` : ""} · <time datetime={new Date(line.ts).toISOString()}>{time(line.ts)}</time></span>
   </div>
 {:else}
   <div class="msg" class:me={line.from_me}>
     <div class="bubble" class:highlight class:bare={line.kind === 20} title={dateTime(line.ts)}>
       <span class="sr-only">{who}:</span>
       {#if !line.from_me && line.sender}<span class="sender" aria-hidden="true">••••{line.sender}</span>{/if}
+      {#if line.forwarded > 0}
+        <span class="forwarded"><Icon name="arrow" size={13} />{line.forwarded >= 5 ? t.forwardedMany : t.forwarded}</span>
+      {/if}
+      {#if line.reply}
+        {@const r = line.reply}
+        {@const quoted = r.text ?? `[${t.kinds[r.kind] ?? `#${r.kind}`}]`}
+        {#if r.id !== null}
+          <button class="quote" title={t.replyGo} onclick={() => showMessage(id, r.id!)}>
+            <span class="sr-only">{t.replyTo}:</span><strong>{r.from_me ? t.you : t.them}</strong><span class="q-text">{quoted}</span>
+          </button>
+        {:else}
+          <div class="quote gone"><span class="sr-only">{t.replyTo}:</span><strong>{r.from_me ? t.you : t.them}</strong><span class="q-text">{quoted}</span><em>{t.replyGone}</em></div>
+        {/if}
+      {/if}
 
-      {#if line.kind === 1 || line.kind === 3 || line.kind === 81 || line.kind === 13 || line.kind === 42}
+      {#if line.kind === 1 && app.mediaFolder}
+        <Thumb {id} message={line.id} folder={app.mediaFolder} label={line.text ?? kindName} />
+      {:else if line.kind === 1 || line.kind === 3 || line.kind === 81 || line.kind === 13 || line.kind === 42}
         <div class="media" class:round={line.kind === 81}>
           <Icon name={line.kind === 1 ? "image" : line.kind === 42 ? "once" : "video"} size={26} />
           <span>{kindName}</span>
@@ -53,6 +87,13 @@
         <span class="label"><Icon name="pin" size={14} />{kindName}</span>
       {:else if line.kind === 46}
         <div class="card"><span class="card-ico"><Icon name="poll" size={20} /></span><span class="card-text"><strong>{line.text ?? kindName}</strong><span>{kindName}</span></span></div>
+        {#if line.poll.length}
+          <ul class="poll">
+            {#each line.poll as [name, votes], i (i)}
+              <li><span class="opt">{name}</span><span class="votes">{t.votes(votes)}</span><span class="bar" aria-hidden="true"><i style:width="{(votes / pollMax) * 100}%"></i></span></li>
+            {/each}
+          </ul>
+        {/if}
       {:else if line.kind === 4}
         <div class="card"><span class="card-ico"><Icon name="user" size={20} /></span><span class="card-text"><strong>{kindName}</strong></span></div>
       {:else if line.kind === 20}
@@ -66,9 +107,15 @@
       {:else if line.kind === 0}
         <p class="text">[{kindName}]</p>
       {/if}
-      <time class="time" datetime={new Date(line.ts).toISOString()}>{time(line.ts)}</time>
+      {#if mediaFacts && line.kind !== 0}<span class="facts">{mediaFacts}</span>{/if}
+      <span class="time">{#if line.edited}<span class="edited">{t.edited}</span> · {/if}<time datetime={new Date(line.ts).toISOString()}>{time(line.ts)}</time></span>
     </div>
   </div>
+  {#if line.reactions.length}
+    <div class="reactions" class:me={line.from_me} aria-label={t.reactions}>
+      {#each line.reactions as [emoji, mine], i (i)}<span class="reaction" class:mine title={mine ? t.you : t.them}>{emoji}</span>{/each}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -119,6 +166,103 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     margin-top: -2px;
+  }
+  .forwarded,
+  .facts,
+  .edited {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .forwarded {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-style: italic;
+  }
+  .quote {
+    display: grid;
+    gap: 1px;
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    padding: 5px 9px;
+    border: 0;
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    background: var(--surface-2);
+    max-width: 100%;
+    cursor: pointer;
+  }
+  .quote.gone {
+    cursor: default;
+    border-left-color: var(--line-strong);
+  }
+  .quote strong {
+    color: var(--accent-text);
+    font-size: 12px;
+  }
+  .q-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .quote em {
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .poll {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+    min-width: 200px;
+  }
+  .poll li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 8px;
+    font-size: 13.5px;
+  }
+  .votes {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .reactions {
+    display: flex;
+    gap: 3px;
+    margin: -6px 0 4px 10px;
+  }
+  .reactions.me {
+    justify-content: flex-end;
+    margin: -6px 10px 4px 0;
+  }
+  .reaction {
+    font-size: 14px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .reaction.mine {
+    border-color: var(--accent);
+  }
+  .call.missed span {
+    color: var(--danger);
   }
   .media {
     width: 240px;

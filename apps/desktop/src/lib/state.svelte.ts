@@ -58,6 +58,8 @@ export const app = $state({
   query: "",
   index: {} as Record<number, IndexState>,
   receive: null as { info: ReceiveInfo; status: ReceiveStatus } | null,
+  /** The Media (or WhatsApp) folder photos are shown from, picked by the person; null: placeholders. */
+  mediaFolder: null as string | null,
   /** The chat the export sheet saves, or null for the whole backup. */
   exportChat: null as number | null,
   merge: { source: 0, sourceChat: 0, target: 0, targetChat: 0, out: "", media: "" },

@@ -7,6 +7,12 @@ export const date = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString
 export const longDate = (ms: number) => new Date(ms).toLocaleDateString(app.lang, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 export const time = (ms: number) => new Date(ms).toLocaleTimeString(app.lang, { hour: "2-digit", minute: "2-digit" });
 export const dateTime = (ms: number) => new Date(ms).toLocaleString(app.lang);
+/** A length in seconds as m:ss, or h:mm:ss from an hour. */
+export function dur(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  const mmss = `${Math.floor((s % 3600) / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${mmss.padStart(5, "0")}` : mmss;
+}
 export const year = (ms: number | null) => (ms ? String(new Date(ms).getFullYear()) : "–");
 // Under 1 MB in kB, so a small file doesn't read "0 MB"; from 1 GB in GB.
 export const mb = (bytes: number) =>

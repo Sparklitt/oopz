@@ -20,6 +20,8 @@
   let lines = $state<Line[]>([]);
   let highlight = $state<number | null>(null);
   let atEnd = $state(true);
+  let dating = $state(false);
+  let noLater = $state(false);
   let box: HTMLDivElement;
   let busy = false;
 
@@ -114,6 +116,20 @@
     box.scrollTop = 0;
   }
 
+  /** Opens the chat at the first message on or after the chosen day (midnight, this device's time). */
+  async function toDate(value: string) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!m) return;
+    const pos = await be().positionAt(id, row.number, new Date(+m[1], +m[2] - 1, +m[3]).getTime());
+    noLater = pos === null;
+    if (pos !== null) await openAt(pos);
+  }
+
+  async function pickMedia() {
+    const folder = await be().pickFolder();
+    if (folder) app.mediaFolder = folder;
+  }
+
   function onKey(e: KeyboardEvent) {
     if (e.key === "End" && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
       e.preventDefault();
@@ -139,9 +155,19 @@
   <div class="tools">
     <button class="btn icon-only" aria-label={t.searchThisChat} title={t.searchThisChat} onclick={() => { app.searchChat = row.number; go("search"); }}><Icon name="search" /></button>
     <button class="btn icon-only" aria-label={t.toOldest} title={t.toOldest} onclick={oldest}><Icon name="arrowUp" /></button>
+    <button class="btn icon-only" aria-label={t.jumpDate} title={t.jumpDate} aria-expanded={dating} onclick={() => (dating = !dating)}><Icon name="calendar" /></button>
+    <button class="btn icon-only" aria-label={t.showPhotos} title={t.showPhotosHint} aria-pressed={app.mediaFolder !== null} onclick={pickMedia}><Icon name="image" /></button>
     <button class="btn icon-only" aria-label={t.exportChat} title={t.exportChat} onclick={() => openExport(row.number)}><Icon name="download" /></button>
   </div>
 </header>
+
+{#if dating}
+  <div class="date-bar">
+    <label for="jump-date">{t.jumpDate}</label>
+    <input id="jump-date" class="select" type="date" placeholder="YYYY-MM-DD" onchange={(e) => toDate(e.currentTarget.value)} />
+    {#if noLater}<span class="muted" role="status">{t.noLater}</span>{/if}
+  </div>
+{/if}
 
 <div class="scroller-wrap">
   <!-- A scrollable region: focusable so the keyboard can scroll it, with Home and End as shortcuts. -->
@@ -153,7 +179,7 @@
           {#if i === 0 || dayOf(lines[i - 1].ts) !== dayOf(line.ts)}
             <div class="day"><span>{longDate(line.ts)}</span></div>
           {/if}
-          <Bubble {line} highlight={highlight === start + i} />
+          <Bubble {id} {line} highlight={highlight === start + i} />
         </div>
       {/each}
     </div>
@@ -176,6 +202,15 @@
   }
   .back {
     display: none;
+  }
+  .date-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
   }
   .back :global(.flip) {
     transform: rotate(180deg);
