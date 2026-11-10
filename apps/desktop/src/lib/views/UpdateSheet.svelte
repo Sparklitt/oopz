@@ -4,6 +4,7 @@
   import Icon from "../components/Icon.svelte";
   import Sheet from "../components/Sheet.svelte";
   import StepLine from "../components/StepLine.svelte";
+  import { date } from "../format";
   import { strings } from "../i18n";
   import { app, installUpdate } from "../state.svelte";
 
@@ -17,6 +18,12 @@
     <AppMark size={44} />
     <h1 class="sheet-title">{u.found ? t.updateFound(u.found.version) : t.updatesTitle}</h1>
   </div>
+  {#if u.found?.date_ms}<p class="muted">{t.updatePublished} {date(u.found.date_ms)}</p>{/if}
+  {#if u.found?.notes}
+    <h2 class="h3">{t.updateNotes}</h2>
+    <!-- Plain text from the release: shown as text, never as HTML. -->
+    <pre class="notes">{u.found.notes}</pre>
+  {/if}
   <p class="safe"><Icon name="shield" size={16} />{t.updateSigned}</p>
   {#if installing}
     <div role="status">
@@ -38,6 +45,18 @@
     display: flex;
     gap: 14px;
     align-items: center;
+  }
+  .notes {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    font-size: 13.5px;
+    max-height: 220px;
+    overflow: auto;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-s);
+    background: var(--surface-2);
   }
   .safe {
     display: flex;

@@ -2,7 +2,7 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon from "../components/Icon.svelte";
   import PageHead from "../components/PageHead.svelte";
-  import { mb } from "../format";
+  import { dur, mb } from "../format";
   import { strings } from "../i18n";
   import { app, receiveStart, receiveStop, receiveUse } from "../state.svelte";
 
@@ -58,7 +58,15 @@
           <div class="file-progress">
             <p><span>{t.wifiReceiving}: <strong>{c.name}</strong> · {mb(c.total)}</span><span class="pct">{Math.round((c.done / (c.total || 1)) * 100)}%</span></p>
             <progress max={c.total || 1} value={c.done} aria-label="{t.wifiReceiving} {c.name}"></progress>
+            <!-- Changes every half second: not read out. -->
+            <p class="pace" aria-live="off">
+              {#if c.bytes_per_sec > 0}<span>{t.wifiPace}: {mb(c.bytes_per_sec)}/s</span>{/if}
+              {#if c.secs_left !== null}<span>{t.secsLeft(c.secs_left)}</span>{/if}
+            </p>
           </div>
+        {/if}
+        {#if s.running && !s.current && s.idle_secs_left > 0}
+          <p class="pace" aria-live="off">{t.wifiIdleLeft(dur(s.idle_secs_left))}</p>
         {/if}
         {#if s.files.length > 0}
           <h2 class="h3">{t.wifiReceived}</h2>
@@ -158,6 +166,14 @@
     font-weight: 600;
     font-size: 17px;
     margin: 0;
+  }
+  .pace {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .file-progress p {
     display: flex;

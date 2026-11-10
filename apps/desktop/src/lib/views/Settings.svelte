@@ -4,10 +4,24 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon, { type IconName } from "../components/Icon.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import { app, be, checkUpdates, setAutoUpdates, setHideNames, setLang, setTheme, type Theme } from "../state.svelte";
+  import type { LinkName } from "../backend/types";
+  import { dateTime } from "../format";
+  import { app, be, checkUpdates, loadLastChecked, setAutoUpdates, setHideNames, setLang, setTheme, wipeNow, type Theme } from "../state.svelte";
 
-  const SOURCE = "https://github.com/Sparklitt/oopz";
   let t = $derived(strings(app.lang));
+  let wiped = $state<number | null>(null);
+  let links = $derived<[LinkName, string][]>([
+    ["source", t.sourceCode],
+    ["releases", t.linkReleases],
+    ["report", t.linkReport],
+    ["security", t.linkSecurity],
+    ["licences", t.linkLicences],
+  ]);
+
+  async function wipe() {
+    wiped = null;
+    wiped = (await wipeNow()) ?? null;
+  }
   let tab = $state<"general" | "updates" | "privacy" | "about">("general");
   let version = $state("");
   let u = $derived(app.updates);
@@ -24,6 +38,7 @@
   ]);
 
   onMount(() => {
+    void loadLastChecked();
     be()
       .appVersion()
       .then((v) => (version = v))
@@ -88,6 +103,7 @@
           </span>
         </div>
       </div>
+      <p class="muted">{t.lastChecked}: {u.lastChecked ? dateTime(u.lastChecked) : t.never}</p>
       {#if u.status === "failed"}<ErrorNote error={u.error} />{/if}
     {:else if tab === "privacy"}
       <h2 class="h2">{t.setPrivacy}</h2>
@@ -96,6 +112,13 @@
         <li><strong>{t.keyTitle}</strong><span class="muted">{t.keyNever}</span></li>
         <li><strong>{t.navChats}</strong><span class="muted">{t.screenOnly}</span></li>
       </ul>
+      <h3 class="h3">{t.wipeTitle}</h3>
+      <p class="muted">{t.wipeText}</p>
+      <ErrorNote error={app.error} />
+      <p class="wipe-row">
+        <button class="btn" disabled={app.busy} onclick={wipe}><Icon name="ban" />{t.wipeNow}</button>
+        {#if wiped !== null}<span role="status" class:ok-line={wiped === 0}>{#if wiped === 0}<Icon name="check" size={16} />{t.wipeDone}{:else}{t.wipeLeft(wiped)}{/if}</span>{/if}
+      </p>
     {:else}
       <h2 class="h2">{t.setAbout}</h2>
       <div class="inset about">
@@ -106,11 +129,13 @@
             <p class="muted">{t.aboutLicence}</p>
           </div>
         </div>
-        <div class="set-row">
-          <span>{t.sourceCode}</span>
-          <code class="mono">{SOURCE}</code>
-        </div>
       </div>
+      <h3 class="h3">{t.links}</h3>
+      <ul class="inset link-list">
+        {#each links as [which, label] (which)}
+          <li><button class="link" onclick={() => be().openLink(which).catch(() => {})}><Icon name="globe" size={16} />{label}</button></li>
+        {/each}
+      </ul>
     {/if}
   </div>
 </div>
@@ -155,6 +180,18 @@
   }
   .pane > .h2 {
     margin-top: 2px;
+  }
+  .wipe-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+  }
+  .link-list {
+    list-style: none;
+  }
+  .link-list li {
+    padding: 6px 0;
   }
   .hint-line {
     display: block;
@@ -213,9 +250,6 @@
   }
   .who p {
     margin: 2px 0 0;
-  }
-  .about code {
-    user-select: text;
   }
   @media (max-width: 760px) {
     .settings {

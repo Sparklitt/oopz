@@ -3,7 +3,7 @@
   import Icon, { type IconName } from "../components/Icon.svelte";
   import Sheet from "../components/Sheet.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import { app, giveConsent, go, setLang } from "../state.svelte";
+  import { app, be, giveConsent, go, setLang } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let consent = $state(false);
@@ -44,6 +44,7 @@
         <span>{t.consent}</span>
       </label>
       <button class="btn primary wide" disabled={!consent} onclick={start}>{t.getStarted}</button>
+      <button class="link source" onclick={() => be().openLink("source").catch(() => {})}>{t.sourceCode}</button>
     </div>
   {/snippet}
 </Sheet>
@@ -96,6 +97,10 @@
     display: grid;
     gap: 12px;
     padding: 4px 8px;
+  }
+  .source {
+    justify-self: center;
+    font-size: 13px;
   }
   .wide {
     width: 100%;

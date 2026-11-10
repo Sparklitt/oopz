@@ -259,6 +259,10 @@ export async function checkUpdates(showSheet: boolean) {
   }
 }
 
+export async function loadLastChecked() {
+  if (app.updates.lastChecked === null) app.updates.lastChecked = await backend.updateLastChecked().catch(() => null);
+}
+
 export async function installUpdate() {
   const u = app.updates;
   u.status = "installing";
@@ -270,6 +274,19 @@ export async function installUpdate() {
     u.error = toError(e, "update");
     u.status = "failed";
   }
+}
+
+/** Forgets every open backup in the UI, after Rust closed them all. */
+function closedAll() {
+  Object.assign(app, { summaries: [], currentId: null, chat: null, searchChat: null, query: "", jump: null, index: {}, files: null, unlocking: null, outcome: null, missing: null, phoneChecks: [], receive: null });
+  window.clearInterval(poll);
+}
+
+/** Wipes every decrypted copy now; Rust closes every backup too. Returns the files left (0: all gone). */
+export async function wipeNow(): Promise<number | undefined> {
+  const left = await run(() => backend.wipeNow());
+  if (left !== undefined) closedAll();
+  return left;
 }
 
 /** Closes every backup (their decrypted copies are wiped) and starts from the welcome sheet. */
