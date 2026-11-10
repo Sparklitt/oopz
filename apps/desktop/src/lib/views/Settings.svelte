@@ -4,7 +4,7 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon, { type IconName } from "../components/Icon.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import { app, be, checkUpdates, setAutoUpdates, setLang, setTheme, type Theme } from "../state.svelte";
+  import { app, be, checkUpdates, setAutoUpdates, setHideNames, setLang, setTheme, type Theme } from "../state.svelte";
 
   const SOURCE = "https://github.com/Sparklitt/oopz";
   let t = $derived(strings(app.lang));
@@ -59,6 +59,10 @@
               </label>
             {/each}
           </div>
+        </div>
+        <div class="set-row">
+          <label for="hide-names">{t.hideNames}<span class="muted hint-line">{t.hideNamesHint}</span></label>
+          <input id="hide-names" class="switch" type="checkbox" role="switch" checked={app.hideNames} onchange={(e) => setHideNames(e.currentTarget.checked)} />
         </div>
       </div>
     {:else if tab === "updates"}
@@ -151,6 +155,10 @@
   }
   .pane > .h2 {
     margin-top: 2px;
+  }
+  .hint-line {
+    display: block;
+    font-size: 13px;
   }
   .set-row {
     display: flex;

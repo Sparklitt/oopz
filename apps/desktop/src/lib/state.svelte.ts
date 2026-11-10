@@ -37,6 +37,8 @@ const savedTheme = load("oopz.theme");
 export const app = $state({
   lang: initialLang() as Lang,
   theme: (savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system") as Theme,
+  /** Chats shown by kind and masked id instead of their names (off unless switched on, remembered). */
+  hideNames: load("oopz.hideNames") === "on",
   view: "add" as View,
   // The welcome sheet until the person has agreed once; if storage fails, it asks again next time.
   sheet: (load("oopz.consent") === "yes" ? null : "welcome") as SheetName | null,
@@ -126,6 +128,11 @@ export function setLang(lang: Lang) {
 /** The person ticked "these are my own backups": not asked again at the next start. */
 export function giveConsent() {
   save("oopz.consent", "yes");
+}
+
+export function setHideNames(on: boolean) {
+  app.hideNames = on;
+  save("oopz.hideNames", on ? "on" : "off");
 }
 
 export function setTheme(theme: Theme) {

@@ -16,8 +16,18 @@ export const mb = (bytes: number) =>
       ? `${(bytes / 1e9).toLocaleString(app.lang, { maximumFractionDigits: 1 })} GB`
       : `${(bytes / 1e6).toLocaleString(app.lang, { maximumFractionDigits: 1 })} MB`;
 
-/** A chat as the backend knows it: its kind and the masked end of its id. There are no names in a backup's index. */
-export const chatName = (c: ChatRow) => `${strings(app.lang).who[c.kind]} ••••${c.ending}`;
+/** A chat's name (a group's subject, or the contact's name from wa.db), or its kind and the masked end of its id when
+ *  it has none or names are hidden. */
+export const chatName = (c: ChatRow) => (c.name && !app.hideNames ? c.name : `${strings(app.lang).who[c.kind]} ••••${c.ending}`);
+
+/** The chat's last message in a few words: its text, or its kind; "You: " first when it was sent. */
+export function previewText(c: ChatRow): string | null {
+  const p = c.preview;
+  if (!p) return null;
+  const t = strings(app.lang);
+  const body = p.text ?? `[${t.kinds[p.kind] ?? `#${p.kind}`}]`;
+  return p.from_me ? `${t.you}: ${body}` : body;
+}
 
 export const isGroup = (c: ChatRow) => c.kind === "group" || c.kind === "broadcast";
 
