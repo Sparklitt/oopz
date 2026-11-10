@@ -22,6 +22,7 @@ sha2.workspace = true
 [dev-dependencies]
 oopz-app.workspace = true
 oopz-model.workspace = true
+oopz-core.workspace = true
 tempfile.workspace = true
 
 [lints]

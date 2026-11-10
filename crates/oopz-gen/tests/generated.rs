@@ -308,3 +308,31 @@ fn the_whatsapp_adapter_gives_the_model_everything_the_backup_holds() {
     // Stopping the stream is reported, not swallowed.
     assert!(matches!(source.messages(&ids[0], &mut |_| false), Err(oopz_model::Error::Cancelled)));
 }
+
+#[test]
+fn a_whatsapp_backup_goes_into_the_library_whole() {
+    use oopz_core::{Filter, Library, Order};
+    let spec = Spec::preset("small").unwrap();
+    let (dir, key) = generate(&spec);
+    let counts = manifest(dir.path());
+    let lib_dir = tempfile::tempdir().unwrap();
+    let mut lib = Library::open(lib_dir.path()).unwrap();
+    let adapters: [&dyn oopz_model::Adapter; 1] = [&oopz_app::adapter::WhatsAppAdapter];
+    let wrong = lib.import_path(&adapters, dir.path(), None, Some(&oopz_gen::key_for(9)), &mut |_, _| true);
+    assert_eq!(wrong.unwrap_err().code, "wrong_key");
+    assert_eq!(lib.import_path(&adapters, dir.path(), None, None, &mut |_, _| true).unwrap_err().code, "needs_secret");
+    let started = std::time::Instant::now();
+    let source = lib.import_path(&adapters, dir.path(), None, Some(&key), &mut |_, _| true).expect("import");
+    eprintln!("imported {} messages in {:?}", source.messages, started.elapsed());
+    assert_eq!(source.messages, counts["messages"]);
+    assert_eq!(source.conversations, counts["chats"]);
+    assert!(source.owner_known && !source.wall_clock);
+    let again = lib.import_path(&adapters, dir.path(), None, Some(&key), &mut |_, _| true);
+    assert_eq!(again.unwrap_err().code, "exists");
+    assert_eq!(lib.count(&Filter::default()).unwrap(), counts["messages"]);
+    let stats = lib.stats(&Filter::default()).unwrap();
+    assert_eq!(stats.messages, counts["messages"]);
+    assert!(!lib.search(&Filter { words: "hola".into(), ..Default::default() }, 20).unwrap().is_empty());
+    let first = lib.find(&Filter { sources: vec![source.id], ..Default::default() }, Order::Time, 0, 1).unwrap();
+    assert_eq!(first[0].time_ms, stats.first_ms);
+}
