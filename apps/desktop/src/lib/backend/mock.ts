@@ -408,6 +408,8 @@ export function createMock(): Backend {
     async findBackups(path) {
       await sleep(300);
       if (path === CRYPT14) return [{ path, name: "msgstore-2021-01-01.1.db.crypt14", bytes: 412_000_000, kind: "crypt14" }];
+      const one = FILES.find((f) => f.path === path);
+      if (one) return [one];
       if (receive && path === receive.dest) return receiveStatus().files.map((f): BackupFile => ({ path: `${path}/${f.name}`, name: f.name, bytes: f.bytes, kind: "crypt15" }));
       return FILES;
     },

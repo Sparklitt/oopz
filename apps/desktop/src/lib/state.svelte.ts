@@ -150,6 +150,17 @@ export async function listBackups(path: string) {
   }
 }
 
+/** A file or folder dropped on Add backup: one crypt15 file goes straight to its key; anything else is listed. */
+export async function dropBackup(path: string) {
+  if (!/\.crypt15$/i.test(path)) return listBackups(path);
+  const files = await run(() => backend.findBackups(path));
+  if (!files) return;
+  app.files = files;
+  const only = files.length === 1 && files[0].kind === "crypt15" ? files[0] : null;
+  app.unlocking = only;
+  app.sheet = only ? "unlock" : "found";
+}
+
 /** After the unlock sheet opened a backup: it becomes the current one. */
 export async function opened(summary: Summary) {
   app.summaries = await backend.checkedBackups();

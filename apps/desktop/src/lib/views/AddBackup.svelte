@@ -3,9 +3,17 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon from "../components/Icon.svelte";
   import { strings } from "../i18n";
-  import { app, be, go, listBackups, onPhone } from "../state.svelte";
+  import { onMount } from "svelte";
+  import { app, be, dropBackup, go, listBackups, onPhone } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
+
+  // A file or folder dropped on the window while this screen is open.
+  onMount(() =>
+    be().onFileDrop((paths) => {
+      if (paths[0] && !app.busy && app.sheet === null) void dropBackup(paths[0]);
+    }),
+  );
 
   async function pick(folder: boolean) {
     const path = folder ? await be().pickFolder() : await be().pickFile();
@@ -55,6 +63,8 @@
     <p class="again"><button class="link" onclick={() => (app.sheet = "found")}>{t.foundAgain}</button></p>
   {/if}
 
+  {#if !onPhone()}<p class="drop-hint hint">{t.dropHint}</p>{/if}
+
   <details class="where">
     <summary>{t.whereQ}</summary>
     <p>{t.fromFolderText}</p>
@@ -63,6 +73,9 @@
 </div>
 
 <style>
+  .drop-hint {
+    text-align: center;
+  }
   .zone {
     border: 1.5px dashed var(--line-strong);
     border-radius: var(--radius-l);
