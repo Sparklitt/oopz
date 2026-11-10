@@ -93,3 +93,17 @@ clicks; watch for it in part B.
 ### Part A, macOS
 
 Not run: needs a Mac.
+
+### Part B, Windows 11 (NSIS, per-user), 2026-11-10
+
+The published 0.1.0 installer from GitHub, installed with `/S`; the app's own update check against the real
+`latest.json` found 0.1.1, the install (as the Install button calls it) replaced it and relaunched it as 0.1.1 (the app
+and the uninstall entry say 0.1.1), a setting set before (theme) was kept, the Start-menu entry stayed, and a check
+afterwards found nothing newer. Before publishing: every updater file's `.sig` verified against the public key, the 21
+checksums matched, `latest.json` had all 11 platform keys with each file's own signature, and the APK carried the oopz
+release certificate. Then uninstalled.
+
+### Part B, Linux, macOS, MSI
+
+Not run yet: the AppImage/.deb/.rpm on a desktop Linux, the MSI, and macOS (needs a Mac).
+
