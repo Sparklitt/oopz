@@ -2,7 +2,7 @@
   import Sidebar from "./lib/components/Sidebar.svelte";
   import TabBar from "./lib/components/TabBar.svelte";
   import MobileMenu from "./lib/views/MobileMenu.svelte";
-  import { app, current, go } from "./lib/state.svelte";
+  import { app, current, go, onPhone } from "./lib/state.svelte";
   import AddBackup from "./lib/views/AddBackup.svelte";
   import Chats from "./lib/views/Chats.svelte";
   import Compare from "./lib/views/Compare.svelte";
@@ -22,7 +22,8 @@
 
   let has = $derived(current() !== null);
   // Screens about one backup need one open; without it they show Add a backup.
-  let view = $derived(!has && ["overview", "chats", "search", "insights"].includes(app.view) ? "add" : app.view);
+  // No receiving over Wi-Fi on a phone.
+  let view = $derived((!has && ["overview", "chats", "search", "insights"].includes(app.view)) || (app.view === "receive" && onPhone()) ? "add" : app.view);
 
   $effect(() => {
     if (app.theme === "system") delete document.documentElement.dataset.theme;

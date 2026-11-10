@@ -159,6 +159,8 @@ export function isAppError(e: unknown): e is AppError {
 export type OnProgress = (perMille: number) => void;
 
 export interface Backend {
+  /** Where the app runs, fixed for the run: on a phone the words say "this phone" and Wi-Fi receiving is hidden. */
+  platform: "android" | "desktop";
   /** The file and folder pickers: a path, or null when the person cancels. */
   pickFolder(): Promise<string | null>;
   pickFile(): Promise<string | null>;

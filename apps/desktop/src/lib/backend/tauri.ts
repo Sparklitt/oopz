@@ -18,6 +18,8 @@ async function pick(directory: boolean): Promise<string | null> {
 }
 
 export const tauri: Backend = {
+  // Android's WebView says so in its user agent; no plugin needed for one fact.
+  platform: /Android/.test(navigator.userAgent) ? "android" : "desktop",
   pickFolder: () => pick(true),
   pickFile: () => pick(false),
   appVersion: () => getVersion(),

@@ -4,7 +4,8 @@
 //
 // To reach each case: the key 0123456789abcdef repeated four times opens every crypt15 backup, anything else of
 // 64 hex characters is the wrong key. "Choose a backup file" picks a crypt14 file. The 2025 backup opens with a
-// damaged database. Update checks answer in turn: a new version, none, a failure.
+// damaged database. Update checks answer in turn: a new version, none, a failure. ?platform=android in the address
+// shows what a phone shows.
 import pkg from "../../../package.json";
 import type { Backend, BackupFile, ChatRow, Hit, Line, Missing, OnProgress, ReceiveStatus, Stats, Summary } from "./types";
 
@@ -319,6 +320,8 @@ export function createMock(): Backend {
   }
 
   return {
+    // ?platform=android shows the phone's screens in a browser.
+    platform: new URLSearchParams(location.search).get("platform") === "android" ? "android" : "desktop",
     pickFolder: async () => FOLDER,
     pickFile: async () => CRYPT14,
     appVersion: async () => pkg.version,

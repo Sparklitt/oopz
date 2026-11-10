@@ -4,7 +4,7 @@
   import PageHead from "../components/PageHead.svelte";
   import { date } from "../format";
   import { strings } from "../i18n";
-  import { app, current, go, selectBackup, type View } from "../state.svelte";
+  import { app, current, go, onPhone, selectBackup, type View } from "../state.svelte";
 
   let { section }: { section: "backups" | "tools" } = $props();
   let t = $derived(strings(app.lang));
@@ -18,7 +18,7 @@
       : [
           ["compare", "compare", t.navCompare, true],
           ["restore", "restore", t.navRestore, true],
-          ["receive", "wifi", t.navReceive, true],
+          ...(onPhone() ? [] : [["receive", "wifi", t.navReceive, true] as [View, IconName, string, boolean]]),
           ["settings", "settings", t.navSettings, true],
         ],
   );

@@ -2,7 +2,7 @@
 // and empties it as soon as it is sent.
 import type { AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, ReceiveInfo, ReceiveStatus, Summary, UpdateFound } from "./backend/types";
 import { isAppError } from "./backend/types";
-import { initialLang, type Lang } from "./i18n";
+import { initialLang, usePhoneWords, type Lang } from "./i18n";
 
 export type View = "add" | "receive" | "overview" | "chats" | "search" | "insights" | "compare" | "restore" | "phone" | "done" | "settings" | "backups" | "tools";
 export type SheetName = "welcome" | "found" | "unlock" | "export" | "update";
@@ -74,7 +74,10 @@ document.documentElement.lang = app.lang;
 let backend: Backend;
 export function setBackend(b: Backend) {
   backend = b;
+  usePhoneWords(onPhone());
 }
+/** The app runs on the phone itself: no receiving over Wi-Fi from a phone. */
+export const onPhone = () => backend.platform === "android";
 /** The backend, for components that call it directly (reads that change no state). */
 export const be = () => backend;
 

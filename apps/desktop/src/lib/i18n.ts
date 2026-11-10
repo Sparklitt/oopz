@@ -608,6 +608,70 @@ const es: Strings = {
   },
 };
 
+// On a phone the app runs on the phone itself: "this phone", and the backup is picked from WhatsApp's own folder.
+// No Wi-Fi words here: receiving over Wi-Fi is hidden on a phone.
+const phoneEn = {
+  staysHere: "Everything stays on this phone",
+  addLead: "Choose WhatsApp's Databases folder, or a msgstore.db.crypt15 file in it.",
+  whereQ: "Where does WhatsApp keep its backups?",
+  welcomeLead:
+    "oopz opens your own WhatsApp backups with your own 64-digit key, tells you what is inside, and can put a lost chat back. Everything stays on this phone.",
+  rules: [
+    ...en.rules.slice(0, 3),
+    "Your backups and keys never leave this phone. oopz has no account, no cloud and no tracking, and goes online only to check for updates when you ask it to.",
+  ],
+  updatesLead:
+    "Checking asks GitHub, where oopz is published, whether a newer version exists. GitHub sees this phone's internet address, nothing else. An update is installed only when you tap, and only if its signature is oopz's.",
+  getLead: "WhatsApp keeps its backups in its own folder on this phone. Pick that folder or one backup file.",
+  fromFolderText:
+    "On this phone the folder is Android/media/com.whatsapp/WhatsApp/Databases (in the file picker: the phone's storage, then Android, media, com.whatsapp, WhatsApp, Databases).",
+  fromFolderHint: "WhatsApp's Databases folder on this phone.",
+  driveNote:
+    "Google Drive backups can't be opened by anyone but WhatsApp, and oopz doesn't try. Use the backup in WhatsApp's folder on this phone.",
+  passwordSteps: [...en.passwordSteps.slice(0, 4), "Then choose the new msgstore.db.crypt15 here and continue."],
+  byHour: "Messages by hour of the day (this phone's time zone)",
+  phoneSteps: [
+    en.phoneSteps[0],
+    ["Keep a copy of everything", "Copy the phone's whole WhatsApp folder somewhere safe first (a computer, an SD card or a cloud folder). It's your way back."],
+    ...en.phoneSteps.slice(2),
+  ],
+} satisfies Partial<Strings>;
+
+// The same keys as phoneEn, no more and no fewer.
+const phoneEs: Pick<Strings, keyof typeof phoneEn> = {
+  staysHere: "Todo se queda en este teléfono",
+  addLead: "Elige la carpeta Databases de WhatsApp, o un archivo msgstore.db.crypt15 que esté en ella.",
+  whereQ: "¿Dónde guarda WhatsApp sus copias?",
+  welcomeLead:
+    "oopz abre tus propias copias de seguridad de WhatsApp con tu propia clave de 64 dígitos, te dice qué contienen y puede devolver un chat perdido. Todo se queda en este teléfono.",
+  rules: [
+    ...es.rules.slice(0, 3),
+    "Tus copias y claves nunca salen de este teléfono. oopz no tiene cuentas, ni nube, ni seguimiento, y solo se conecta a internet para buscar actualizaciones cuando tú se lo pides.",
+  ],
+  updatesLead:
+    "Al buscar, oopz pregunta a GitHub, donde se publica, si hay una versión más nueva. GitHub ve la dirección de internet de este teléfono, nada más. Una actualización solo se instala cuando tocas, y solo si su firma es la de oopz.",
+  getLead: "WhatsApp guarda sus copias en su propia carpeta de este teléfono. Elige esa carpeta o un archivo de copia.",
+  fromFolderText:
+    "En este teléfono la carpeta es Android/media/com.whatsapp/WhatsApp/Databases (en el selector de archivos: el almacenamiento del teléfono, luego Android, media, com.whatsapp, WhatsApp, Databases).",
+  fromFolderHint: "La carpeta Databases de WhatsApp en este teléfono.",
+  driveNote:
+    "Las copias de Google Drive solo las puede abrir WhatsApp, y oopz no lo intenta. Usa la copia que está en la carpeta de WhatsApp de este teléfono.",
+  passwordSteps: [...es.passwordSteps.slice(0, 4), "Luego elige aquí el nuevo msgstore.db.crypt15 y sigue."],
+  byHour: "Mensajes por hora del día (zona horaria de este teléfono)",
+  phoneSteps: [
+    es.phoneSteps[0],
+    ["Guarda una copia de todo", "Copia antes toda la carpeta WhatsApp del teléfono a un lugar seguro (un ordenador, una tarjeta SD o una carpeta en la nube). Es tu camino de vuelta."],
+    ...es.phoneSteps.slice(2),
+  ],
+};
+
+let phoneWords = false;
+
+/** Called once at start, before the first screen: the words for a phone instead of a computer. */
+export function usePhoneWords(on: boolean) {
+  phoneWords = on;
+}
+
 export type Lang = "en" | "es";
 
 export function initialLang(): Lang {
@@ -620,7 +684,11 @@ export function initialLang(): Lang {
   return navigator.language.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
+const enPhone: Strings = { ...en, ...phoneEn };
+const esPhone: Strings = { ...es, ...phoneEs };
+
 export function strings(lang: Lang): Strings {
+  if (phoneWords) return lang === "es" ? esPhone : enPhone;
   return lang === "es" ? es : en;
 }
 

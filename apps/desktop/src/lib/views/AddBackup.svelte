@@ -3,7 +3,7 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon from "../components/Icon.svelte";
   import { strings } from "../i18n";
-  import { app, be, go, listBackups } from "../state.svelte";
+  import { app, be, go, listBackups, onPhone } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
 
@@ -42,11 +42,13 @@
       <strong>{t.pickFile}</strong>
       <span>{t.pickFileHint}</span>
     </button>
-    <button class="card" disabled={app.busy} onclick={() => go("receive")}>
-      <Icon name="wifi" size={26} />
-      <strong>{t.fromWifi}</strong>
-      <span>{t.fromWifiHint}</span>
-    </button>
+    {#if !onPhone()}
+      <button class="card" disabled={app.busy} onclick={() => go("receive")}>
+        <Icon name="wifi" size={26} />
+        <strong>{t.fromWifi}</strong>
+        <span>{t.fromWifiHint}</span>
+      </button>
+    {/if}
   </div>
 
   {#if app.files?.length}

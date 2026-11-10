@@ -1,7 +1,7 @@
 <script lang="ts">
   import { date, mod } from "../format";
   import { strings } from "../i18n";
-  import { app, current, go, selectBackup, type View } from "../state.svelte";
+  import { app, current, go, onPhone, selectBackup, type View } from "../state.svelte";
   import AppMark from "./AppMark.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
 
@@ -21,7 +21,7 @@
   let toolItems = $derived<[View, IconName, string][]>([
     ["compare", "compare", t.navCompare],
     ["restore", "restore", t.navRestore],
-    ["receive", "wifi", t.navReceive],
+    ...(onPhone() ? [] : [["receive", "wifi", t.navReceive] as [View, IconName, string]]),
   ]);
 </script>
 
