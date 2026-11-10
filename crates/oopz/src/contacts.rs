@@ -29,10 +29,25 @@ pub enum NoContacts {
 }
 
 impl Contacts {
-    /// The contacts file beside `msgstore` (the backup file), opened with `key` into a copy in `dir`.
+    /// The contacts file beside `msgstore` (the backup file), opened with `key` into a copy in `dir`: `wa.db.crypt15`,
+    /// else another `.crypt15` file there that opens as contacts (an app's picker may give files neutral names).
     pub fn beside(msgstore: &Path, key: &Key, dir: &Path) -> Result<Self, NoContacts> {
-        let path = msgstore.with_file_name("wa.db.crypt15");
-        let file = fs::read(&path).map_err(|_| NoContacts::Missing)?;
+        let named = msgstore.with_file_name("wa.db.crypt15");
+        let first = Self::open(&named, key, dir);
+        if !matches!(first, Err(NoContacts::Missing)) {
+            return first;
+        }
+        let Some(folder) = msgstore.parent() else { return first };
+        let mut others: Vec<_> =
+            fs::read_dir(folder).map(|entries| entries.flatten().map(|e| e.path()).collect()).unwrap_or_default();
+        others.retain(|p| p != msgstore && p.extension().is_some_and(|e| e == "crypt15") && p.is_file());
+        others.sort();
+        // A few at most: a Databases folder holds dated message backups too, and those aren't contacts.
+        others.iter().take(8).find_map(|p| Self::open(p, key, dir).ok()).ok_or(NoContacts::Missing)
+    }
+
+    fn open(path: &Path, key: &Key, dir: &Path) -> Result<Self, NoContacts> {
+        let file = fs::read(path).map_err(|_| NoContacts::Missing)?;
         let mut plain = tempfile::NamedTempFile::new_in(dir).map_err(|_| NoContacts::Missing)?;
         {
             let mut out = std::io::BufWriter::new(plain.as_file_mut());

@@ -24,7 +24,11 @@ export const tauri: Backend = {
   pickFolder: () => pick(true),
   pickFile: () => pick(false),
   pickSave: async (name) => (await save({ defaultPath: name })) ?? null,
-  importBackup: (uri) => invoke("import_backup", { uri }),
+  pickFiles: async () => {
+    const chosen = await open({ multiple: true });
+    return Array.isArray(chosen) ? chosen : typeof chosen === "string" ? [chosen] : [];
+  },
+  importBackup: (uris) => invoke("import_backup", { uris }),
   saveResult: (from, to) => invoke("save_result", { from, to }),
   appVersion: () => getVersion(),
   findBackups: (path) => invoke("find_backups", { path }),

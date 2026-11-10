@@ -4,6 +4,7 @@
   import IndexGate from "../components/IndexGate.svelte";
   import PathRow from "../components/PathRow.svelte";
   import SaveButton from "../components/SaveButton.svelte";
+  import { mb } from "../format";
   import Sheet from "../components/Sheet.svelte";
   import { chatName } from "../format";
   import { strings } from "../i18n";
@@ -14,6 +15,7 @@
   let chatRow = $derived(app.exportChat === null ? null : (s.chat_list.find((c) => c.number === app.exportChat) ?? null));
   let withChat = $state(app.exportChat !== null);
   let saved = $state("");
+  let savedBytes = $state<number | null>(null);
 
   async function save() {
     // On Android the page is made in the private folder, then saved where the person picks.
@@ -33,7 +35,15 @@
         dir,
       ),
     );
-    if (path) saved = path;
+    if (!path) return;
+    saved = path;
+    // On a phone, one tap: the page is made privately, then the system's save picker opens at once.
+    if (onPhone()) {
+      const to = await be().pickSave(path.replace(/^.*[\\/]/, "")).catch(() => null);
+      if (!to) return;
+      const bytes = await run(() => be().saveResult(path, to));
+      if (bytes !== undefined) savedBytes = bytes;
+    }
   }
 
   function close() {
@@ -57,6 +67,7 @@
     <ErrorNote error={app.error} />
     {#if saved}
       {#if onPhone()}
+        {#if savedBytes !== null}<div class="note ok" role="status"><Icon name="check" /><span>{t.savedBytes(mb(savedBytes))}</span></div>{/if}
         <SaveButton from={saved} name={saved.replace(/^.*[\\/]/, "")} />
       {:else}
         <div class="note ok" role="status"><Icon name="check" /><span>{t.exportSaved}:</span></div>

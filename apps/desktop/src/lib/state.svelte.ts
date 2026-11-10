@@ -154,11 +154,13 @@ export async function listBackups(path: string) {
   }
 }
 
-/** Android: the picked backup (a content:// reference) is copied into the private folder, then opened like a path. */
+/** Android: the picked files (content:// references: the backup, and WhatsApp's contacts file for names) are copied
+ *  into one private folder, then the largest, the backup, is opened like a path; Rust finds the contacts beside it. */
 export async function importPicked() {
-  const uri = await backend.pickFile();
-  if (!uri) return;
-  const path = await run(() => backend.importBackup(uri));
+  const uris = await backend.pickFiles();
+  if (uris.length === 0) return;
+  const paths = await run(() => backend.importBackup(uris));
+  const path = paths?.[0];
   if (!path) return;
   app.privateDir = path.replace(/[\\/][^\\/]*$/, "");
   await dropBackup(path);

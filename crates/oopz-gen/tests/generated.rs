@@ -230,3 +230,23 @@ fn the_viewer_sees_everything_the_backup_holds() {
     assert_eq!(stats.by_day_hour.len(), 7);
     assert_eq!(stats.by_day_hour.iter().flatten().sum::<u64>(), stats.by_hour.iter().sum::<u64>());
 }
+
+/// On Android the picked files arrive with neutral names (picked-1.crypt15, picked-2.crypt15): the contacts file is
+/// still found beside the backup by what it holds; a dated message backup beside it isn't taken for contacts.
+#[test]
+fn names_come_from_a_contacts_file_whatever_it_is_called() {
+    let spec = Spec::preset("small").unwrap();
+    let (dir, key) = generate(&spec);
+    let db = dir.path().join("Databases");
+    fs::rename(db.join("msgstore.db.crypt15"), db.join("picked-1.crypt15")).unwrap();
+    fs::copy(db.join("picked-1.crypt15"), db.join("picked-0.crypt15")).unwrap();
+    fs::rename(db.join("wa.db.crypt15"), db.join("picked-2.crypt15")).unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::default();
+    let s = session.check(&db.join("picked-1.crypt15"), &key, tmp.path()).expect("check");
+    assert!(s.chat_list.iter().any(|c| c.kind == "contact" && c.name.is_some()), "names from picked-2");
+    // Without a contacts file: no names, no error.
+    fs::remove_file(db.join("picked-2.crypt15")).unwrap();
+    let s = session.check(&db.join("picked-1.crypt15"), &key, tmp.path()).expect("check");
+    assert!(s.chat_list.iter().filter(|c| c.kind == "contact").all(|c| c.name.is_none()));
+}

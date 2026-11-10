@@ -273,24 +273,50 @@ fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppErr
     open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
 }
 
-/// Copies a picked backup (an Android `content://` reference, or a path) into the private folder (decision 0012,
-/// point 3); `check_backup` then opens the copy, which goes with the private folder (on close, or "Wipe now").
+/// Copies the picked files (Android `content://` references, or paths) into one new private folder (decision 0012,
+/// point 3), largest first: the message backup, then the rest (WhatsApp's contacts file, for names, is far smaller).
+/// `check_backup` then opens the first; the copies go with the private folder (on close, or "Wipe now").
 #[tauri::command(async)]
-fn import_backup(app: tauri::AppHandle, state: State<'_, AppState>, uri: String) -> Result<PathBuf, AppError> {
+fn import_backup(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    uris: Vec<String>,
+) -> Result<Vec<PathBuf>, AppError> {
     use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
-    let picked: FilePath = uri.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
-    let mut input = app
-        .fs()
-        .open(picked, OpenOptions::new().read(true).to_owned())
-        .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
-    // Some providers don't know a file's size: 0, then the copy itself finds out whether it fits.
-    let bytes = input.metadata().map(|m| m.len()).unwrap_or(0);
-    copy_in(&mut input, bytes, state.tmp.path(), session::free_space(state.tmp.path())?)
+    if uris.is_empty() || uris.len() > 8 {
+        return Err(AppError::new("not_found", "pick the backup file, and the contacts file if you want names"));
+    }
+    let dir = tempfile::Builder::new()
+        .prefix("imported-")
+        .tempdir_in(state.tmp.path())
+        .map_err(|e| AppError::io("making a private copy", e))?;
+    let mut copies = Vec::new();
+    for (n, uri) in uris.iter().enumerate() {
+        let picked: FilePath = uri.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+        let mut input = app
+            .fs()
+            .open(picked, OpenOptions::new().read(true).to_owned())
+            .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
+        // Some providers don't know a file's size: 0, then the copy itself finds out whether it fits.
+        let bytes = input.metadata().map(|m| m.len()).unwrap_or(0);
+        let to = dir.path().join(format!("picked-{}.crypt15", n + 1));
+        copy_in(&mut input, bytes, &to, session::free_space(state.tmp.path())?)?;
+        copies.push((std::fs::metadata(&to).map(|m| m.len()).unwrap_or(0), to));
+    }
+    copies.sort_by_key(|c| std::cmp::Reverse(c.0));
+    let mut paths: Vec<PathBuf> = copies.into_iter().map(|(_, p)| p).collect();
+    // The backup gets WhatsApp's name, so it reads as one everywhere (lists, the key screen, the merge).
+    let backup = dir.path().join("msgstore.db.crypt15");
+    std::fs::rename(&paths[0], &backup).map_err(|e| AppError::io("making a private copy", e))?;
+    paths[0] = backup;
+    // Kept from here on: the private folder removes it.
+    let _ = dir.keep();
+    Ok(paths)
 }
 
-/// [`import_backup`]'s copy: refused without room for the copy and for opening it (four times the backup, as
-/// `Session::check_with` asks); a copy that fails midway (a disk filling up, a provider cut off) leaves nothing.
-fn copy_in(input: &mut impl std::io::Read, bytes: u64, tmp: &Path, free: u64) -> Result<PathBuf, AppError> {
+/// [`import_backup`]'s copy of one file to `to`: refused without room for it and for opening it (four times the
+/// backup, as `Session::check_with` asks); one that fails midway (a disk filling up, a provider cut off) is removed.
+fn copy_in(input: &mut impl std::io::Read, bytes: u64, to: &Path, free: u64) -> Result<(), AppError> {
     let need = bytes.saturating_mul(5);
     if free < need {
         return Err(AppError::new(
@@ -298,20 +324,18 @@ fn copy_in(input: &mut impl std::io::Read, bytes: u64, tmp: &Path, free: u64) ->
             format!("{} MB free; this backup needs about {} MB", free >> 20, need >> 20),
         ));
     }
-    let dir = tempfile::Builder::new()
-        .prefix("imported-")
-        .tempdir_in(tmp)
-        .map_err(|e| AppError::io("making a private copy", e))?;
-    let copy = dir.path().join("msgstore.db.crypt15");
-    let mut out = std::fs::File::create(&copy).map_err(|e| AppError::io("making a private copy", e))?;
-    let n = std::io::copy(input, &mut out).map_err(|e| AppError::io("copying the picked file", e))?;
-    if n == 0 {
-        return Err(AppError::new("not_crypt15", "the picked file is empty"));
+    let result = (|| {
+        let mut out = std::fs::File::create(to).map_err(|e| AppError::io("making a private copy", e))?;
+        let n = std::io::copy(input, &mut out).map_err(|e| AppError::io("copying the picked file", e))?;
+        if n == 0 {
+            return Err(AppError::new("not_crypt15", "the picked file is empty"));
+        }
+        out.sync_all().map_err(|e| AppError::io("copying the picked file", e))
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(to);
     }
-    out.sync_all().map_err(|e| AppError::io("copying the picked file", e))?;
-    // Kept from here on: the private folder removes it.
-    let _ = dir.keep();
-    Ok(copy)
+    result
 }
 
 /// Writes a file oopz made (a merged backup, a saved page) to where the person picked (an Android `content://`
@@ -766,10 +790,12 @@ mod tests {
     fn a_picked_backup_is_copied_in_only_when_it_fits_and_whole() {
         let tmp = tempfile::tempdir().unwrap();
         let backup = vec![1u8; 4096];
-        let copy = copy_in(&mut &backup[..], 4096, tmp.path(), 5 * 4096).unwrap();
-        assert_eq!(std::fs::read(&copy).unwrap(), backup);
-        assert_eq!(copy_in(&mut &backup[..], 4096, tmp.path(), 5 * 4096 - 1).unwrap_err().code, "no_space");
-        assert_eq!(copy_in(&mut &b""[..], 0, tmp.path(), u64::MAX).unwrap_err().code, "not_crypt15");
+        let to = tmp.path().join("picked-1.crypt15");
+        copy_in(&mut &backup[..], 4096, &to, 5 * 4096).unwrap();
+        assert_eq!(std::fs::read(&to).unwrap(), backup);
+        let other = tmp.path().join("picked-2.crypt15");
+        assert_eq!(copy_in(&mut &backup[..], 4096, &other, 5 * 4096 - 1).unwrap_err().code, "no_space");
+        assert_eq!(copy_in(&mut &b""[..], 0, &other, u64::MAX).unwrap_err().code, "not_crypt15");
         // A provider that fails midway: nothing is left.
         struct CutOff(u8);
         impl std::io::Read for CutOff {
@@ -783,7 +809,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(copy_in(&mut CutOff(0), 0, tmp.path(), u64::MAX).unwrap_err().code, "io");
+        assert_eq!(copy_in(&mut CutOff(0), 0, &other, u64::MAX).unwrap_err().code, "io");
         assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1, "only the first, whole copy");
     }
 

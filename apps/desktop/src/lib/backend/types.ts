@@ -269,9 +269,13 @@ export interface Backend {
   pickFile(): Promise<string | null>;
   /** The system's save picker, for a file named `name`: where to write it (on Android a content:// reference). */
   pickSave(name: string): Promise<string | null>;
-  /** Android: copies a picked content:// backup into the app's private folder (free space checked first) and returns
-   *  the copy's path, which the other commands open like any path. Fails with no_space or io. */
-  importBackup(uri: string): Promise<string>;
+  /** Several files from the system's picker (Android: the backup and, for names, WhatsApp's contacts file). */
+  pickFiles(): Promise<string[]>;
+  /** Android: copies the picked content:// files into one private folder (free space checked first) and returns the
+   *  copies' paths, largest first (the message backup, named msgstore.db.crypt15), which the other commands open
+   *  like any path. Fails with
+   *  no_space, not_crypt15 (an empty file) or io. */
+  importBackup(uris: string[]): Promise<string[]>;
   /** Copies a file inside a result folder this run made to where the person picked; returns the bytes written. */
   saveResult(from: string, to: string): Promise<number>;
   appVersion(): Promise<string>;

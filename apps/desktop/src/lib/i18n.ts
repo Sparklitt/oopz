@@ -786,7 +786,9 @@ const es: Strings = {
 // No Wi-Fi words here: receiving over Wi-Fi is hidden on a phone.
 const phoneEn = {
   staysHere: "Everything stays on this phone",
-  addLead: "Choose the msgstore.db.crypt15 file in WhatsApp's Databases folder. oopz opens a private copy of it.",
+  addLead:
+    "Choose the msgstore.db.crypt15 file in WhatsApp's Databases folder; to see names, select wa.db.crypt15 there too. oopz opens a private copy.",
+  exportButton: "Save…",
   whereQ: "Where does WhatsApp keep its backups?",
   welcomeLead:
     "oopz opens your own WhatsApp backups with your own 64-digit key, tells you what is inside, and can put a lost chat back. Everything stays on this phone.",
@@ -819,7 +821,9 @@ const phoneEn = {
 // The same keys as phoneEn, no more and no fewer.
 const phoneEs: Pick<Strings, keyof typeof phoneEn> = {
   staysHere: "Todo se queda en este teléfono",
-  addLead: "Elige el archivo msgstore.db.crypt15 de la carpeta Databases de WhatsApp. oopz abre una copia privada.",
+  addLead:
+    "Elige el archivo msgstore.db.crypt15 de la carpeta Databases de WhatsApp; para ver nombres, selecciona también wa.db.crypt15. oopz abre una copia privada.",
+  exportButton: "Guardar…",
   whereQ: "¿Dónde guarda WhatsApp sus copias?",
   welcomeLead:
     "oopz abre tus propias copias de seguridad de WhatsApp con tu propia clave de 64 dígitos, te dice qué contienen y puede devolver un chat perdido. Todo se queda en este teléfono.",

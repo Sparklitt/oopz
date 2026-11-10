@@ -26,14 +26,23 @@
 <div class="page narrow">
   <h1 class="sr-only">{t.addTitle}</h1>
   <div class="zone">
-    <svg class="art" viewBox="0 0 260 110" aria-hidden="true">
-      <rect x="22" y="14" width="46" height="84" rx="9" class="stroke" />
-      <path d="M40 88h10" class="stroke" />
-      <path d="M78 58h44" class="dash" />
-      <rect x="132" y="18" width="104" height="66" rx="6" class="stroke" />
-      <path d="M118 94h132l-8-10H126z" class="stroke" />
-      <foreignObject x="168" y="34" width="34" height="34"><AppMark size={34} /></foreignObject>
-    </svg>
+    {#if onPhone()}
+      <!-- On a phone: the backup is already here, so just the phone with oopz on it. -->
+      <svg class="art" viewBox="0 0 260 110" aria-hidden="true">
+        <rect x="105" y="8" width="50" height="94" rx="9" class="stroke" />
+        <path d="M125 92h10" class="stroke" />
+        <foreignObject x="113" y="34" width="34" height="34"><AppMark size={34} /></foreignObject>
+      </svg>
+    {:else}
+      <svg class="art" viewBox="0 0 260 110" aria-hidden="true">
+        <rect x="22" y="14" width="46" height="84" rx="9" class="stroke" />
+        <path d="M40 88h10" class="stroke" />
+        <path d="M78 58h44" class="dash" />
+        <rect x="132" y="18" width="104" height="66" rx="6" class="stroke" />
+        <path d="M118 94h132l-8-10H126z" class="stroke" />
+        <foreignObject x="168" y="34" width="34" height="34"><AppMark size={34} /></foreignObject>
+      </svg>
+    {/if}
     <h2>{t.addTitle}</h2>
     <p>{t.addLead}</p>
   </div>

@@ -410,11 +410,12 @@ export function createMock(): Backend {
     pickFolder: async () => FOLDER,
     pickFile: async () => (android ? PICKED : CRYPT14),
     pickSave: async (name) => (android ? `content://com.android.providers.downloads.documents/document/${encodeURIComponent(name)}` : `/home/you/Downloads/${name}`),
-    async importBackup(uri) {
+    pickFiles: async () => (android ? [PICKED] : [CRYPT14]),
+    async importBackup(uris) {
       await sleep(600);
-      if (!uri.startsWith("content://")) fail("not_found", "not a file reference");
+      if (uris.length === 0 || uris.some((u) => !u.startsWith("content://"))) fail("not_found", "not a file reference");
       if (params.has("nospace")) fail("no_space", "310 MB free; this backup needs about 6020 MB");
-      return `${PRIVATE}/msgstore.db.crypt15`;
+      return uris.map((_, n) => (n === 0 ? `${PRIVATE}/msgstore.db.crypt15` : `${PRIVATE}/picked-${n + 1}.crypt15`));
     },
     async saveResult(from) {
       await sleep(400);
