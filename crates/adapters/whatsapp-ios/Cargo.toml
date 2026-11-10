@@ -1,0 +1,22 @@
+[package]
+name = "oopz-whatsapp-ios"
+description = "WhatsApp from an iPhone's own backup (Finder/iTunes), opened with the owner's backup password (decision 0018)."
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+oopz-model.workspace = true
+oopz-ios-backup.workspace = true
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+oopz-gen = { path = "../../oopz-gen" }
+oopz-ios-backup = { workspace = true, features = ["write"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

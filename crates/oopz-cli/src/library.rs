@@ -376,7 +376,7 @@ pub fn run(lib_args: Lib) -> Result<()> {
         LibCommand::Import { path, adapter } => {
             let adapters = oopz_app::adapters();
             let picked = oopz_core::pick_adapter(&adapters, &path, adapter.as_deref())?;
-            let secret = match picked.secret() {
+            let secret = match picked.secret_for(&path) {
                 Secret::None => None,
                 Secret::Key => Some(read_secret("64-digit backup key")?),
                 Secret::Password => Some(read_secret("backup password")?),

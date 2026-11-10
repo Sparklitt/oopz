@@ -196,3 +196,28 @@ fn set_me_on_a_text_export_and_flags_are_checked() {
     let no_lib = Command::new(env!("CARGO_BIN_EXE_oopz")).args(["lib", "sources"]).output().unwrap();
     assert!(String::from_utf8_lossy(&no_lib.stderr).contains("--library"));
 }
+
+#[test]
+fn an_encrypted_iphone_backup_with_its_password_and_its_photos() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("lib");
+    let lib = lib.as_path();
+    let backup = dir.path().join("iphone");
+    let m = oopz_gen::ios::generate(&backup, Some("invented pw"), false).unwrap();
+    let wrong = oopz(lib, &["import", backup.to_str().unwrap()], Some("not it"));
+    assert!(!wrong.status.success());
+    assert!(String::from_utf8_lossy(&wrong.stderr).contains("doesn't open"));
+    let right = oopz(lib, &["import", backup.to_str().unwrap()], Some("invented pw"));
+    let out = String::from_utf8_lossy(&right.stdout).into_owned();
+    assert!(right.status.success(), "{}", String::from_utf8_lossy(&right.stderr));
+    assert!(String::from_utf8_lossy(&right.stderr).contains("as whatsapp-ios"));
+    assert_eq!(number(&out, "people, ") as usize, m.messages, "{out}");
+    assert!(out.contains("media files aren't in the backup"));
+    // The photos came out of the backup into the library's own folder.
+    let media: Vec<_> = std::fs::read_dir(lib.join("media").join("1")).unwrap().collect();
+    assert_eq!(media.len(), m.media_files);
+    let zip = dir.path().join("zip");
+    std::fs::create_dir(&zip).unwrap();
+    let w = ok(lib, &["export", "--format", "media-zip", "--all", "--out-dir", zip.to_str().unwrap()]);
+    assert!(w.contains("saved: "), "{w}");
+}

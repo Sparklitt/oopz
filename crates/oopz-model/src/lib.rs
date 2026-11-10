@@ -574,6 +574,10 @@ pub trait Adapter: Send + Sync {
     fn id(&self) -> &'static str;
     fn app(&self) -> App;
     fn secret(&self) -> Secret;
+    /// The secret this particular source asks for: an iPhone backup wants its password only when it's encrypted.
+    fn secret_for(&self, _path: &Path) -> Secret {
+        self.secret()
+    }
     /// A cheap look at a file or folder (its name, its first bytes): could this adapter open it?
     fn detect(&self, path: &Path) -> bool;
     /// Reads the source. `secret` is the owner's key or password when [`Adapter::secret`] asks for one.

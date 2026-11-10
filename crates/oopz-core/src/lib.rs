@@ -23,7 +23,7 @@ pub mod vcard;
 #[error("{detail}")]
 pub struct Error {
     /// `exists`, `not_found`, `unsupported_file`, `needs_secret`, `wrong_key`, `damaged`, `unsupported`, `io`,
-    /// `cancelled`, `library`.
+    /// `cancelled`, `no_space`, `library`.
     pub code: &'static str,
     pub detail: String,
 }
@@ -1307,6 +1307,11 @@ fn import_into(
             Err(e) => return Err(e.into()),
         }
     }
+    // A source read as it streams learns some notes only at the end (what it couldn't read).
+    tx.execute(
+        "UPDATE source SET notes = ?1 WHERE id = ?2",
+        params![serde_json::to_string(&source.info().notes)?, source_id],
+    )?;
     if inline_files > 0 {
         let root = media.join(source_id.to_string());
         tx.execute(
@@ -1339,6 +1344,11 @@ fn keep_inline(media: &mut m::Media, staging: &Path, count: &mut u64) -> Result<
     *count += 1;
     let file = format!("{count:06}-{own}");
     fs::create_dir_all(staging).map_err(|e| Error::new("io", format!("a folder for the source's files: {e}")))?;
+    // Room for the file and 256 MB to spare, so the library never fills the disk.
+    let free = fs4::available_space(staging).map_err(|e| Error::new("io", format!("reading the free space: {e}")))?;
+    if free < data.len() as u64 + (256 << 20) {
+        return Err(Error::new("no_space", "not enough free space for the source's media files"));
+    }
     fs::write(staging.join(&file), &data).map_err(|e| Error::new("io", format!("writing {file}: {e}")))?;
     media.file = Some(file);
     media.omitted = false;

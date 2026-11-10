@@ -28,6 +28,7 @@ use rusqlite::Connection;
 
 pub mod corpus;
 pub mod exports;
+pub mod ios;
 pub mod media;
 pub mod msgstore;
 pub mod rng;

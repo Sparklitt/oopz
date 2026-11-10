@@ -18,6 +18,8 @@ pub use index::Filter;
 pub fn adapters() -> Vec<&'static dyn oopz_model::Adapter> {
     vec![
         &adapter::WhatsAppAdapter,
+        &oopz_whatsapp_ios::WHATSAPP,
+        &oopz_whatsapp_ios::BUSINESS,
         &oopz_whatsapp_export::WhatsAppExportAdapter,
         &oopz_telegram_export::TelegramExportAdapter,
         &oopz_sms_xml::SmsXmlAdapter,

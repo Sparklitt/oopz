@@ -11,6 +11,7 @@ publish.workspace = true
 oopz.workspace = true
 oopz-model.workspace = true
 oopz-whatsapp-export.workspace = true
+oopz-whatsapp-ios.workspace = true
 oopz-telegram-export.workspace = true
 oopz-sms-xml.workspace = true
 oopz-line-export.workspace = true

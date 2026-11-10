@@ -64,6 +64,12 @@ struct Cli {
     /// viber-csv (with --seed; the other options don't apply).
     #[arg(long)]
     export: Option<String>,
+    /// Write an iPhone backup holding WhatsApp instead (decision 0018), encrypted with --ios-password when given.
+    #[arg(long)]
+    ios: bool,
+    /// The invented password for --ios (never a real one).
+    #[arg(long, requires = "ios")]
+    ios_password: Option<String>,
 }
 
 /// Writes every export of `format` into `out`, each in its folder with its manifest.
@@ -160,6 +166,23 @@ fn main() -> ExitCode {
             println!("{:<14} message_type {}", kind.name(), kind.code());
         }
         return ExitCode::SUCCESS;
+    }
+    if cli.ios {
+        return match oopz_gen::ios::generate(&cli.out, cli.ios_password.as_deref(), false) {
+            Ok(m) => {
+                println!(
+                    "{}: an iPhone backup, {} messages in {} chats",
+                    cli.out.display(),
+                    m.messages,
+                    m.conversations
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("oopz-gen: {e:#}");
+                ExitCode::from(2)
+            }
+        };
     }
     if let Some(format) = &cli.export {
         return match write_export(format, cli.seed.unwrap_or(1), &cli.out) {

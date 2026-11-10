@@ -10,6 +10,7 @@ it maps to the model, what's refused, what was tested and what still needs a rea
 | `sms-xml` | SMS Backup & Restore XML (messages and calls) | [sms-xml.md](sms-xml.md) |
 | `line-export` | LINE "Export chat history" (txt) | [line-export.md](line-export.md) |
 | `viber-csv` | Viber "Export message history" (zip of CSV) | [viber-csv.md](viber-csv.md) |
+| `whatsapp-ios`, `whatsapp-business-ios` | An iPhone's Finder/iTunes backup, encrypted ones with the owner's password | [whatsapp-ios.md](whatsapp-ios.md) |
 
 Test data for each comes from `oopz-gen --export FORMAT OUT` (whatsapp-txt, telegram-json, sms-xml, line-txt,
-viber-csv): invented people, every odd line the format allows, and a `manifest.txt` of counts by kind.
+viber-csv), and `oopz-gen --ios OUT [--ios-password PW]` for an iPhone backup: invented people, every odd line the format allows, and a `manifest.txt` of counts by kind.
