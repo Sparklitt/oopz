@@ -244,6 +244,7 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
                 caption: if view_once { None } else { text.clone() },
                 view_once,
                 omitted: false,
+                data: None,
             }));
         }
         (0, None) => {

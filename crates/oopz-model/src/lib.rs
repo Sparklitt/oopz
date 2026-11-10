@@ -307,6 +307,10 @@ pub struct Media {
     pub view_once: bool,
     /// The source says the file wasn't included (`<Media omitted>`, a file never downloaded).
     pub omitted: bool,
+    /// The file's bytes when the source holds them inline (an MMS part in an SMS backup). The library writes them
+    /// to its own media folder on import and sets [`Media::file`]; never serialized.
+    #[serde(skip)]
+    pub data: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

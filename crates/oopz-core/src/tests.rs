@@ -370,3 +370,60 @@ fn adapters_are_picked_by_name_or_detection() {
     assert_eq!(fingerprint(&file).unwrap().len(), 64);
     assert_eq!(fingerprint(dir.path()).unwrap().len(), 64);
 }
+
+/// An SMS backup's MMS parts carry their bytes: the library keeps them in its own folder, never in the database, and a
+/// stopped import leaves no file behind.
+#[test]
+fn inline_files_are_kept_in_the_librarys_media_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut lib = Library::open(dir.path()).unwrap();
+    let inline = |name: Option<&str>, view_once: bool| {
+        Part::Media(Media {
+            kind: MediaKind::Photo,
+            name: name.map(Into::into),
+            data: Some(b"\x89PNG bytes".to_vec()),
+            view_once,
+            ..Default::default()
+        })
+    };
+    let source = || {
+        let mut s = whatsapp();
+        s.messages[0].parts = vec![
+            inline(Some("../../etc/pic 1.png"), false),
+            inline(None, false),
+            inline(Some("secret.png"), true),
+        ];
+        s
+    };
+    let mut stop = 0;
+    let e = lib
+        .import(&mut source(), "mms.xml", "fp-m", &mut |_, _| {
+            stop += 1;
+            stop < 2
+        })
+        .unwrap_err();
+    assert_eq!(e.code, "cancelled");
+    let media = dir.path().join("media");
+    assert!(!media.exists() || fs::read_dir(&media).unwrap().count() == 0, "nothing left after a stop");
+
+    let id = lib.import(&mut source(), "mms.xml", "fp-m", &mut |_, _| true).unwrap().id;
+    let root = lib.media_root(id).unwrap().expect("a media folder");
+    assert_eq!(root, media.join(id.to_string()));
+    let mut files: Vec<String> =
+        fs::read_dir(&root).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    files.sort();
+    assert_eq!(files, ["000001-pic_1.png", "000002-photo"], "the view-once part is never kept");
+    assert_eq!(fs::read(root.join("000001-pic_1.png")).unwrap(), b"\x89PNG bytes");
+    let first = lib
+        .conversations(&Filter::default())
+        .unwrap()
+        .into_iter()
+        .filter(|c| c.source == id)
+        .map(|c| lib.messages(c.id, 0, 1).unwrap().remove(0))
+        .find(|m| m.message.id == "1" && m.message.conversation == "Ana")
+        .unwrap();
+    let Part::Media(m) = &first.message.parts[0] else { panic!("a photo: {:?}", first.message) };
+    assert_eq!((m.file.as_deref(), m.data.as_ref()), (Some("000001-pic_1.png"), None));
+    lib.remove_source(id).unwrap();
+    assert!(!root.exists(), "removing the source removes its files");
+}

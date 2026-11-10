@@ -517,9 +517,32 @@ impl Library {
         if self.source_by_fingerprint(fingerprint)?.is_some() {
             return Err(Error::new("exists", format!("{name} is already in the library")));
         }
+        // Files the source holds inline go to a staging folder first, renamed to `media/<id>` once the rows are in:
+        // a failure or a stop leaves no files behind either.
+        let media = self.dir.join("media");
+        let staging = media.join(format!(".import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&staging);
         let tx = self.db.transaction()?;
-        let id = import_into(&tx, source, name, fingerprint, progress)?;
-        tx.commit()?;
+        let done = import_into(&tx, source, name, fingerprint, &media, &staging, progress).and_then(|id| {
+            tx.commit()?;
+            Ok(id)
+        });
+        let id = match done {
+            Ok(id) => id,
+            Err(e) => {
+                let _ = fs::remove_dir_all(&staging);
+                return Err(e);
+            }
+        };
+        if staging.exists() {
+            let target = media.join(id.to_string());
+            let _ = fs::remove_dir_all(&target);
+            if let Err(e) = fs::rename(&staging, &target) {
+                let _ = fs::remove_dir_all(&staging);
+                let _ = self.remove_source(id);
+                return Err(Error::new("io", format!("keeping the source's files: {e}")));
+            }
+        }
         self.source(id)
     }
 
@@ -1141,9 +1164,12 @@ fn import_into(
     source: &mut dyn Source,
     name: &str,
     fingerprint: &str,
+    media: &Path,
+    staging: &Path,
     progress: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<i64> {
     let info = source.info().clone();
+    let mut inline_files = 0u64;
     tx.execute(
         "INSERT INTO source (app, adapter, name, fingerprint, format, added_ms, notes, media_root, wall_clock)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -1228,8 +1254,15 @@ fn import_into(
         }
         let mut pos = 0u64;
         let mut failed: Option<Error> = None;
-        let streamed = source.messages(&conv.id, &mut |msg| {
+        let streamed = source.messages(&conv.id, &mut |mut msg| {
             let step = (|| -> Result<()> {
+                if info.media_root.is_none() {
+                    for part in &mut msg.parts {
+                        if let m::Part::Media(media_part) = part {
+                            keep_inline(media_part, staging, &mut inline_files)?;
+                        }
+                    }
+                }
                 let sender = match &msg.sender {
                     Some(key) => Some(person_id(key, &mut people)?),
                     None => None,
@@ -1274,8 +1307,42 @@ fn import_into(
             Err(e) => return Err(e.into()),
         }
     }
+    if inline_files > 0 {
+        let root = media.join(source_id.to_string());
+        tx.execute(
+            "UPDATE source SET media_root = ?1 WHERE id = ?2",
+            params![root.to_string_lossy().into_owned(), source_id],
+        )?;
+    }
     progress(total, total);
     Ok(source_id)
+}
+
+/// Writes a media part's inline bytes into `staging` and points [`m::Media::file`] at the copy. The name is the part's
+/// own (only letters, digits, `.`, `-`, `_`), after a counter so two parts never share a file.
+fn keep_inline(media: &mut m::Media, staging: &Path, count: &mut u64) -> Result<()> {
+    let Some(data) = media.data.take() else { return Ok(()) };
+    if media.view_once || media.file.is_some() {
+        return Ok(());
+    }
+    let own: String = media
+        .name
+        .as_deref()
+        .and_then(|n| n.rsplit(['/', '\\']).next())
+        .unwrap_or("")
+        .chars()
+        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+        .take(80)
+        .collect();
+    let own = own.trim_start_matches('.');
+    let own = if own.is_empty() { format!("{:?}", media.kind).to_lowercase() } else { own.to_owned() };
+    *count += 1;
+    let file = format!("{count:06}-{own}");
+    fs::create_dir_all(staging).map_err(|e| Error::new("io", format!("a folder for the source's files: {e}")))?;
+    fs::write(staging.join(&file), &data).map_err(|e| Error::new("io", format!("writing {file}: {e}")))?;
+    media.file = Some(file);
+    media.omitted = false;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -506,6 +506,7 @@ impl Book {
                 mime: Some(ct).filter(|c| !c.is_empty()),
                 size: data.as_ref().map(|d| d.len() as u64),
                 omitted: data.is_none(),
+                data,
                 ..Default::default()
             }));
         }
