@@ -68,6 +68,9 @@ export const app = $state({
   },
 });
 
+// The page's language from the start, so the browser doesn't offer to translate a page it thinks is English.
+document.documentElement.lang = app.lang;
+
 let backend: Backend;
 export function setBackend(b: Backend) {
   backend = b;
@@ -102,6 +105,7 @@ export async function run<T>(work: () => Promise<T>): Promise<T | undefined> {
 
 export function setLang(lang: Lang) {
   app.lang = lang;
+  document.documentElement.lang = lang;
   save("oopz.lang", lang);
 }
 

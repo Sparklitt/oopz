@@ -25,7 +25,6 @@
   let view = $derived(!has && ["overview", "chats", "search", "insights"].includes(app.view) ? "add" : app.view);
 
   $effect(() => {
-    document.documentElement.lang = app.lang;
     if (app.theme === "system") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = app.theme;
   });
