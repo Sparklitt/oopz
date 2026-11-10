@@ -36,7 +36,8 @@ export const app = $state({
   lang: initialLang() as Lang,
   theme: (savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system") as Theme,
   view: "add" as View,
-  sheet: "welcome" as SheetName | null,
+  // The welcome sheet until the person has agreed once; if storage fails, it asks again next time.
+  sheet: (load("oopz.consent") === "yes" ? null : "welcome") as SheetName | null,
   /** Error of the current screen's last action, shown on that screen. */
   error: null as AppError | null,
   busy: false,
@@ -110,6 +111,11 @@ export function setLang(lang: Lang) {
   app.lang = lang;
   document.documentElement.lang = lang;
   save("oopz.lang", lang);
+}
+
+/** The person ticked "these are my own backups": not asked again at the next start. */
+export function giveConsent() {
+  save("oopz.consent", "yes");
 }
 
 export function setTheme(theme: Theme) {

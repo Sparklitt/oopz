@@ -3,13 +3,14 @@
   import Icon, { type IconName } from "../components/Icon.svelte";
   import Sheet from "../components/Sheet.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import { app, go, setLang } from "../state.svelte";
+  import { app, giveConsent, go, setLang } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let consent = $state(false);
   const ICONS: IconName[] = ["key", "shield", "fileCheck", "cloudOff"];
 
   function start() {
+    giveConsent();
     app.sheet = app.updates.status === "found" ? "update" : null;
     go("add");
   }
