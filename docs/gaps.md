@@ -27,8 +27,8 @@ promised by date. The data types themselves live in [data-types.md](data-types.m
 ## Showing every type
 
 - **The shared registry, the rest of the way** (decision [0020](decisions/0020-the-shared-registry.md) settled it:
-  msgkinds, with its readers' tests here). Left: switch the WhatsApp chat export to msgkinds' `whatsapp_export`
-  names, and Telegram, SMS, LINE and Viber once msgkinds lists them (each adapter's `TODO(msgkinds)`); read the
+  msgkinds, with its readers' tests here). Left: switch the WhatsApp chat export, Telegram, SMS and LINE to the
+  sources msgkinds' main now lists, and Viber's CSV once it does (each adapter's `TODO(msgkinds)`); read the
   app's version from a backup so the registry picks the row for that version; publish msgkinds and depend on it by
   git.
 - **Known gaps**: Lottie/TGS and video stickers (animated WebP plays), polls with votes on iPhone, reactions per

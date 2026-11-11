@@ -624,10 +624,10 @@ const en = {
       text: "text", link: "link", photo: "photo", video: "video", video_note: "video note", gif: "GIF", voice: "voice note", audio: "audio",
       sticker: "sticker", document: "document", location: "location", contact: "contact", poll: "poll", call: "call", album: "album",
       sticker_pack: "sticker pack", event: "event", payment: "payment", game: "game", business: "business message", story: "status update",
-      system: "notice", deleted: "deleted", unknown: "other",
+      reaction: "reaction", system: "notice", deleted: "deleted", unknown: "other",
     } satisfies Record<Kind, string>,
     media: { photo: "Photo", video: "Video", video_note: "Video note", gif: "GIF", sticker: "Sticker", voice: "Voice note", audio: "Audio", document: "Document" } satisfies Record<MediaKind, string>,
-    cards: { album: "Album", sticker_pack: "Sticker pack", event: "Event", payment: "Payment", game: "Game", business: "Business message", story: "Status update" } satisfies Record<CardKind, string>,
+    cards: { album: "Album", sticker_pack: "Sticker pack", event: "Event", payment: "Payment", game: "Game", business: "Business message", story: "Status update", reaction: "Reaction" } satisfies Record<CardKind, string>,
     /** A type oopz doesn't know yet, as its card says it: the app and its own code. */
     notShown: (app: string, code: string) => `${app}: ${code}, not shown yet`,
     noFile: "the file isn't in the backup's media folder",
@@ -643,7 +643,7 @@ const en = {
       kept_in_chat: "A message was kept in the chat", chat_locked: "Chat locked", screenshot: "A screenshot was taken", pinned: "A message was pinned",
       unpinned: "A message was unpinned", blocked: "Blocked or unblocked", unblocked: "Unblocked", message_deleted: "A message was deleted",
       history_cleared: "History cleared", group_call: "Group call", poll_closed: "Poll closed", payment_status: "Payment status changed",
-      missed_messages: "Missed messages", theme_changed: "Theme changed", other: "Notice",
+      missed_messages: "Missed messages", theme_changed: "Theme changed", profile_changed: "Profile name changed", other: "Notice",
     } satisfies Record<EventCode, string>,
     adapterNames: {
       "whatsapp-android": "Android backup (.crypt15, with its 64-digit key)",

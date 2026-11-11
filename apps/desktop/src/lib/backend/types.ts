@@ -304,10 +304,10 @@ export type AppCode = "whatsapp" | "telegram" | "sms" | "line" | "viber" | "sign
 /** What a message is: msgkinds' kinds (crates/oopz-model's Kind; a Rust test keeps this list the same). */
 export type Kind =
   | "text" | "link" | "photo" | "video" | "video_note" | "gif" | "voice" | "audio" | "sticker" | "document" | "location" | "contact" | "poll" | "call"
-  | "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "system" | "deleted" | "unknown";
+  | "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "reaction" | "system" | "deleted" | "unknown";
 export type MediaKind = "photo" | "video" | "video_note" | "gif" | "sticker" | "voice" | "audio" | "document";
 /** The kinds a card part holds (oopz-model's CardKind). */
-export type CardKind = "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story";
+export type CardKind = "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "reaction";
 /** What an app's notice says happened (oopz-model's Event; a Rust test keeps this list the same). */
 export type EventCode =
   | "encryption" | "security_code_changed" | "number_changed" | "device_changed" | "account_deleted" | "contact_joined" | "business_notice"
@@ -315,7 +315,7 @@ export type EventCode =
   | "member_added" | "member_joined" | "member_left" | "member_removed" | "join_requested" | "admin_added" | "admin_removed" | "admin_changed"
   | "owner_changed" | "community_changed" | "invite_link_reset" | "disappearing" | "kept_in_chat" | "chat_locked" | "screenshot" | "pinned"
   | "unpinned" | "blocked" | "unblocked" | "message_deleted" | "history_cleared" | "group_call" | "poll_closed" | "payment_status"
-  | "missed_messages" | "theme_changed" | "other";
+  | "missed_messages" | "theme_changed" | "profile_changed" | "other";
 export type Order = "conversation" | "time" | "newest";
 
 export interface LibraryInfo {

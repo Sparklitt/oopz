@@ -468,8 +468,8 @@ fn unsent(text: &str) -> Option<&str> {
         .filter(|w| !w.is_empty())
 }
 
-/// TODO(msgkinds): LINE's text export has no codes, only wording; switch to msgkinds' registry
-/// (`Source::LineTxt`) for its placeholders ("[Sticker]", "[Photo]") once it lists them.
+/// TODO(msgkinds): msgkinds' main now lists LINE's text export by its words (`Source::LineTxt`): classify into its
+/// names ("[Sticker]", "[Photo]", notices) and look them up instead of this match.
 fn event(text: &str) -> Event {
     let t = text.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| t.contains(w));

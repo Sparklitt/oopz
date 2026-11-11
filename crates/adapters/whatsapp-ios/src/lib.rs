@@ -537,7 +537,8 @@ impl Source for IosSource {
                     | m::Kind::Payment
                     | m::Kind::Game
                     | m::Kind::Business
-                    | m::Kind::Story => {
+                    | m::Kind::Story
+                    | m::Kind::Reaction => {
                         let card = m::CardKind::from_kind(kind_of).expect("a card kind");
                         parts.push(Part::Card { kind: card, title, text });
                     }

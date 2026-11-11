@@ -216,6 +216,7 @@ impl Default for Words {
                 ("payment_status", "Payment status changed"),
                 ("missed_messages", "Missed messages"),
                 ("theme_changed", "Theme changed"),
+                ("profile_changed", "Profile name changed"),
                 ("other", "Notice"),
             ]),
             cards: owned(&[
@@ -226,6 +227,7 @@ impl Default for Words {
                 ("game", "Game"),
                 ("business", "Business message"),
                 ("story", "Status update"),
+                ("reaction", "Reaction"),
             ]),
         }
     }

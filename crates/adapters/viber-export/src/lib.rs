@@ -219,8 +219,8 @@ fn time(s: &str) -> Option<(u32, u32, u32)> {
 
 impl Book {
     /// One CSV file: one conversation.
-    /// TODO(msgkinds): Viber's CSV rows move to msgkinds' registry (`Source::ViberCsv`) once it lists them; a row
-    /// neither reads stays an unknown part.
+    /// TODO(msgkinds): msgkinds lists Viber Desktop's database (`Source::ViberDesktop`), not this CSV export yet:
+    /// switch once it has a `viber_csv` source; a row neither reads stays an unknown part.
     fn csv(&mut self, name: &str, text: &str) -> Result<()> {
         let first_line = text.lines().next().unwrap_or("");
         let delimiter =

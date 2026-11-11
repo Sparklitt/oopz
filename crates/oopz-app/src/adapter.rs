@@ -302,7 +302,8 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
         | m::Kind::Payment
         | m::Kind::Game
         | m::Kind::Business
-        | m::Kind::Story => {
+        | m::Kind::Story
+        | m::Kind::Reaction => {
             let card = m::CardKind::from_kind(kind).expect("a card kind");
             parts.push(m::Part::Card { kind: card, title: None, text: text.clone() });
         }

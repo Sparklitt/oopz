@@ -380,8 +380,8 @@ impl Reader {
             x.size = m.get("photo_file_size").and_then(int_of).and_then(|n| u64::try_from(n).ok()).or(x.size);
             media = Some(x);
         } else if m.contains_key("file") || m.contains_key("media_type") {
-            // TODO(msgkinds): look `media_type` up in msgkinds' registry once it has Telegram Desktop's JSON
-            // (`Source::TelegramJson`); until then this match is the mapping (docs/adapters/telegram.md).
+            // TODO(msgkinds): msgkinds' main now lists Telegram Desktop's JSON (`Source::TelegramJson`,
+            // `TelegramJsonMedia`): look `media_type` up there instead of this match.
             let kind = match m.get("media_type").and_then(Value::as_str) {
                 Some("voice_message") => MediaKind::Voice,
                 Some("video_message") => MediaKind::VideoNote,
@@ -483,8 +483,8 @@ impl Reader {
         parts
     }
 
-    /// TODO(msgkinds): the service `action`s move to msgkinds' registry (`Source::TelegramJsonAction`) once it lists
-    /// them; an action neither names stays an unknown part with its code.
+    /// TODO(msgkinds): msgkinds' main now lists the service `action`s (`Source::TelegramJsonAction`): look them up
+    /// there instead of this match; an action no row names stays an unknown part with its code.
     fn service(&mut self, m: &Map<String, Value>) -> Part {
         let action = m.get("action").and_then(Value::as_str).unwrap_or("");
         let members: Vec<&str> =

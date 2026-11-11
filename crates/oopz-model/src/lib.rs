@@ -453,13 +453,15 @@ pub enum Event {
     PaymentStatus,
     MissedMessages,
     ThemeChanged,
+    /// A person changed their profile name, or the chat learned it.
+    ProfileChanged,
     #[default]
     Other,
 }
 
 impl Event {
     /// Every event, [`Event::Other`] last.
-    pub const ALL: [Event; 41] = [
+    pub const ALL: [Event; 42] = [
         Event::Encryption,
         Event::SecurityCodeChanged,
         Event::NumberChanged,
@@ -500,6 +502,7 @@ impl Event {
         Event::PaymentStatus,
         Event::MissedMessages,
         Event::ThemeChanged,
+        Event::ProfileChanged,
         Event::Other,
     ];
 
@@ -556,6 +559,7 @@ impl From<msgkinds::Event> for Event {
             E::PaymentStatus => Event::PaymentStatus,
             E::MissedMessages => Event::MissedMessages,
             E::ThemeChanged => Event::ThemeChanged,
+            E::ProfileChanged => Event::ProfileChanged,
             E::Other => Event::Other,
         }
     }
@@ -606,6 +610,7 @@ impl From<Event> for msgkinds::Event {
             Event::PaymentStatus => E::PaymentStatus,
             Event::MissedMessages => E::MissedMessages,
             Event::ThemeChanged => E::ThemeChanged,
+            Event::ProfileChanged => E::ProfileChanged,
             Event::Other => E::Other,
         }
     }
@@ -637,13 +642,15 @@ pub enum Kind {
     Game,
     Business,
     Story,
+    /// A reaction the source keeps as a message of its own (iMessage's tapbacks).
+    Reaction,
     System,
     Deleted,
     Unknown,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 24] = [
+    pub const ALL: [Kind; 25] = [
         Kind::Text,
         Kind::Link,
         Kind::Photo,
@@ -665,6 +672,7 @@ impl Kind {
         Kind::Game,
         Kind::Business,
         Kind::Story,
+        Kind::Reaction,
         Kind::System,
         Kind::Deleted,
         Kind::Unknown,
@@ -715,6 +723,7 @@ impl From<msgkinds::Kind> for Kind {
             K::Game => Kind::Game,
             K::Business => Kind::Business,
             K::Story => Kind::Story,
+            K::Reaction => Kind::Reaction,
             K::System => Kind::System,
             K::Deleted => Kind::Deleted,
             K::Unknown => Kind::Unknown,
@@ -747,6 +756,7 @@ impl From<Kind> for msgkinds::Kind {
             Kind::Game => K::Game,
             Kind::Business => K::Business,
             Kind::Story => K::Story,
+            Kind::Reaction => K::Reaction,
             Kind::System => K::System,
             Kind::Deleted => K::Deleted,
             Kind::Unknown => K::Unknown,
@@ -799,10 +809,12 @@ pub enum CardKind {
     Game,
     Business,
     Story,
+    /// A reaction kept as a message of its own, until it's attached to the message it reacts to.
+    Reaction,
 }
 
 impl CardKind {
-    pub const ALL: [CardKind; 7] = [
+    pub const ALL: [CardKind; 8] = [
         CardKind::Album,
         CardKind::StickerPack,
         CardKind::Event,
@@ -810,6 +822,7 @@ impl CardKind {
         CardKind::Game,
         CardKind::Business,
         CardKind::Story,
+        CardKind::Reaction,
     ];
 
     /// The card kind of a message kind, for the kinds a card holds.
@@ -822,6 +835,7 @@ impl CardKind {
             Kind::Game => CardKind::Game,
             Kind::Business => CardKind::Business,
             Kind::Story => CardKind::Story,
+            Kind::Reaction => CardKind::Reaction,
             _ => return None,
         })
     }
@@ -837,6 +851,7 @@ impl From<CardKind> for Kind {
             CardKind::Game => Kind::Game,
             CardKind::Business => Kind::Business,
             CardKind::Story => Kind::Story,
+            CardKind::Reaction => Kind::Reaction,
         }
     }
 }

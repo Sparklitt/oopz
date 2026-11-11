@@ -20,12 +20,13 @@ it's known.
    oopz's own type so it serializes; `From` both ways, no `_` arm, so a new msgkinds kind doesn't build here until
    it's handled). `Event` has every msgkinds event under oopz's stored names: `topic_created` is msgkinds'
    `topic_changed`, and `admin_changed` (an export that doesn't say which way) maps to `admin_added`. `App` converts
-   too. Kinds without a part of their own (album, sticker pack, event, payment, game, business, story) are a
-   `Part::Card`.
+   too. Kinds without a part of their own (album, sticker pack, event, payment, game, business, story, a
+   reaction kept as its own message) are a `Part::Card`.
 4. **Adapters look codes up** with `msgkinds::lookup` where msgkinds has the source: WhatsApp Android
    (`message_type`, and `message_system.action_type` for a system line) and WhatsApp iPhone (`ZMESSAGETYPE`, and
-   `ZGROUPEVENTTYPE` of a group event or a notice). The others keep their own mapping, with a `TODO(msgkinds)`
-   naming the source to switch to once msgkinds has it. The app's version isn't read from a backup yet: the
+   `ZGROUPEVENTTYPE` of a group event or a notice). The others keep their own mapping for now, each with a `TODO(msgkinds)`
+   naming the msgkinds source to switch to (Telegram, SMS and LINE are listed on msgkinds' main; Viber's CSV and
+   the WhatsApp chat export's words are next). The app's version isn't read from a backup yet: the
    registry takes its newest row for each code.
 5. **A code no row names is never an error and never dropped**: an unknown part with the app's own code, shown as a
    labelled card ("WhatsApp: 9999, not shown yet", in the app's language), counted and exported.

@@ -65,7 +65,8 @@ pub fn parts(kind: Kind) -> Vec<Part> {
         | Kind::Payment
         | Kind::Game
         | Kind::Business
-        | Kind::Story => unreachable!(),
+        | Kind::Story
+        | Kind::Reaction => unreachable!(),
     }
 }
 
