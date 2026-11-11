@@ -465,6 +465,8 @@ impl Source for IosSource {
                 ..Default::default()
             };
             let mut parts = Vec::new();
+            // TODO(msgkinds): `ZMESSAGETYPE` moves to msgkinds' registry (`Source::WhatsAppIos`) once it has the iPhone's
+            // ChatStorage.sqlite; until then this match is the mapping, and an unlisted type is an unknown part.
             match kind {
                 0 => parts.push(Part::text(text.unwrap_or_default())),
                 7 => {

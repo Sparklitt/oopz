@@ -361,6 +361,8 @@ pub fn is_notice(parts: &[Part]) -> bool {
     parts.iter().all(|p| matches!(p, Part::Text { .. } | Part::Link { .. }))
 }
 
+/// TODO(msgkinds): the text export has no codes; its placeholders and notices move to msgkinds' registry
+/// (`Source::WhatsAppTxt`) once it lists them.
 /// The kind of notice, from its wording (English and Spanish).
 pub fn event(text: &str) -> Event {
     let t = text.to_lowercase();

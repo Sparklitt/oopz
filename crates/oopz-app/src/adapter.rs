@@ -6,6 +6,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
+use msgkinds::{Code, Flag, Source as Registry};
 use oopz_model as m;
 use oopz_model::{Adapter, App, Error, Secret, Source};
 
@@ -208,57 +209,72 @@ fn links(text: &str) -> Vec<m::Part> {
         .collect()
 }
 
-/// One index line as the model's message. The type codes are WhatsApp's (`oopz-gen`'s spec lists them).
+/// One index line as the model's message. What WhatsApp's `message_type` (and a system message's `action_type`)
+/// means comes from msgkinds' registry (decision 0020); a code it doesn't name stays an unknown part with the code.
+/// The app's version isn't read from the backup yet: the registry takes its newest row for each code.
 fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message {
     let text = line.text.clone().filter(|t| !t.is_empty());
-    let media_kind = match line.kind {
-        1 | 42 => Some(m::MediaKind::Photo),
-        2 => Some(if line.media.as_ref().and_then(|x| x.mime.as_deref()).is_some_and(|t| t.contains("ogg")) {
-            m::MediaKind::Voice
-        } else {
-            m::MediaKind::Audio
-        }),
-        3 | 43 => Some(m::MediaKind::Video),
-        9 => Some(m::MediaKind::Document),
-        13 => Some(m::MediaKind::Gif),
-        20 => Some(m::MediaKind::Sticker),
-        81 => Some(m::MediaKind::VideoNote),
-        _ => None,
-    };
+    let resolved = msgkinds::lookup(Registry::WhatsAppAndroid, Code::Int(line.kind), None);
     let mut parts = Vec::new();
     let mut deleted = false;
-    match (line.kind, media_kind) {
-        (_, Some(kind)) => {
-            let facts = line.media.clone();
-            let view_once = matches!(line.kind, 42 | 43);
-            parts.push(m::Part::Media(m::Media {
-                kind,
-                file: None,
-                name: facts.as_ref().and_then(|x| x.name.clone()),
-                mime: facts.as_ref().and_then(|x| x.mime.clone()),
-                size: facts.as_ref().and_then(|x| x.size).and_then(|s| u64::try_from(s).ok()),
-                width: facts.as_ref().and_then(|x| x.width).and_then(|s| u32::try_from(s).ok()),
-                height: facts.as_ref().and_then(|x| x.height).and_then(|s| u32::try_from(s).ok()),
-                secs: facts.as_ref().and_then(|x| x.secs).and_then(|s| u64::try_from(s).ok()),
-                // A view-once message's content is never kept.
-                caption: if view_once { None } else { text.clone() },
-                view_once,
-                omitted: false,
-                data: None,
-            }));
-        }
-        (0, None) => {
+    let Some(entry) = resolved.entry() else {
+        parts.push(m::Part::Unknown { code: line.kind.to_string(), text: text.clone() });
+        return envelope(conversation, line, sender, parts, deleted);
+    };
+    let kind = m::Kind::from(entry.kind);
+    // Type 2 is a voice note or an audio file: a voice note is Ogg Opus (or sits under `Voice Notes/`).
+    let kind = if kind == m::Kind::Audio && entry.has(Flag::Refined) {
+        let media = line.media.as_ref();
+        let voice = media.and_then(|x| x.mime.as_deref()).is_some_and(|t| t.contains("ogg"))
+            || media.and_then(|x| x.file.as_deref()).is_some_and(|f| f.contains("Voice Notes/"));
+        if voice { m::Kind::Voice } else { m::Kind::Audio }
+    } else {
+        kind
+    };
+    if let Some(media_kind) = m::MediaKind::from_kind(kind) {
+        let facts = line.media.clone();
+        let view_once = entry.has(Flag::ViewOnce);
+        parts.push(m::Part::Media(m::Media {
+            kind: media_kind,
+            // Relative to the source's media folder (`…/WhatsApp/Media`), when WhatsApp kept a path.
+            file: facts
+                .as_ref()
+                .and_then(|x| x.file.as_deref())
+                .filter(|_| !view_once)
+                .and_then(oopz::media_relative)
+                .map(|p| p.to_string_lossy().replace('\\', "/")),
+            name: facts.as_ref().and_then(|x| x.name.clone()),
+            mime: facts.as_ref().and_then(|x| x.mime.clone()),
+            size: facts.as_ref().and_then(|x| x.size).and_then(|s| u64::try_from(s).ok()),
+            width: facts.as_ref().and_then(|x| x.width).and_then(|s| u32::try_from(s).ok()),
+            height: facts.as_ref().and_then(|x| x.height).and_then(|s| u32::try_from(s).ok()),
+            // WhatsApp writes 0 for a sticker or a photo: only a kind that plays has a duration.
+            secs: facts
+                .as_ref()
+                .and_then(|x| x.secs)
+                .and_then(|s| u64::try_from(s).ok())
+                .filter(|_| kind.has_duration()),
+            // A view-once message's content is never kept.
+            caption: if view_once { None } else { text.clone() },
+            view_once,
+            omitted: false,
+            data: None,
+        }));
+        return envelope(conversation, line, sender, parts, deleted);
+    }
+    match kind {
+        m::Kind::Text | m::Kind::Link => {
             if let Some(t) = &text {
                 parts.push(m::Part::text(t.clone()));
                 parts.extend(links(t));
             }
         }
-        (4, None) => parts.push(m::Part::Contact { name: text.clone(), phones: Vec::new(), vcard: None }),
-        (5 | 16, None) => {
-            parts.push(m::Part::Location { lat: None, lng: None, name: text.clone(), live: line.kind == 16 })
+        m::Kind::Contact => parts.push(m::Part::Contact { name: text.clone(), phones: Vec::new(), vcard: None }),
+        m::Kind::Location => {
+            parts.push(m::Part::Location { lat: None, lng: None, name: text.clone(), live: entry.has(Flag::Live) })
         }
-        (15, None) => deleted = true,
-        (46, None) => parts.push(m::Part::Poll {
+        m::Kind::Deleted => deleted = true,
+        m::Kind::Poll => parts.push(m::Part::Poll {
             question: text.clone().unwrap_or_default(),
             options: line
                 .poll
@@ -267,7 +283,7 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
                 .collect(),
             multiple: false,
         }),
-        (90, None) => {
+        m::Kind::Call => {
             let call = line.call.clone();
             parts.push(m::Part::Call {
                 video: call.as_ref().is_some_and(|c| c.video),
@@ -275,9 +291,42 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
                 secs: call.as_ref().and_then(|c| c.secs).and_then(|s| u64::try_from(s).ok()),
             });
         }
-        (7, None) => parts.push(m::Part::System { event: m::Event::Other, text: text.clone() }),
-        (code, None) => parts.push(m::Part::Unknown { code: code.to_string(), text: text.clone() }),
+        m::Kind::System => parts.push(system(line.action, text.clone())),
+        m::Kind::Album
+        | m::Kind::StickerPack
+        | m::Kind::Event
+        | m::Kind::Payment
+        | m::Kind::Game
+        | m::Kind::Business
+        | m::Kind::Story => {
+            let card = m::CardKind::from_kind(kind).expect("a card kind");
+            parts.push(m::Part::Card { kind: card, title: None, text: text.clone() });
+        }
+        // Handled above (media), or never a registry row's kind.
+        m::Kind::Photo
+        | m::Kind::Video
+        | m::Kind::VideoNote
+        | m::Kind::Gif
+        | m::Kind::Voice
+        | m::Kind::Audio
+        | m::Kind::Sticker
+        | m::Kind::Document
+        | m::Kind::Unknown => parts.push(m::Part::Unknown { code: line.kind.to_string(), text: text.clone() }),
     }
+    envelope(conversation, line, sender, parts, deleted)
+}
+
+/// A system message: what happened, from its `action_type` when the registry names it, else a notice that keeps
+/// WhatsApp's wording.
+fn system(action: Option<i64>, text: Option<String>) -> m::Part {
+    let event = action
+        .and_then(|a| msgkinds::lookup(Registry::WhatsAppAndroidSystem, Code::Int(a), None).entry())
+        .and_then(|e| e.event)
+        .map_or(m::Event::Other, m::Event::from);
+    m::Part::System { event, text }
+}
+
+fn envelope(conversation: &str, line: Line, sender: Option<String>, parts: Vec<m::Part>, deleted: bool) -> m::Message {
     m::Message {
         id: line.id.to_string(),
         conversation: conversation.to_owned(),
@@ -328,6 +377,61 @@ mod tests {
         assert!(matches!(e, Error::NeedsSecret));
         let e = WhatsAppAdapter.open(Path::new("msgstore.db.crypt15"), Some("  ")).err().unwrap();
         assert!(matches!(e, Error::NeedsSecret));
+    }
+
+    fn line(kind: i64) -> Line {
+        Line { id: 9999, ts: 1, kind, text: Some("x".into()), ..Default::default() }
+    }
+
+    /// msgkinds' registry.md, "What readers test on their side", 1: every row of the sources this adapter reads
+    /// (`message.message_type`, `message_system.action_type`) maps without falling to unknown. The old single-table
+    /// schema (`whatsapp_android_legacy`) isn't read: the index needs the `message` table.
+    #[test]
+    fn every_registry_row_maps() {
+        for entry in Registry::WhatsAppAndroid.entries() {
+            let Code::Int(code) = entry.code else { panic!("{:?}", entry.code) };
+            let msg = message("1", line(code), None);
+            let kind = msg.kind();
+            assert_ne!(kind, m::Kind::Unknown, "message_type {code}");
+            // Type 2 is refined to a voice note or an audio file; type 7 is a system line.
+            let want = m::Kind::from(entry.kind);
+            assert!(kind == want || (code == 2 && kind == m::Kind::Voice), "message_type {code}: {kind:?}");
+            if entry.has(Flag::ViewOnce) {
+                assert!(msg.text().is_empty(), "a view-once caption is never kept");
+            }
+        }
+        for entry in Registry::WhatsAppAndroidSystem.entries() {
+            let Code::Int(code) = entry.code else { panic!("{:?}", entry.code) };
+            let msg = message("1", Line { action: Some(code), ..line(7) }, None);
+            let [m::Part::System { event, .. }] = msg.parts.as_slice() else { panic!("action_type {code}") };
+            assert_eq!(Some(msgkinds::Event::from(*event)), entry.event, "action_type {code}");
+        }
+    }
+
+    /// 3: a code no row names is an unknown part with its code, never an error and never dropped.
+    #[test]
+    fn an_unknown_code_is_kept_with_its_code() {
+        let msg = message("1", line(9999), None);
+        assert_eq!(msg.kind(), m::Kind::Unknown);
+        assert_eq!(msg.parts, [m::Part::Unknown { code: "9999".into(), text: Some("x".into()) }]);
+        // A system line whose action the registry doesn't name keeps WhatsApp's wording.
+        let msg = message("1", Line { action: Some(9999), ..line(7) }, None);
+        assert_eq!(msg.parts, [m::Part::System { event: m::Event::Other, text: Some("x".into()) }]);
+    }
+
+    #[test]
+    fn stickers_have_no_duration_and_keep_their_file() {
+        let media = crate::index::Media {
+            mime: Some("image/webp".into()),
+            size: Some(20_000),
+            secs: Some(0),
+            file: Some("Media/WhatsApp Stickers/STK-9999.webp".into()),
+            ..Default::default()
+        };
+        let msg = message("1", Line { media: Some(media), ..line(20) }, None);
+        let [m::Part::Media(sticker), ..] = msg.parts.as_slice() else { panic!("{:?}", msg.parts) };
+        assert_eq!((sticker.kind, sticker.secs), (m::MediaKind::Sticker, None));
+        assert_eq!(sticker.file.as_deref(), Some("WhatsApp Stickers/STK-9999.webp"));
     }
 }
 

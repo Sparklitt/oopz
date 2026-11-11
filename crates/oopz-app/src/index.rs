@@ -27,7 +27,7 @@ pub struct Hit {
 }
 
 /// One message as the chat viewer shows it.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 pub struct Line {
     pub id: i64,
     pub ts: i64,
@@ -51,6 +51,9 @@ pub struct Line {
     pub poll: Vec<(String, u64)>,
     pub call: Option<Call>,
     pub media: Option<Media>,
+    /// A system message's `message_system.action_type`, for the adapter (never sent to the UI).
+    #[serde(skip)]
+    pub action: Option<i64>,
 }
 
 /// See [`Line::reply`].
@@ -73,7 +76,7 @@ pub struct Call {
 }
 
 /// See [`Line::media`]: what the backup says about a file, whether or not the file is at hand.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 pub struct Media {
     pub mime: Option<String>,
     /// A document's file name.
@@ -82,6 +85,9 @@ pub struct Media {
     pub secs: Option<i64>,
     pub width: Option<i64>,
     pub height: Option<i64>,
+    /// WhatsApp's `file_path` (`Media/WhatsApp Stickers/…`), for the adapter (never sent to the UI).
+    #[serde(skip)]
+    pub file: Option<String>,
 }
 
 /// What a search is narrowed to; every part optional. With no words, the newest messages that match the rest.
@@ -232,7 +238,7 @@ impl Index {
         let mut stmt = self.db.prepare_cached(
             "SELECT m.id, m.ts, m.from_me, m.kind, m.text, w.ending, m.size, m.secs, x.id IS NOT NULL,
                  x.reply_id, x.reply_from_me, x.reply_kind, x.reply_text, x.reply_key IS NOT NULL, x.fwd, x.edited,
-                 x.mime, x.name, x.w, x.h, x.call_video, x.call_result, x.call_secs, m.sender
+                 x.mime, x.name, x.w, x.h, x.call_video, x.call_result, x.call_secs, m.sender, x.action, x.file
              FROM msg m LEFT JOIN who w ON w.row = m.sender LEFT JOIN extra x ON x.id = m.id
              WHERE m.chat = ?1 AND m.pos >= ?3 ORDER BY m.pos LIMIT ?2",
         )?;
@@ -242,7 +248,15 @@ impl Index {
                 let extra: bool = r.get(8)?;
                 let mime: Option<String> = r.get(16)?;
                 let media = if mime.is_some() || size.is_some() {
-                    Some(Media { mime, name: r.get(17)?, size, secs, width: r.get(18)?, height: r.get(19)? })
+                    Some(Media {
+                        mime,
+                        name: r.get(17)?,
+                        size,
+                        secs,
+                        width: r.get(18)?,
+                        height: r.get(19)?,
+                        file: r.get(25)?,
+                    })
                 } else {
                     None
                 };
@@ -274,6 +288,7 @@ impl Index {
                     poll: Vec::new(),
                     call,
                     media,
+                    action: r.get(24)?,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -396,7 +411,8 @@ fn build_into(
          -- What the viewer shows besides the text, for the messages that have any of it.
          CREATE TABLE extra (id INTEGER PRIMARY KEY, reply_key TEXT, reply_id INTEGER, reply_from_me INTEGER,
              reply_kind INTEGER, reply_text TEXT, fwd INTEGER, edited INTEGER, mime TEXT, name TEXT, w INTEGER,
-             h INTEGER, call_video INTEGER, call_result INTEGER, call_secs INTEGER);
+             h INTEGER, call_video INTEGER, call_result INTEGER, call_secs INTEGER, action INTEGER,
+             file TEXT);
          CREATE TABLE react (msg INTEGER NOT NULL, emoji TEXT NOT NULL, from_me INTEGER NOT NULL);
          CREATE TABLE poll (msg INTEGER NOT NULL, ord INTEGER NOT NULL, name TEXT, votes INTEGER NOT NULL);",
     )?;
@@ -415,13 +431,21 @@ fn build_into(
     };
     // Each side table joins only when this WhatsApp version has it; a missing column reads as NULL.
     let (mut joins, mut extras) = (String::new(), Vec::new());
-    let sides: [(&str, &str, &str, &str, &[&str]); 6] = [
+    let sides: [(&str, &str, &str, &str, &[&str]); 7] = [
         ("message_quoted", "q", "message_row_id", "m._id", &["key_id", "from_me", "message_type", "text_data"]),
         ("message_forwarded", "f", "message_row_id", "m._id", &["forward_score"]),
         ("message_edit_info", "e", "message_row_id", "m._id", &["edited_timestamp"]),
-        ("message_media", "mx", "message_row_id", "m._id", &["mime_type", "media_name", "width", "height"]),
+        (
+            "message_media",
+            "mx",
+            "message_row_id",
+            "m._id",
+            &["mime_type", "media_name", "width", "height", "file_path"],
+        ),
         ("message_call_log", "mc", "message_row_id", "m._id", &[]),
         ("call_log", "c", "_id", "mc.call_log_row_id", &["video_call", "call_result", "duration"]),
+        // What a system message (type 7) says happened: msgkinds' `whatsapp_android_system` codes.
+        ("message_system", "ms", "message_row_id", "m._id", &["action_type"]),
     ];
     for (table, alias, key, other, cols) in sides {
         let there = has(table, key)? && (alias != "c" || has("message_call_log", "call_log_row_id")?);
@@ -453,7 +477,8 @@ fn build_into(
         let mut insert = tx.prepare("INSERT INTO msg VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")?;
         let mut insert_extra = tx.prepare(
             "INSERT INTO extra (id, reply_key, reply_from_me, reply_kind, reply_text, fwd, edited, mime, name, w, h,
-                 call_video, call_result, call_secs) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 file, call_video, call_result, call_secs, action)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         )?;
         // (chat, quoted key) → the replies quoting it, to find the quoted message's row afterwards.
         let mut quoted: HashMap<(i64, String), Vec<i64>> = HashMap::new();
@@ -461,18 +486,19 @@ fn build_into(
         let mut rows = read.query([])?;
         let (mut chat, mut pos, mut copied) = (None, 0i64, 0u64);
         while let Some(r) = rows.next()? {
-            let x: Vec<rusqlite::types::Value> = (9..22).map(|i| r.get(i)).collect::<rusqlite::Result<_>>()?;
+            let x: Vec<rusqlite::types::Value> = (9..24).map(|i| r.get(i)).collect::<rusqlite::Result<_>>()?;
             if x.iter().any(|v| *v != rusqlite::types::Value::Null) {
                 let id: i64 = r.get(0)?;
                 let reply_key: Option<String> = r.get(9)?;
                 if let Some(key) = &reply_key {
-                    let in_chat = r.get::<_, Option<i64>>(22)?.unwrap_or(r.get(1)?);
+                    let in_chat = r.get::<_, Option<i64>>(24)?.unwrap_or(r.get(1)?);
                     quoted.entry((in_chat, key.clone())).or_default().push(id);
                 }
                 // An edit row means edited; a forward score of 0 means not forwarded.
                 let edited = x[5] != rusqlite::types::Value::Null;
                 insert_extra.execute(params![
-                    id, reply_key, x[1], x[2], x[3], x[4], edited, x[6], x[7], x[8], x[9], x[10], x[11], x[12]
+                    id, reply_key, x[1], x[2], x[3], x[4], edited, x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13],
+                    x[14]
                 ])?;
             }
             copied += 1;

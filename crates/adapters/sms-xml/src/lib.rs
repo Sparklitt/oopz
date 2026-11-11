@@ -386,6 +386,8 @@ impl Book {
         });
     }
 
+    /// TODO(msgkinds): the parts' content types and `msg_box` move to msgkinds' registry (`Source::SmsBackupRestore`)
+    /// once it lists SMS Backup & Restore's XML.
     fn mms(&mut self, n: usize, a: &Attrs, parts: &[Attrs], addrs: &[Attrs]) {
         let from_me = match value(a, "msg_box") {
             Some("1") => false,
