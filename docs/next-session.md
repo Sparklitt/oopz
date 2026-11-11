@@ -1,5 +1,11 @@
 # Next session: start here
 
+**Since session 8 (2026-11-11) the plan for oopz, hilo and msgkinds lives in one place:
+`~/projects/msgkinds/docs/roadmap.md`.** Read it first: state of each repository, checks and their last results,
+what was done, the next steps in order (hilo's Kotlin kinds, then decision 0002 phases 1–3), what makes the project
+professional, what's still to verify on real data, and the decisions waiting on the owner. What follows is the
+plan from before session 7, kept for the product items (2–6) the roadmap points back to.
+
 State (2026-11-11): main at the commit after ee2245a, not pushed. All checks green at 341042d (workspace and
 src-tauri fmt/clippy/test; pnpm check, build, check:notes, check:commands). A dev build is installed on the user's
 Windows (per-user, `oopz` on PATH). On the S22+ both the Wi-Fi page and the adb copy (wireless debugging, 998 MB of
