@@ -74,6 +74,8 @@ struct Book {
     unknown_elements: BTreeMap<String, usize>,
     bad_data: usize,
     empty_mms: usize,
+    /// Every lookup, at the SMS Backup & Restore version the file's comment names.
+    reading: msgkinds::Reading,
 }
 
 /// Reads one file's bytes: `<smses>` or `<calls>`.
@@ -104,6 +106,7 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
                 let c = String::from_utf8_lossy(&c);
                 if let Some(at) = c.find("SMS Backup & Restore v") {
                     let version = c[at..].split(" on ").next().unwrap_or("").trim().to_string();
+                    book.reading = msgkinds::Reading::new(version.strip_prefix("SMS Backup & Restore v"));
                     format = Some(version);
                 }
             }
@@ -186,6 +189,7 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
     if book.empty_mms > 0 {
         notes.push(format!("{} MMS with no part oopz reads kept as unknown", book.empty_mms));
     }
+    notes.extend(book.reading.report().lines());
     let me = Person { id: ME.into(), phone: book.owner_phone.clone(), me: true, ..Default::default() };
     book.people.insert(ME.into(), me.clone());
     Ok(Loaded {
@@ -359,7 +363,7 @@ impl Book {
         self.person(&other, name);
         let conversation = self.conversation(std::slice::from_ref(&other), name);
         // A type msgkinds lists: received (1) or the owner's (sent, draft, outbox, failed, queued).
-        let from_me = match known(msgkinds::Source::SmsXmlSms, value(a, "type")) {
+        let from_me = match known(&mut self.reading, msgkinds::Source::SmsXmlSms, value(a, "type")) {
             Some(code) => code != 1,
             None => {
                 self.unknown_types += 1;
@@ -388,7 +392,7 @@ impl Book {
 
     /// An MMS: its box looked up in msgkinds (`Source::SmsXmlMmsBox`); its parts settle what it holds.
     fn mms(&mut self, n: usize, a: &Attrs, parts: &[Attrs], addrs: &[Attrs]) {
-        let from_me = match known(msgkinds::Source::SmsXmlMmsBox, value(a, "msg_box")) {
+        let from_me = match known(&mut self.reading, msgkinds::Source::SmsXmlMmsBox, value(a, "msg_box")) {
             Some(code) => code != 1,
             None => {
                 self.unknown_types += 1;
@@ -523,7 +527,7 @@ impl Book {
         let conversation = self.conversation(std::slice::from_ref(&other), name);
         let secs = value(a, "duration").and_then(|d| d.parse::<u64>().ok());
         // A type msgkinds lists (`Source::SmsXmlCall`); its direction and outcome are Android's `CallLog.Calls`.
-        let (from_me, outcome) = match known(msgkinds::Source::SmsXmlCall, value(a, "type")) {
+        let (from_me, outcome) = match known(&mut self.reading, msgkinds::Source::SmsXmlCall, value(a, "type")) {
             Some(2) if secs.is_some_and(|s| s > 0) => (true, CallOutcome::Answered),
             Some(2) => (true, CallOutcome::Cancelled),
             // Incoming, or answered on another device.
@@ -568,9 +572,10 @@ fn vcard(card: &str) -> (Option<String>, Vec<String>) {
 }
 
 /// The code `v` when msgkinds' `source` lists it; `None` for a missing, unreadable or unlisted one.
-fn known(source: msgkinds::Source, v: Option<&str>) -> Option<i64> {
+/// Looked up at the file's version through `reading`, which counts what it couldn't answer.
+fn known(reading: &mut msgkinds::Reading, source: msgkinds::Source, v: Option<&str>) -> Option<i64> {
     let code = v?.trim().parse::<i64>().ok()?;
-    msgkinds::lookup(source, msgkinds::Code::Int(code), None).entry().map(|_| code)
+    reading.lookup(source, msgkinds::Code::Int(code)).entry().map(|_| code)
 }
 
 #[cfg(test)]

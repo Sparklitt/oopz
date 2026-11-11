@@ -77,7 +77,13 @@ fn the_full_export_reads_as_its_manifest_says() {
     let pinned = m.iter().find(|x| matches!(&x.parts[..], [Part::System { event: Event::Pinned, .. }])).expect("a pin");
     assert_eq!(pinned.reply_to.as_deref(), Some("3"));
     let notes = loaded.info.notes.join("\n");
-    assert!(notes.contains("`action something_newer`") && notes.contains("`message type something_new`"), "{notes}");
+    assert!(notes.contains("`message type something_new`"), "{notes}");
+    // msgkinds' report: the export names no version, so it says so.
+    assert!(
+        notes.contains("unknown type something_newer in telegram_json_action (version not recorded): 1 messages"),
+        "{notes}"
+    );
+    assert!(notes.contains(msgkinds::HOW_TO_ADD), "{notes}");
 }
 
 #[test]

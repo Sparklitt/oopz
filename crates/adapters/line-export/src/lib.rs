@@ -220,6 +220,8 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
     };
 
     let mut notes = vec!["times are the phone's local time, read as UTC: the export doesn't say its time zone".into()];
+    // msgkinds' LINE rows, and the lines in wording neither they nor oopz know (counted, kept as they are).
+    let mut reading = msgkinds::Reading::new(None);
     let (mut day_first, mut month_first) = (false, false);
     for d in raws.iter().filter_map(|r| r.day).filter(|d| d.ambiguous) {
         day_first |= d.a > 12;
@@ -269,7 +271,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
                 m.sender = Some(who.to_string());
                 m.deleted = true;
             } else {
-                let event = event(&text);
+                let event = event(&text, &mut reading);
                 group_event |= matches!(
                     event,
                     Event::MemberJoined | Event::MemberAdded | Event::MemberLeft | Event::MemberRemoved
@@ -282,13 +284,14 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
                 senders.push(sender.clone());
             }
             m.sender = Some(sender);
-            m.parts = parts(&text);
+            m.parts = parts(&text, &mut reading);
         }
         messages.push(m);
     }
     if unknown > 0 {
         notes.push(format!("{unknown} lines before the first message kept as unknown"));
     }
+    notes.extend(reading.report().lines());
     if no_day > 0 {
         notes.push(format!("{no_day} messages before any date line: kept without a time"));
     }
@@ -470,7 +473,8 @@ fn unsent(text: &str) -> Option<&str> {
 
 /// What a notice says happened: msgkinds' LINE rows first (`Source::LineTxt`: a notice's code is the end of its
 /// line, "joined the group."), then the words oopz met that msgkinds doesn't list yet (no public export shows them).
-fn event(text: &str) -> Event {
+/// A notice in neither's words is an `other` notice with its words, counted in `reading`.
+fn event(text: &str, reading: &mut msgkinds::Reading) -> Event {
     let line = text.trim();
     let listed = msgkinds::Source::LineTxt
         .entries()
@@ -479,6 +483,14 @@ fn event(text: &str) -> Event {
     if let Some(e) = listed {
         return e.event.map_or(Event::Other, Event::from);
     }
+    let event = oopz_words(text);
+    if event == Event::Other {
+        reading.fallback(msgkinds::Source::LineTxt);
+    }
+    event
+}
+
+fn oopz_words(text: &str) -> Event {
     let t = text.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| t.contains(w));
     if has(&["joined", "参加"]) {
@@ -512,8 +524,13 @@ const PLACEHOLDERS: [(&str, &str); 8] = [
     ("[Album]", "[アルバム]"),
 ];
 
-fn parts(text: &str) -> Vec<Part> {
+/// A `[…]` placeholder or a ☎ line in wording oopz doesn't know stays text, counted in `reading`.
+fn parts(text: &str, reading: &mut msgkinds::Reading) -> Vec<Part> {
     let t = text.trim();
+    let marker = t.starts_with('[') && t.ends_with(']') && !t.contains('\n') && t.chars().count() <= 30;
+    if marker && !PLACEHOLDERS.iter().any(|(en, ja)| t.starts_with(en) || t.starts_with(ja)) {
+        reading.fallback(msgkinds::Source::LineTxt);
+    }
     for (i, (en, ja)) in PLACEHOLDERS.iter().enumerate() {
         let Some(rest) = t.strip_prefix(en).or_else(|| t.strip_prefix(ja)) else { continue };
         let rest = Some(rest.trim().to_string()).filter(|r| !r.is_empty());
@@ -541,6 +558,7 @@ fn parts(text: &str) -> Vec<Part> {
         } else if ["Canceled call", "Cancelled call", "キャンセル"].iter().any(|p| call.starts_with(p)) {
             (CallOutcome::Cancelled, None)
         } else {
+            reading.fallback(msgkinds::Source::LineTxt);
             (CallOutcome::Unknown, None)
         };
         return vec![Part::Call { video, outcome, secs }];
@@ -569,6 +587,16 @@ fn duration(s: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Wording neither msgkinds nor oopz knows stays as it is, and is counted for the notes.
+    #[test]
+    fn unknown_wording_is_kept_and_counted() {
+        let mut r = msgkinds::Reading::new(None);
+        assert!(matches!(&parts("[Foto]", &mut r)[..], [Part::Text { .. }]));
+        assert!(matches!(&parts("[Photo]", &mut r)[..], [Part::Media(_)]));
+        assert_eq!(event("Ana ha lasciato il gruppo", &mut r), Event::Other);
+        assert_eq!(r.report().fallback, vec![(msgkinds::Source::LineTxt, 2)]);
+    }
 
     #[test]
     fn dates_times_and_quotes() {

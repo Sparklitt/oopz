@@ -117,6 +117,9 @@ struct Reader {
     owner: Option<String>,
     people: BTreeMap<String, Person>,
     notes: Notes,
+    /// Media types and actions, looked up in msgkinds' registry; its report joins the notes. The export doesn't say
+    /// which Telegram Desktop wrote it, so the newest meaning of each code is taken.
+    reading: msgkinds::Reading,
 }
 
 #[derive(Default)]
@@ -225,6 +228,7 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
     if r.owner.is_none() {
         notes.push("the export doesn't say who the owner is: pick yourself".into());
     }
+    notes.extend(r.reading.report().lines());
     let owner = r.owner.as_ref().and_then(|o| r.people.get(o)).cloned();
     Ok(Loaded {
         info: SourceInfo {
@@ -382,12 +386,11 @@ impl Reader {
         } else if m.contains_key("file") || m.contains_key("media_type") {
             // `media_type` by msgkinds' registry (`Source::TelegramJsonMedia`); none is a plain file.
             let media_type = m.get("media_type").and_then(Value::as_str);
-            let looked = media_type.map(|t| msgkinds::lookup_name(msgkinds::Source::TelegramJsonMedia, t, None).kind());
+            let looked = media_type.map(|t| self.reading.lookup_name(msgkinds::Source::TelegramJsonMedia, t).kind());
             let kind = match (media_type, looked.and_then(|k| MediaKind::from_kind(k.into()))) {
                 (None, _) => MediaKind::Document,
                 (_, Some(kind)) => kind,
                 (Some(other), None) => {
-                    *self.notes.unknown.entry(format!("media type {other}")).or_default() += 1;
                     return vec![Part::Unknown { code: other.to_string(), text: Some(text).filter(|t| !t.is_empty()) }];
                 }
             };
@@ -494,8 +497,7 @@ impl Reader {
         };
         let secs = m.get("duration_seconds").and_then(int_of).and_then(|n| u64::try_from(n).ok());
         let code = if action.is_empty() { "service" } else { action };
-        let Some(entry) = msgkinds::lookup_name(msgkinds::Source::TelegramJsonAction, code, None).entry() else {
-            *self.notes.unknown.entry(format!("action {code}")).or_default() += 1;
+        let Some(entry) = self.reading.lookup_name(msgkinds::Source::TelegramJsonAction, code).entry() else {
             return Part::Unknown { code: code.to_string(), text };
         };
         match entry.kind {
