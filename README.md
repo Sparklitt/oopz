@@ -222,8 +222,9 @@ account owner decides and accepts that risk. This is not legal advice.
 
 No. oopz has no telemetry and never uploads backups, keys or results. The command line connects to nothing; only
 `oopz receive` opens a page on your local network, for your phone, while it runs. The desktop app does the same for
-"Receive over Wi-Fi", and goes online only to check for updates, and only if you switch that on or click "Check for
-updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)).
+"Receive over Wi-Fi", and goes online only when you ask: to check for updates, if you switch that on or click "Check
+for updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)), and to download Android's adb from
+Google, if you accept its licence on the adb screen ([decision 0019](docs/decisions/0019-android-platform-tools-on-request.md)).
 </details>
 
 <details>

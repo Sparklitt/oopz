@@ -31,6 +31,7 @@ names (`oopz export`), or prints as counts and positions.
 | `wipe_now` | app only: each CLI run removes its decrypted copies when it ends | `Session` |
 | `import_backup`, `save_result` | app only: Android's file picker hands the app references, not paths (decision 0012); the CLI takes paths | |
 | `open_link` | app only: the CLI's `--help` names the repository | |
+| `tools_installed`, `tools_offer`, `tools_download`, `tools_remove` | app only: Android's platform-tools downloaded on a click, after Google's licence (decision 0019); `oopz pull` uses that copy but never downloads | |
 | `update_check`, `update_install`, `update_last_checked` | app only: the app updates itself (decision 0011); the CLI binary is replaced by hand | |
 | `cli_status`, `cli_install`, `cli_remove` | `oopz completions` (the shells' tab completion): the app carries the CLI and puts it on PATH (Settings, on macOS and the AppImage) | |
 

@@ -5,7 +5,8 @@
   import PageHead from "../components/PageHead.svelte";
   import { mb } from "../format";
   import { strings } from "../i18n";
-  import { adbPullStart, adbPullStop, adbPullUse, adbRefresh, adbWireless, app } from "../state.svelte";
+  import type { AppError, ToolsOffer } from "../backend/types";
+  import { adbCheck, adbPullStart, adbPullStop, adbPullUse, adbRefresh, adbWireless, app, be, toError } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let pull = $derived(app.adb.pull);
@@ -18,8 +19,42 @@
   let code = $state("");
   let host = $state("");
 
-  onMount(() => {
-    if (app.adb.devices === null) void adbRefresh();
+  // No adb here: Google's platform-tools, downloaded only after the person reads and accepts the licence (0019).
+  let offer = $state<ToolsOffer | null>(null);
+  let toolsBusy = $state(false);
+  let toolsDone = $state<number | null>(null);
+  let toolsError = $state<AppError | null>(null);
+  async function showOffer() {
+    toolsBusy = true;
+    toolsError = null;
+    try {
+      offer = await be().toolsOffer();
+    } catch (e) {
+      toolsError = toError(e);
+    } finally {
+      toolsBusy = false;
+    }
+  }
+  async function download() {
+    toolsBusy = true;
+    toolsError = null;
+    toolsDone = 0;
+    try {
+      await be().toolsDownload((s) => (toolsDone = s.per_mille));
+      offer = null;
+      await adbCheck();
+      if (app.adb.found) await adbRefresh();
+    } catch (e) {
+      toolsError = toError(e);
+    } finally {
+      toolsBusy = false;
+      toolsDone = null;
+    }
+  }
+
+  onMount(async () => {
+    await adbCheck();
+    if (app.adb.found && app.adb.devices === null) void adbRefresh();
   });
 
   async function connect(e: SubmitEvent) {
@@ -34,7 +69,32 @@
   <PageHead title={t.fromAdb} sub={t.fromAdbText} />
   <ErrorNote error={app.error} />
 
-  {#if !pull}
+  {#if !app.adb.found}
+    <section class="panel block" aria-live="polite">
+      <h2 class="h3">{t.toolsTitle}</h2>
+      <p>{t.toolsLead}</p>
+      {#if !offer}
+        <div class="row-buttons">
+          <button class="btn primary" disabled={toolsBusy} onclick={showOffer}><Icon name="download" />{t.toolsShow}</button>
+        </div>
+      {:else}
+        <p class="muted">{t.toolsLicence(offer.version, mb(offer.bytes))}</p>
+        <textarea class="licence" readonly rows="10" aria-label={t.toolsLicence(offer.version, mb(offer.bytes))} value={offer.license}></textarea>
+        {#if toolsDone !== null}
+          <div class="file-progress">
+            <p><span>{t.toolsDownloading}</span><span class="pct">{Math.round(toolsDone / 10)}%</span></p>
+            <progress max="1000" value={toolsDone} aria-label={t.toolsDownloading}></progress>
+          </div>
+        {:else}
+          <div class="row-buttons">
+            <button class="btn primary" disabled={toolsBusy} onclick={download}><Icon name="download" />{t.toolsAccept}</button>
+          </div>
+        {/if}
+      {/if}
+      <ErrorNote error={toolsError} />
+      <p class="muted">{t.toolsOr} <span class="mono">developer.android.com/tools/releases/platform-tools</span></p>
+    </section>
+  {:else if !pull}
     <section class="panel block">
       <div class="head">
         <h2 class="h3">{t.adbPhones}</h2>
@@ -48,7 +108,7 @@
           {#each devices as d (d.serial)}
             <label class="device" class:off={d.state !== "device"}>
               <input type="radio" name="phone" value={d.serial} bind:group={app.adb.serial} disabled={d.state !== "device"} />
-              <span class="grow"><strong>{d.model ?? d.serial}</strong>{#if d.model} <span class="muted mono">{d.serial}</span>{/if}</span>
+              <span class="grow"><strong>{d.model ?? d.serial}</strong>{#if d.model}{" "}<span class="muted mono">{d.serial}</span>{/if}</span>
               <span class="muted">{d.wireless ? t.adbWireless : t.adbUsb} · {t.adbStates[d.state] ?? d.state}</span>
             </label>
           {/each}
@@ -111,6 +171,16 @@
 </div>
 
 <style>
+  .licence {
+    width: 100%;
+    resize: vertical;
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin: 0;
+  }
   .block {
     display: grid;
     gap: 12px;

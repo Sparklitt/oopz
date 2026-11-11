@@ -4,7 +4,7 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon, { type IconName } from "../components/Icon.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import type { AppError, CliStatus, LinkName } from "../backend/types";
+  import type { AppError, CliStatus, LinkName, ToolsInstalled } from "../backend/types";
   import { dateTime, fmt, mb } from "../format";
   import { lib, libraryWiped, refreshLibrary, setKeep } from "../library.svelte";
   import { app, be, checkUpdates, loadLastChecked, setAutoUpdates, setHideNames, setLang, setTheme, toError, wipeNow, type Theme } from "../state.svelte";
@@ -41,6 +41,22 @@
       cliBusy = false;
     }
   }
+  // Android's platform-tools, when oopz downloaded them for copying with adb (decision 0019); null hides the row.
+  let tools = $state<ToolsInstalled | null>(null);
+  async function removeTools() {
+    cliBusy = true;
+    cliError = null;
+    try {
+      await be().toolsRemove();
+      tools = null;
+      app.adb.found = false;
+      app.adb.devices = null;
+    } catch (e) {
+      cliError = toError(e);
+    } finally {
+      cliBusy = false;
+    }
+  }
   let tab = $state<"general" | "updates" | "privacy" | "about">("general");
   let version = $state("");
   let u = $derived(app.updates);
@@ -66,6 +82,10 @@
     be()
       .cliStatus()
       .then((s) => (cli = s))
+      .catch(() => {});
+    be()
+      .toolsInstalled()
+      .then((s) => (tools = s))
       .catch(() => {});
   });
 </script>
@@ -114,6 +134,12 @@
                 <button class="btn" disabled={cliBusy} onclick={() => changeCli(true)}>{t.cliInstall}</button>
               {/if}
             </span>
+          </div>
+        {/if}
+        {#if tools}
+          <div class="set-row">
+            <span>{t.toolsSettings}<span class="muted hint-line">{t.toolsSettingsHint(tools.version ?? "?")} <code>{tools.folder}</code></span></span>
+            <span class="buttons"><button class="btn" disabled={cliBusy} onclick={removeTools}>{t.toolsRemove}</button></span>
           </div>
         {/if}
       </div>

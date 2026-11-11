@@ -31,5 +31,12 @@
     ; install to this per-user folder.
     DeleteRegKey HKCU "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty HKCU "${MANUKEY}"
+    ; Android's platform-tools, if oopz downloaded them (decision 0019): stop their adb server, which holds the files
+    ; open, then remove them. The rest of oopz's data folder is the uninstaller's own choice to offer.
+    ${If} ${FileExists} "$LOCALAPPDATA\${BUNDLEID}\platform-tools\adb.exe"
+      nsExec::Exec '"$LOCALAPPDATA\${BUNDLEID}\platform-tools\adb.exe" kill-server'
+      Pop $0
+    ${EndIf}
+    RMDir /r "$LOCALAPPDATA\${BUNDLEID}\platform-tools"
   ${EndIf}
 !macroend

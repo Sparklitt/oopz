@@ -18,6 +18,7 @@ Why oopz is the way it is. Numbers are kept from the hilo project, where oopz be
 - [0016](0016-the-library-selections-and-exports.md): the library (`oopz-core`), selections, the cross-app timeline, contacts and exports.
 - [0017](0017-pdf-exports.md): PDF exports with right-to-left text and emoji, using the system's fonts.
 - [0018](0018-iphone-backups.md): iPhone backups (Finder/iTunes), encrypted ones opened with the owner's password; WhatsApp on iPhone.
+- [0019](0019-android-platform-tools-on-request.md): Android's platform-tools (adb) downloaded from Google only on a click, after its licence.
 
 Code comments also cite hilo's decision 0034 (WhatsApp groups and sticker packs). What it settled for oopz: a chat's
 names are read from `wa.db` only for the jid asked for (point 6, `contacts.rs`), and the synthetic fixtures include a

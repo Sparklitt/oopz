@@ -3025,8 +3025,11 @@ dependencies = [
  "oopz-export-pdf",
  "oopz-model",
  "open",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
+ "sha1",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -3036,6 +3039,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "zeroize",
+ "zip",
 ]
 
 [[package]]

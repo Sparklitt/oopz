@@ -10,10 +10,11 @@
 // ?platform=android, picking a file gives a content:// reference to import; add &nospace and the import fails for
 // lack of space. The library (mockLibrary.ts) starts with three invented sources; ?library=empty starts with none.
 // Wi-Fi: the phone opens the page after a second; ?wifi=silent never does (the tips show after 45 s). adb: one phone
-// on USB; ?adb=none hides the option, ?adb=two adds one that hasn't allowed this computer, ?adb=empty has no phone.
+// on USB; ?adb=none has no adb until platform-tools are downloaded (the licence, then 3 s), ?adb=two adds one that
+// hasn't allowed this computer, ?adb=empty has no phone.
 // Pairing works with the code 123456; connecting adds a wireless phone at that address.
 import pkg from "../../../package.json";
-import type { AdbDevice, Address, Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, PullStatus, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
+import type { AdbDevice, Address, Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, PullStatus, Reply, ReceiveStatus, Stats, Step, Summary, ToolsInstalled } from "./types";
 import { libraryMock } from "./mockLibrary";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
@@ -361,6 +362,9 @@ export function createMock(): Backend {
           ...(adbMode === "two" ? [{ serial: "9A1B2C3D", state: "unauthorized", model: null, wireless: false }] : []),
         ];
   let pull: { started: number; media: boolean; stoppedAt: number | null } | null = null;
+  let tools: ToolsInstalled | null = null;
+  const TOOLS_LICENSE =
+    "Terms and Conditions\n\nThis is the licence Google's package index gives for the Android SDK Platform-Tools. The real app shows Google's own text here, in full, before anything is downloaded.";
 
   /** The copy over adb by the clock: Databases in 4 s, then Media (6 GB) in 10 s. */
   function pullStatus(): PullStatus {
@@ -733,7 +737,23 @@ export function createMock(): Backend {
     },
 
     async adbFound() {
-      return !android && adbMode !== "none";
+      return !android && (adbMode !== "none" || tools !== null);
+    },
+    async toolsInstalled() {
+      return android ? null : tools;
+    },
+    async toolsOffer() {
+      await sleep(600);
+      return { version: "37.0.3", bytes: 8_188_595, license: TOOLS_LICENSE };
+    },
+    async toolsDownload(onProgress) {
+      await slowly(3000, onProgress, () => "download");
+      tools = { version: "37.0.3", folder: "/home/you/.local/share/com.sparklitt.oopz/platform-tools" };
+      return tools;
+    },
+    async toolsRemove() {
+      await sleep(300);
+      tools = null;
     },
     async adbDevices() {
       await sleep(400);

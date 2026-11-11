@@ -137,6 +137,19 @@ export interface AdbDevice {
   wireless: boolean;
 }
 
+/** Android's platform-tools as Google offers them for this system (decision 0019): shown with the licence first. */
+export interface ToolsOffer {
+  version: string;
+  bytes: number;
+  license: string;
+}
+
+/** The platform-tools oopz downloaded into its own folder. */
+export interface ToolsInstalled {
+  version: string | null;
+  folder: string;
+}
+
 export interface PullInfo {
   dest: string;
   /** The phone's folder copied from. */
@@ -617,8 +630,16 @@ export interface Backend {
   receiveStart(parent: string, ip: string | null): Promise<ReceiveInfo>;
   receiveStatus(): Promise<ReceiveStatus>;
   receiveStop(): Promise<ReceiveStatus>;
-  /** Whether adb is on this computer (PATH or ANDROID_HOME); the adb option is offered only then. */
+  /** Whether adb is on this computer (PATH, ANDROID_HOME, or the copy oopz downloaded). */
   adbFound(): Promise<boolean>;
+  /** The platform-tools oopz downloaded, if any; null on a phone too. */
+  toolsInstalled(): Promise<ToolsInstalled | null>;
+  /** Asks Google's package index what it offers (one request, on a click). */
+  toolsOffer(): Promise<ToolsOffer>;
+  /** Downloads what `toolsOffer` showed, checks its size and SHA-1, unpacks it into oopz's folder. */
+  toolsDownload(onProgress: OnProgress): Promise<ToolsInstalled>;
+  /** Stops the adb server oopz's copy started and deletes the copy. */
+  toolsRemove(): Promise<void>;
   adbDevices(): Promise<AdbDevice[]>;
   /** Wireless debugging: pairs with the code on the phone's screen. */
   adbPair(host: string, code: string): Promise<void>;

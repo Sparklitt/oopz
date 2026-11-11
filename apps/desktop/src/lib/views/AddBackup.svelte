@@ -8,7 +8,7 @@
 
   let t = $derived(strings(app.lang));
 
-  // A file or folder dropped on the window while this screen is open. The adb option only when adb is here.
+  // A file or folder dropped on the window while this screen is open.
   onMount(() => {
     void adbCheck();
     return be().onFileDrop((paths) => {
@@ -71,7 +71,7 @@
         <span>{t.fromWifiHint}</span>
       </button>
     {/if}
-    {#if !onPhone() && app.adb.found}
+    {#if !onPhone()}
       <button class="card" disabled={app.busy} onclick={() => go("adb")}>
         <Icon name="phone" size={26} />
         <strong>{t.fromAdb}</strong>

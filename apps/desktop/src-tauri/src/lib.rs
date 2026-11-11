@@ -20,6 +20,8 @@ use zeroize::Zeroizing;
 
 mod cli;
 mod library;
+#[cfg(desktop)]
+mod platform_tools;
 
 /// What the app holds while it runs. The decrypted copies live in `tmp`, removed when the app closes.
 pub struct AppState {
@@ -449,7 +451,7 @@ fn receive_stop(state: State<'_, AppState>) -> ReceiveStatus {
     state.receive_stop()
 }
 
-/// Whether adb is on this computer: the "get the backup" screen offers copying with it only then.
+/// Whether adb is on this computer (or the copy oopz downloaded): without it the adb screen offers Google's.
 #[tauri::command]
 fn adb_found() -> bool {
     adb::find().is_some()
@@ -662,7 +664,8 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(update::Pending::default());
+        .manage(update::Pending::default())
+        .manage(platform_tools::Shown::default());
     builder
         .setup(|app| {
             let cache = app.path().app_cache_dir()?;
@@ -741,6 +744,14 @@ pub fn run() {
             cli::cli_install,
             cli::cli_remove,
             #[cfg(desktop)]
+            platform_tools::tools_installed,
+            #[cfg(desktop)]
+            platform_tools::tools_offer,
+            #[cfg(desktop)]
+            platform_tools::tools_download,
+            #[cfg(desktop)]
+            platform_tools::tools_remove,
+            #[cfg(desktop)]
             update::update_check,
             #[cfg(desktop)]
             update::update_last_checked,
@@ -753,6 +764,8 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 app.state::<AppState>().close();
                 app.state::<library::Lib>().close();
+                #[cfg(desktop)]
+                platform_tools::at_exit();
             }
         });
 }
