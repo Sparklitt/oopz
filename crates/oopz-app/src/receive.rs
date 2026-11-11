@@ -10,7 +10,7 @@
 
 use std::fs;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -39,6 +39,8 @@ pub struct ReceiveStatus {
     pub stopped: Option<&'static str>,
     /// Seconds until the page stops by itself if nothing arrives (0 once stopped).
     pub idle_secs_left: u64,
+    /// The phone reached the page (a request with the token arrived): the network works.
+    pub opened: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -73,6 +75,9 @@ impl Shared {
 /// The page stops by itself after this long without a request.
 pub const IDLE: Duration = Duration::from_secs(10 * 60);
 
+/// If the phone hasn't opened the page after this long, the screen (and the terminal) shows what usually stops it.
+pub const TIPS_AFTER: Duration = Duration::from_secs(45);
+
 /// What the Wi-Fi screen (or the terminal) shows: the QR code, the address (the person may type it) and where files
 /// go.
 #[derive(Debug, Serialize)]
@@ -82,22 +87,32 @@ pub struct ReceiveInfo {
     pub dest: PathBuf,
     /// Bytes free where the files go: a Media zip can be tens of GB.
     pub free: u64,
+    /// The address in the QR code.
+    pub ip: IpAddr,
+    /// Every address the phone might reach, the likeliest first ([`addresses`]): the person may pick another.
+    pub addresses: Vec<Address>,
 }
 
-/// Starts the page into a new `oopz-received-N` folder in `parent`, on this computer's LAN address (or on `ip`, for
-/// tests), stopping after [`IDLE`] without a request.
+/// Starts the page into a new `oopz-received-N` folder in `parent`, on `ip` (one of [`addresses`], or loopback for
+/// tests) or else the likeliest address, stopping after [`IDLE`] without a request.
 pub fn start_in(parent: &Path, ip: Option<IpAddr>) -> Result<(Receiver, ReceiveInfo)> {
-    let ip = ip.or_else(lan_ip).ok_or_else(|| {
+    let addresses = addresses();
+    let ip = ip.or_else(|| addresses.first().map(|a| a.ip)).ok_or_else(|| {
         AppError::new("network", "this computer isn't on a local network; connect it to the same Wi-Fi as the phone")
     })?;
-    let dest = (1..1000)
-        .map(|n| parent.join(format!("oopz-received-{n}")))
-        .find(|p| !p.exists())
-        .ok_or_else(|| AppError::new("exists", "too many oopz-received folders here; choose another folder"))?;
+    let dest = new_folder(parent, "oopz-received")?;
     let rx = Receiver::start(&dest, ip, IDLE)?;
     let free = crate::session::free_space(&dest)?;
-    let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest, free };
+    let info = ReceiveInfo { url: rx.url().to_owned(), qr_svg: rx.qr_svg()?, dest, free, ip, addresses };
     Ok((rx, info))
+}
+
+/// The first `stem-N` in `parent` that doesn't exist yet.
+pub(crate) fn new_folder(parent: &Path, stem: &str) -> Result<PathBuf> {
+    (1..1000)
+        .map(|n| parent.join(format!("{stem}-{n}")))
+        .find(|p| !p.exists())
+        .ok_or_else(|| AppError::new("exists", format!("too many {stem} folders here; choose another folder")))
 }
 
 /// A running receive page. Stops when dropped.
@@ -194,6 +209,84 @@ pub fn lan_ip() -> Option<IpAddr> {
     })
 }
 
+/// One of this computer's addresses a phone might reach, with its network card's name (`Wi-Fi`, `eth0`,
+/// `vEthernet (WSL)`).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Address {
+    pub ip: IpAddr,
+    pub card: String,
+    /// The card looks like a virtual one (WSL, Hyper-V, Docker, a virtual machine, a VPN): a phone rarely reaches it.
+    pub likely_virtual: bool,
+}
+
+/// This computer's private IPv4 addresses, the likeliest first: real cards before virtual ones, then the one the
+/// system routes the local network through, then 192.168.x before 10.x before 172.16-31.x (where WSL and Docker
+/// live). Loopback, link-local and public addresses are left out, and so are cards that are down.
+pub fn addresses() -> Vec<Address> {
+    let cards = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(if_addrs::Interface::is_oper_up)
+        .filter_map(|card| match card.ip() {
+            IpAddr::V4(ip) => Some((card.name, ip, card.is_p2p)),
+            IpAddr::V6(_) => None,
+        })
+        .collect();
+    rank(cards, lan_ip())
+}
+
+/// [`addresses`] from the cards found (name, address, point-to-point) and the routed address.
+fn rank(cards: Vec<(String, Ipv4Addr, bool)>, routed: Option<IpAddr>) -> Vec<Address> {
+    let mut found: Vec<Address> = cards
+        .into_iter()
+        .filter(|(_, ip, _)| ip.is_private())
+        .map(|(card, ip, p2p)| Address { ip: IpAddr::V4(ip), likely_virtual: p2p || looks_virtual(&card), card })
+        .collect();
+    // The routed address even when listing the cards failed.
+    if let Some(ip @ IpAddr::V4(v4)) = routed
+        && v4.is_private()
+        && !found.iter().any(|a| a.ip == ip)
+    {
+        found.push(Address { ip, card: String::new(), likely_virtual: false });
+    }
+    let range = |ip: IpAddr| match ip {
+        IpAddr::V4(v4) if v4.octets()[0] == 192 => 0,
+        IpAddr::V4(v4) if v4.octets()[0] == 10 => 1,
+        _ => 2,
+    };
+    found.sort_by_key(|a| (a.likely_virtual, Some(a.ip) != routed, range(a.ip)));
+    let mut seen = Vec::new();
+    found.retain(|a| {
+        let new = !seen.contains(&a.ip);
+        seen.push(a.ip);
+        new
+    });
+    found
+}
+
+/// A card name that's usually a virtual adapter or a tunnel, on Windows, macOS or Linux.
+fn looks_virtual(card: &str) -> bool {
+    const STARTS: &[&str] = &[
+        "docker", "br-", "veth", "virbr", "vboxnet", "vmnet", "tun", "tap", "utun", "wg", "zt", "lxc", "lxdbr",
+        "podman", "cni", "flannel", "ppp", "ipsec", "bridge",
+    ];
+    const HAS: &[&str] = &[
+        "vethernet",
+        "wsl",
+        "hyper-v",
+        "virtual",
+        "vpn",
+        "vmware",
+        "tailscale",
+        "zerotier",
+        "wireguard",
+        "docker",
+        "tap-",
+    ];
+    let card = card.to_lowercase();
+    STARTS.iter().any(|s| card.starts_with(s)) || HAS.iter().any(|s| card.contains(s))
+}
+
 /// A device on the local network (or this computer): private, link-local or loopback addresses.
 pub fn is_lan(ip: IpAddr) -> bool {
     match ip {
@@ -250,6 +343,7 @@ fn handle(mut request: Request, token: &str, dest: &Path, shared: &Shared) -> bo
         let _ = request.respond(Response::from_string("not found").with_status_code(404));
         return false;
     };
+    shared.status().opened = true;
     match (request.method(), rest) {
         (Method::Get, "") => {
             let html = Header::from_bytes("Content-Type", "text/html; charset=utf-8").expect("a valid header");
@@ -430,8 +524,11 @@ mod tests {
         let base = path_of(&url);
         assert!(rx.qr_svg().unwrap().contains("<svg"));
 
+        assert_eq!(http(&url, "GET", "/", b"").0, 404);
+        assert!(!rx.status().opened, "a wrong address isn't the phone");
         let (code, page) = http(&url, "GET", &base, b"");
         assert_eq!(code, 200);
+        assert!(rx.status().opened, "the phone opened the page");
         assert!(page.contains("oopz") && page.contains("<input"));
 
         let backup = b"synthetic backup bytes, not a real one".repeat(1000);
@@ -457,7 +554,7 @@ mod tests {
         assert!(status.running);
         assert_eq!(status.files.len(), 2);
         assert_eq!(status.files[0], Received { name: name.into(), bytes: backup.len() as u64, sha256: sha });
-        assert_eq!(status.refused, 2);
+        assert_eq!(status.refused, 3);
         assert_eq!(fs::read_dir(&dest).unwrap().count(), 2, "no part files left");
 
         // The phone says it's done: the page stops, and its address answers no more.
@@ -507,6 +604,41 @@ mod tests {
         assert_eq!(safe_name("msgstore.db.crypt15").as_deref(), Some("msgstore.db.crypt15"));
         assert_eq!(safe_name("%zz"), None);
         assert!(same("abc", "abc") && !same("abc", "abd") && !same("abc", "ab"));
+    }
+
+    #[test]
+    fn real_cards_come_first_and_virtual_ones_are_marked() {
+        let card = |name: &str, ip: &str, p2p: bool| (name.to_owned(), ip.parse().unwrap(), p2p);
+        let cards = vec![
+            card("vEthernet (WSL)", "172.25.160.1", false),
+            card("lo", "127.0.0.1", false),
+            card("Ethernet 2", "169.254.10.4", false),
+            card("docker0", "172.17.0.1", false),
+            card("Ethernet", "10.0.0.12", false),
+            card("Wi-Fi", "192.168.1.24", false),
+            card("Tailscale", "100.101.102.103", false),
+            card("ProtonVPN", "10.2.0.2", true),
+            card("eth1", "8.8.8.8", false),
+        ];
+        let ranked = rank(cards.clone(), Some("10.0.0.12".parse().unwrap()));
+        let shown: Vec<_> = ranked.iter().map(|a| (a.ip.to_string(), a.likely_virtual)).collect();
+        let want = [("10.0.0.12", false), ("192.168.1.24", false), ("10.2.0.2", true), ("172.25.160.1", true)];
+        let want: Vec<_> =
+            want.iter().map(|(ip, v)| (ip.to_string(), *v)).chain([("172.17.0.1".into(), true)]).collect();
+        assert_eq!(shown, want);
+        // Without a route, 192.168.x first; with no card listed, the routed address alone; never loopback.
+        assert_eq!(rank(cards, None)[0].card, "Wi-Fi");
+        let alone = rank(Vec::new(), Some("192.168.0.7".parse().unwrap()));
+        assert_eq!(alone, [Address { ip: "192.168.0.7".parse().unwrap(), card: String::new(), likely_virtual: false }]);
+        assert!(rank(Vec::new(), Some("127.0.0.1".parse().unwrap())).is_empty());
+        for name in ["vEthernet (Default Switch)", "utun3", "wg0", "br-1a2b", "VirtualBox Host-Only Network", "tun0"] {
+            assert!(looks_virtual(name), "{name}");
+        }
+        for name in ["Wi-Fi", "Ethernet", "eth0", "en0", "wlan0", "wlp2s0", "enp3s0", "WLAN"] {
+            assert!(!looks_virtual(name), "{name}");
+        }
+        // This computer's own list: private addresses only.
+        assert!(addresses().iter().all(|a| is_lan(a.ip) && !a.ip.is_loopback()));
     }
 
     #[test]
