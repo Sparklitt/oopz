@@ -8,7 +8,7 @@
   let { error, words }: { error: AppError | null; words?: Record<string, string> } = $props();
   let t = $derived(strings(app.lang));
   // Codes whose English detail adds something the person can use (a table name, a path).
-  const WITH_DETAIL = ["unsupported", "merge_check", "io", "not_found", "network", "no_space", "update", "unsupported_file", "library"];
+  const WITH_DETAIL = ["unsupported", "merge_check", "io", "not_found", "network", "no_space", "update", "unsupported_file", "library", "no_adb", "no_device", "several_devices", "no_permissions", "adb", "incomplete"];
 </script>
 
 {#if error}

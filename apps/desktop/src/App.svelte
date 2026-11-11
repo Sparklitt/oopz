@@ -24,6 +24,7 @@
   import Overview from "./lib/views/Overview.svelte";
   import Phone from "./lib/views/Phone.svelte";
   import Receive from "./lib/views/Receive.svelte";
+  import Adb from "./lib/views/Adb.svelte";
   import Restore from "./lib/views/Restore.svelte";
   import Search from "./lib/views/Search.svelte";
   import Settings from "./lib/views/Settings.svelte";
@@ -33,8 +34,8 @@
 
   let has = $derived(current() !== null);
   // Screens about one backup need one open; without it they show Add a backup.
-  // No receiving over Wi-Fi on a phone.
-  let view = $derived((!has && ["overview", "chats", "search", "insights", "diagnostics"].includes(app.view)) || (app.view === "receive" && onPhone()) ? "add" : app.view);
+  // No receiving over Wi-Fi or copying with adb on a phone.
+  let view = $derived((!has && ["overview", "chats", "search", "insights", "diagnostics"].includes(app.view)) || ((app.view === "receive" || app.view === "adb") && onPhone()) ? "add" : app.view);
 
   onMount(() => {
     refreshLibrary().catch(() => {});
@@ -68,6 +69,7 @@
     {#key view}
       {#if view === "add"}<AddBackup />
       {:else if view === "receive"}<Receive />
+      {:else if view === "adb"}<Adb />
       {:else if view === "overview"}<Overview />
       {:else if view === "chats"}<Chats />
       {:else if view === "search"}<Search />

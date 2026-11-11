@@ -1,10 +1,10 @@
 // The app's state and the actions that change it. Keys are never kept here: each key field holds its own value
 // and empties it as soon as it is sent.
-import type { AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, ReceiveInfo, ReceiveStatus, Step, Summary, UpdateFound } from "./backend/types";
+import type { AdbDevice, AppError, Backend, BackupFile, BuildInfo, MergeOutcome, Missing, PullInfo, PullStatus, ReceiveInfo, ReceiveStatus, Step, Summary, UpdateFound } from "./backend/types";
 import { isAppError } from "./backend/types";
 import { initialLang, usePhoneWords, type Lang } from "./i18n";
 
-export type View = "add" | "receive" | "overview" | "chats" | "search" | "insights" | "compare" | "restore" | "phone" | "done" | "settings" | "backups" | "tools" | "diagnostics" | "library" | "lchats" | "lsearch" | "linsights" | "contacts" | "select" | "timeline" | "librarymenu";
+export type View = "add" | "receive" | "adb" | "overview" | "chats" | "search" | "insights" | "compare" | "restore" | "phone" | "done" | "settings" | "backups" | "tools" | "diagnostics" | "library" | "lchats" | "lsearch" | "linsights" | "contacts" | "select" | "timeline" | "librarymenu";
 export type SheetName = "welcome" | "found" | "unlock" | "export" | "update" | "libexport";
 export type Theme = "system" | "light" | "dark";
 
@@ -57,7 +57,10 @@ export const app = $state({
   searchChat: null as number | null,
   query: "",
   index: {} as Record<number, IndexState>,
-  receive: null as { info: ReceiveInfo; status: ReceiveStatus } | null,
+  /** The Wi-Fi page: `parent` is the folder picked (to start again on another address), `started` when (for tips). */
+  receive: null as { info: ReceiveInfo; status: ReceiveStatus; parent: string; started: number } | null,
+  /** Copying with adb: whether adb is on this computer, the phones it sees (null until asked), the one picked. */
+  adb: { found: false, devices: null as AdbDevice[] | null, serial: "", pull: null as { info: PullInfo; status: PullStatus } | null },
   /** Android: the private folder the last picked backup was copied into; results are made there, then saved. */
   privateDir: null as string | null,
   /** The Media (or WhatsApp) folder photos are shown from, picked by the person; null: placeholders. */
@@ -241,10 +244,16 @@ export function openExport(chat: number | null) {
 let poll: number | undefined;
 export async function receiveStart() {
   const parent = await backend.pickFolder();
-  if (!parent) return;
-  const info = await run(() => backend.receiveStart(parent));
+  if (parent) await receiveOn(parent, null);
+}
+/** The page on another of this computer's addresses (before anything arrived): same folder, new QR code. */
+export async function receiveAddress(ip: string) {
+  if (app.receive) await receiveOn(app.receive.parent, ip);
+}
+async function receiveOn(parent: string, ip: string | null) {
+  const info = await run(() => backend.receiveStart(parent, ip));
   if (!info) return;
-  app.receive = { info, status: await backend.receiveStatus() };
+  app.receive = { info, status: await backend.receiveStatus(), parent, started: Date.now() };
   window.clearInterval(poll);
   poll = window.setInterval(async () => {
     if (!app.receive) return;
@@ -261,6 +270,54 @@ export async function receiveUse() {
   if (!app.receive) return;
   await receiveStop();
   await listBackups(app.receive.info.dest);
+}
+
+// ---- copying with adb (USB or wireless debugging) ----
+
+/** Whether adb is on this computer; asked once when the "get the backup" screen opens. */
+export async function adbCheck() {
+  app.adb.found = !onPhone() && (await backend.adbFound().catch(() => false));
+}
+/** The phones adb sees; the only ready one is picked. */
+export async function adbRefresh() {
+  const devices = await run(() => backend.adbDevices());
+  if (!devices) return;
+  app.adb.devices = devices;
+  const ready = devices.filter((d) => d.state === "device");
+  if (!devices.some((d) => d.serial === app.adb.serial)) app.adb.serial = ready.length === 1 ? ready[0].serial : "";
+}
+/** Wireless debugging: pairs (when a code is given), connects, and picks that phone. */
+export async function adbWireless(pairHost: string, code: string, host: string) {
+  const ok = await run(async () => {
+    if (pairHost && code) await backend.adbPair(pairHost, code);
+    if (host) await backend.adbConnect(host);
+    return true;
+  });
+  if (!ok) return;
+  await adbRefresh();
+  if (host && app.adb.devices?.some((d) => d.serial === host)) app.adb.serial = host;
+}
+let pullPoll: number | undefined;
+export async function adbPullStart(business: boolean, media: boolean) {
+  const parent = await backend.pickFolder();
+  if (!parent) return;
+  const info = await run(() => backend.adbPullStart(parent, app.adb.serial, business, media));
+  if (!info) return;
+  app.adb.pull = { info, status: await backend.adbPullStatus() };
+  window.clearInterval(pullPoll);
+  pullPoll = window.setInterval(async () => {
+    if (!app.adb.pull) return;
+    const status = await backend.adbPullStatus();
+    app.adb.pull.status = status;
+    if (!status.running) window.clearInterval(pullPoll);
+  }, 500);
+}
+export async function adbPullStop() {
+  const status = await backend.adbPullStop();
+  if (app.adb.pull) app.adb.pull.status = status;
+}
+export async function adbPullUse() {
+  if (app.adb.pull) await listBackups(app.adb.pull.info.dest);
 }
 
 // ---- updates (decision 0011): off unless switched on; nothing installs without a click ----
@@ -306,7 +363,9 @@ export async function installUpdate() {
 /** Forgets every open backup in the UI, after Rust closed them all. */
 function closedAll() {
   Object.assign(app, { summaries: [], currentId: null, chat: null, searchChat: null, query: "", jump: null, index: {}, files: null, unlocking: null, outcome: null, missing: null, phoneChecks: [], receive: null, privateDir: null });
+  app.adb.pull = null;
   window.clearInterval(poll);
+  window.clearInterval(pullPoll);
 }
 
 /** Wipes every decrypted copy now; Rust closes every backup too. Returns the files left (0: all gone). */

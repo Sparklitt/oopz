@@ -4,16 +4,17 @@
   import Icon from "../components/Icon.svelte";
   import { strings } from "../i18n";
   import { onMount } from "svelte";
-  import { app, be, dropBackup, go, importPicked, listBackups, onPhone } from "../state.svelte";
+  import { adbCheck, app, be, dropBackup, go, importPicked, listBackups, onPhone } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
 
-  // A file or folder dropped on the window while this screen is open.
-  onMount(() =>
-    be().onFileDrop((paths) => {
+  // A file or folder dropped on the window while this screen is open. The adb option only when adb is here.
+  onMount(() => {
+    void adbCheck();
+    return be().onFileDrop((paths) => {
       if (paths[0] && !app.busy && app.sheet === null) void dropBackup(paths[0]);
-    }),
-  );
+    });
+  });
 
   async function pick(folder: boolean) {
     // Android's picker gives a content:// reference: oopz copies the file in first.
@@ -68,6 +69,13 @@
         <Icon name="wifi" size={26} />
         <strong>{t.fromWifi}</strong>
         <span>{t.fromWifiHint}</span>
+      </button>
+    {/if}
+    {#if !onPhone() && app.adb.found}
+      <button class="card" disabled={app.busy} onclick={() => go("adb")}>
+        <Icon name="phone" size={26} />
+        <strong>{t.fromAdb}</strong>
+        <span>{t.fromAdbHint}</span>
       </button>
     {/if}
   </div>

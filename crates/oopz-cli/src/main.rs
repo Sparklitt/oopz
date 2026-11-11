@@ -5,6 +5,7 @@
 //! the same results and refuse the same things.
 
 use std::io::{self, BufRead, IsTerminal, Write};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
@@ -16,6 +17,7 @@ use oopz_app::session::{self, MergeRequest, Session, Summary};
 use zeroize::Zeroizing;
 
 mod library;
+mod pull;
 
 #[derive(Parser)]
 #[command(
@@ -162,7 +164,14 @@ enum Command {
         /// A folder; the received files go in a new folder in it.
         #[arg(long)]
         out_dir: PathBuf,
+        /// The address to put in the QR code, when this computer has several (they're listed); the likeliest
+        /// without it.
+        #[arg(long)]
+        address: Option<IpAddr>,
     },
+    /// Copy the WhatsApp backup from a phone with adb (USB or wireless debugging) into a new `oopz-pulled-N` folder:
+    /// its Databases folder, and Media with `--media`. Only reads the phone. adb comes from Android's platform-tools.
+    Pull(Box<pull::Pull>),
     /// For each WhatsApp message type in a chat: counts and which tables its rows link to. No content.
     Types {
         #[arg(long)]
@@ -238,12 +247,14 @@ impl Drop for Open {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    if let Command::Lib(lib) = cli.command {
-        return library::run(*lib);
+    match cli.command {
+        Command::Lib(lib) => return library::run(*lib),
+        Command::Pull(args) => return pull::run(*args),
+        _ => {}
     }
     let mut open = Open::new()?;
     match cli.command {
-        Command::Lib(_) => unreachable!("handled above"),
+        Command::Lib(_) | Command::Pull(_) => unreachable!("handled above"),
         Command::Backups { dir } => {
             let files = session::find_backups(&dir)?;
             let openable = files.iter().filter(|f| f.kind == "crypt15").count();
@@ -431,16 +442,36 @@ fn run(cli: Cli) -> Result<()> {
             println!("written: {} (sha256 {})", done.backup.display(), done.sha256);
             println!("next: oopz chat-facts --backup {} --chat {target_chat}", done.backup.display());
         }
-        Command::Receive { out_dir } => {
-            let (rx, info) = oopz_app::receive::start_in(&out_dir, None)?;
+        Command::Receive { out_dir, address } => {
+            let (rx, info) = oopz_app::receive::start_in(&out_dir, address)?;
             println!("{}", rx.qr_text()?);
             println!("Scan this with the phone's camera, or type this address in the phone's browser:");
             println!("{}", info.url);
+            if info.addresses.len() > 1 {
+                println!("This computer has several addresses; if the phone can't open the page, try another with");
+                println!(
+                    "--address (the first is the likeliest; \"virtual?\" ones are rarely reachable from a phone):"
+                );
+                for a in &info.addresses {
+                    let mark = if a.ip == info.ip { "*" } else { " " };
+                    let card = if a.card.is_empty() { String::new() } else { format!("  {}", a.card) };
+                    println!("  {mark} {}{card}{}", a.ip, if a.likely_virtual { "  (virtual?)" } else { "" });
+                }
+            }
             println!("Use your own home Wi-Fi: backups are encrypted, photos and videos are not.");
             println!("Files go to {} ({} GB free). Ctrl-C stops.", info.dest.display(), info.free / 1_000_000_000);
-            let mut shown = 0;
+            let started = std::time::Instant::now();
+            let (mut shown, mut said_opened, mut said_tips) = (0, false, false);
             loop {
                 let status = rx.status();
+                if status.opened && !said_opened {
+                    said_opened = true;
+                    println!("The phone opened the page.");
+                }
+                if !status.opened && !said_tips && started.elapsed() >= oopz_app::receive::TIPS_AFTER {
+                    said_tips = true;
+                    println!("{WIFI_TIPS}");
+                }
                 for f in &status.files[shown..] {
                     println!("received {} ({} bytes, sha256 {})", f.name, f.bytes, f.sha256);
                 }
@@ -490,6 +521,15 @@ fn run(cli: Cli) -> Result<()> {
     }
     Ok(())
 }
+
+/// What usually keeps a phone from opening the page (the app's screen says the same).
+const WIFI_TIPS: &str = "The phone hasn't opened the page yet. What usually helps:
+  - Put the phone and this computer on the same Wi-Fi (on the phone, Wi-Fi on, not mobile data).
+  - Guest networks and some routers keep devices apart: turn on the phone's hotspot and connect this computer to it.
+    The page still never goes through the internet.
+  - Pause any VPN on the phone or on this computer.
+  - On Windows: allow oopz on private networks when the firewall asks, and set this network as Private.
+  - Try another address with --address.";
 
 /// A chat's kind and the last 3 characters of its id, never the whole number.
 fn who(kind: &str, ending: &str) -> String {

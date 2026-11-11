@@ -104,6 +104,17 @@ export interface ReceiveInfo {
   dest: string;
   /** Bytes free where the files go. */
   free: number;
+  /** The address in the QR code. */
+  ip: string;
+  /** Every address the phone might reach, the likeliest first. */
+  addresses: Address[];
+}
+
+/** One of this computer's addresses, with its network card's name; a virtual card (WSL, VPN…) rarely works. */
+export interface Address {
+  ip: string;
+  card: string;
+  likely_virtual: boolean;
 }
 
 export interface ReceiveStatus {
@@ -114,6 +125,38 @@ export interface ReceiveStatus {
   stopped: "done" | "stopped" | "idle" | "refused" | null;
   /** Seconds until the page stops by itself if nothing arrives (0 once stopped). */
   idle_secs_left: number;
+  /** The phone reached the page: the network works. */
+  opened: boolean;
+}
+
+/** A phone adb sees. `state`: `device` (ready), `unauthorized`, `offline`, `no_permissions`, or adb's word. */
+export interface AdbDevice {
+  serial: string;
+  state: string;
+  model: string | null;
+  wireless: boolean;
+}
+
+export interface PullInfo {
+  dest: string;
+  /** The phone's folder copied from. */
+  root: string;
+  files: number;
+  bytes: number;
+  free: number;
+}
+
+export interface PullStatus {
+  running: boolean;
+  folder: string | null;
+  done: number;
+  total: number;
+  bytes_per_sec: number;
+  secs_left: number | null;
+  /** The folders copied whole, every file's size checked. */
+  copied: { name: string; files: number; bytes: number }[];
+  stopped: "done" | "stopped" | "failed" | null;
+  error: AppError | null;
 }
 
 export interface BuildInfo {
@@ -560,9 +603,20 @@ export interface Backend {
   backupTables(id: number): Promise<TableInfo[]>;
   chatTypes(id: number, chat: number): Promise<TypeInfo[]>;
   chatFacts(id: number, chat: number): Promise<Fact[]>;
-  receiveStart(parent: string): Promise<ReceiveInfo>;
+  /** The Wi-Fi page on `ip` (one of `addresses`), or the likeliest address; a running page is stopped first. */
+  receiveStart(parent: string, ip: string | null): Promise<ReceiveInfo>;
   receiveStatus(): Promise<ReceiveStatus>;
   receiveStop(): Promise<ReceiveStatus>;
+  /** Whether adb is on this computer (PATH or ANDROID_HOME); the adb option is offered only then. */
+  adbFound(): Promise<boolean>;
+  adbDevices(): Promise<AdbDevice[]>;
+  /** Wireless debugging: pairs with the code on the phone's screen. */
+  adbPair(host: string, code: string): Promise<void>;
+  adbConnect(host: string): Promise<void>;
+  /** Copies WhatsApp's Databases (and Media) off the phone into a new folder in `parent`. */
+  adbPullStart(parent: string, serial: string, business: boolean, media: boolean): Promise<PullInfo>;
+  adbPullStatus(): Promise<PullStatus>;
+  adbPullStop(): Promise<PullStatus>;
   /** Asks GitHub for a newer oopz (decision 0011); null when this one is the newest. */
   updateCheck(): Promise<UpdateChecked>;
   /** When the last check happened, in any run; null if never. */

@@ -4,11 +4,18 @@
   import PageHead from "../components/PageHead.svelte";
   import { dur, mb } from "../format";
   import { strings } from "../i18n";
-  import { app, receiveStart, receiveStop, receiveUse } from "../state.svelte";
+  import { app, receiveAddress, receiveStart, receiveStop, receiveUse } from "../state.svelte";
+
+  /** Tips once the phone hasn't opened the page this long after it started (oopz-app's receive::TIPS_AFTER). */
+  const TIPS_AFTER_MS = 45_000;
 
   let t = $derived(strings(app.lang));
   let rx = $derived(app.receive);
   let copied = $state(false);
+  // The status changes every half second, so this is looked at again as often.
+  let stuck = $derived(!!rx && rx.status.running && !rx.status.opened && rx.status.files.length === 0 && Date.now() - rx.started >= TIPS_AFTER_MS);
+  // Another address only before anything arrived: picking one starts the page again.
+  let canMove = $derived(!!rx && rx.status.running && rx.info.addresses.length > 1 && rx.status.files.length === 0 && !rx.status.current);
 
   async function copy(url: string) {
     try {
@@ -47,11 +54,38 @@
               <Icon name={copied ? "check" : "paste"} size={16} />
             </button>
           </div>
+          {#if canMove}
+            <label class="address">
+              <span>{t.wifiAddress}</span>
+              <select class="select" value={rx.info.ip} disabled={app.busy} onchange={(e) => receiveAddress(e.currentTarget.value)}>
+                {#each rx.info.addresses as a (a.ip)}
+                  <option value={a.ip}>{a.ip}{a.card ? ` · ${a.card}` : ""}{a.likely_virtual ? ` (${t.wifiVirtual})` : ""}</option>
+                {/each}
+              </select>
+            </label>
+            <p class="hint">{t.wifiAddressHint}</p>
+          {/if}
         </div>
       {/if}
       <div class="status" aria-live="polite">
         {#if s.running && !s.current && s.files.length === 0}
-          <p class="waiting"><Icon name="wifi" />{t.wifiWaiting}</p>
+          {#if s.opened}
+            <p class="waiting"><Icon name="check" class="ok-ico" />{t.wifiOpened}</p>
+          {:else}
+            <p class="waiting"><Icon name="wifi" />{t.wifiWaiting}</p>
+          {/if}
+        {/if}
+        {#if stuck}
+          <div class="note">
+            <Icon name="info" />
+            <div>
+              <p class="tips-title">{t.wifiTipsTitle}</p>
+              <ul class="tips">
+                {#each t.wifiTips as tip (tip)}<li>{tip}</li>{/each}
+                {#if canMove}<li>{t.wifiTipOther}</li>{/if}
+              </ul>
+            </div>
+          </div>
         {/if}
         {#if s.current}
           {@const c = s.current}
@@ -153,6 +187,28 @@
   }
   .url code {
     overflow-wrap: anywhere;
+  }
+  .address {
+    display: grid;
+    gap: 4px;
+    margin-top: 12px;
+    text-align: start;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .address select {
+    width: 100%;
+    min-width: 0;
+  }
+  .tips-title {
+    margin: 0 0 4px;
+    font-weight: 600;
+  }
+  .tips {
+    margin: 0;
+    padding-inline-start: 18px;
+    display: grid;
+    gap: 4px;
   }
   .status {
     display: grid;

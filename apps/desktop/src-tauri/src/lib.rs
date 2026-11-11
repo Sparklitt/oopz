@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
+use oopz_app::adb::{self, Adb, Device, PullInfo, PullStatus, Puller, Wanted};
 use oopz_app::index::{BuildInfo, Hit, Line, Stats};
 use oopz_app::receive::{self, Receiver};
 use oopz_app::session::{
@@ -23,6 +24,8 @@ mod library;
 pub struct AppState {
     session: Mutex<Session>,
     receiver: Mutex<Option<Receiver>>,
+    /// The copy over adb running now, if any.
+    puller: Mutex<Option<Puller>>,
     tmp: tempfile::TempDir,
     /// Folders this run of the app made (merge results, the folders pages were saved in): the only ones it opens.
     made: Mutex<Vec<PathBuf>>,
@@ -59,6 +62,7 @@ impl AppState {
         Ok(Self {
             session: Mutex::default(),
             receiver: Mutex::default(),
+            puller: Mutex::default(),
             tmp,
             made: Mutex::default(),
             cancel: AtomicBool::new(false),
@@ -114,6 +118,7 @@ impl AppState {
     pub fn close(&self) {
         *lock(&self.session) = Session::default();
         drop(lock(&self.receiver).take());
+        drop(lock(&self.puller).take());
         let _ = std::fs::remove_dir_all(self.tmp.path());
     }
 
@@ -123,6 +128,7 @@ impl AppState {
         self.cancel.store(true, Ordering::SeqCst);
         *lock(&self.session) = Session::default();
         drop(lock(&self.receiver).take());
+        drop(lock(&self.puller).take());
         if let Ok(entries) = std::fs::read_dir(self.tmp.path()) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -141,11 +147,14 @@ impl AppState {
         }
     }
 
-    /// Starts the Wi-Fi page ([`receive::start_in`]). One page at a time: a running one is stopped first.
+    /// Starts the Wi-Fi page ([`receive::start_in`]) on `ip`, or the likeliest address. One page at a time: a running
+    /// one is stopped first, and its folder removed if nothing arrived (so picking another address keeps the name).
     pub fn receive_start(&self, parent: &Path, ip: Option<std::net::IpAddr>) -> Result<ReceiveInfo, AppError> {
         let mut slot = lock(&self.receiver);
         if let Some(old) = slot.take() {
+            let dest = old.dest().to_path_buf();
             old.stop();
+            let _ = std::fs::remove_dir(dest);
         }
         let (rx, info) = receive::start_in(parent, ip)?;
         *slot = Some(rx);
@@ -172,6 +181,29 @@ impl AppState {
 
     pub fn receive_stop(&self) -> ReceiveStatus {
         lock(&self.receiver).take().map(Receiver::stop).unwrap_or_default()
+    }
+
+    /// Copies WhatsApp's folder off the phone `serial` with adb ([`adb::start_in`]). One copy at a time.
+    pub fn pull_start(&self, adb: &Adb, parent: &Path, serial: &str, want: &Wanted<'_>) -> Result<PullInfo, AppError> {
+        let mut slot = lock(&self.puller);
+        if slot.as_ref().is_some_and(|p| p.status().running) {
+            return Err(AppError::new("exists", "a copy is running already"));
+        }
+        let devices = adb.devices()?;
+        let device = adb::choose(&devices, Some(serial))?;
+        let phone = adb.phone(&device.serial);
+        let plan = adb::plan(&phone, want)?;
+        let (puller, info) = adb::start_in(parent, phone, plan)?;
+        *slot = Some(puller);
+        Ok(info)
+    }
+
+    pub fn pull_status(&self) -> PullStatus {
+        lock(&self.puller).as_ref().map(Puller::status).unwrap_or_default()
+    }
+
+    pub fn pull_stop(&self) -> PullStatus {
+        lock(&self.puller).take().map(Puller::stop).unwrap_or_default()
     }
 }
 
@@ -398,8 +430,12 @@ fn missing(state: State<'_, AppState>, a: u32, chat_a: i64, b: u32, chat_b: i64)
 }
 
 #[tauri::command(async)]
-fn receive_start(state: State<'_, AppState>, parent: PathBuf) -> Result<ReceiveInfo, AppError> {
-    state.receive_start(&parent, None)
+fn receive_start(
+    state: State<'_, AppState>,
+    parent: PathBuf,
+    ip: Option<std::net::IpAddr>,
+) -> Result<ReceiveInfo, AppError> {
+    state.receive_start(&parent, ip)
 }
 
 #[tauri::command]
@@ -410,6 +446,50 @@ fn receive_status(state: State<'_, AppState>) -> ReceiveStatus {
 #[tauri::command(async)]
 fn receive_stop(state: State<'_, AppState>) -> ReceiveStatus {
     state.receive_stop()
+}
+
+/// Whether adb is on this computer: the "get the backup" screen offers copying with it only then.
+#[tauri::command]
+fn adb_found() -> bool {
+    adb::find().is_some()
+}
+
+#[tauri::command(async)]
+fn adb_devices() -> Result<Vec<Device>, AppError> {
+    Adb::find()?.devices()
+}
+
+/// Wireless debugging: pairs with the code on the phone's screen (used once, never kept).
+#[tauri::command(async)]
+fn adb_pair(host: String, code: Zeroizing<String>) -> Result<(), AppError> {
+    Adb::find()?.pair(&host, &code)
+}
+
+#[tauri::command(async)]
+fn adb_connect(host: String) -> Result<(), AppError> {
+    Adb::find()?.connect(&host)
+}
+
+#[tauri::command(async)]
+fn adb_pull_start(
+    state: State<'_, AppState>,
+    parent: PathBuf,
+    serial: String,
+    business: bool,
+    media: bool,
+) -> Result<PullInfo, AppError> {
+    let want = Wanted { business, media, remote_dir: None };
+    state.pull_start(&Adb::find()?, &parent, &serial, &want)
+}
+
+#[tauri::command]
+fn adb_pull_status(state: State<'_, AppState>) -> PullStatus {
+    state.pull_status()
+}
+
+#[tauri::command(async)]
+fn adb_pull_stop(state: State<'_, AppState>) -> PullStatus {
+    state.pull_stop()
 }
 
 #[tauri::command(async)]
@@ -601,6 +681,13 @@ pub fn run() {
             receive_start,
             receive_status,
             receive_stop,
+            adb_found,
+            adb_devices,
+            adb_pair,
+            adb_connect,
+            adb_pull_start,
+            adb_pull_status,
+            adb_pull_stop,
             build_index,
             search,
             stats,
@@ -746,6 +833,10 @@ mod tests {
         std::fs::create_dir(parent.path().join("oopz-received-1")).unwrap();
         let info = state.receive_start(parent.path(), Some(IpAddr::V4(Ipv4Addr::LOCALHOST))).unwrap();
         assert_eq!(info.dest, parent.path().join("oopz-received-2"));
+        // Another address picked before anything arrived: a new page, the same folder.
+        let info = state.receive_start(parent.path(), Some(IpAddr::V4(Ipv4Addr::LOCALHOST))).unwrap();
+        assert_eq!(info.dest, parent.path().join("oopz-received-2"));
+        assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 2);
         assert!(info.qr_svg.contains("<svg"));
         assert!(state.receive_status().running);
 
