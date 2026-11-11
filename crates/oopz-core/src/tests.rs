@@ -424,3 +424,33 @@ fn inline_files_are_kept_in_the_librarys_media_folder() {
     lib.remove_source(id).unwrap();
     assert!(!root.exists(), "removing the source removes its files");
 }
+
+/// Rows a newer oopz wrote, with names this build doesn't know, still open: unknown kinds, parts and conversation
+/// kinds read as unknown, never an error (decision 0020).
+#[test]
+fn rows_a_newer_oopz_wrote_still_open() {
+    let (_dir, lib, a, _) = library();
+    lib.db
+        .execute_batch(
+            r#"UPDATE msg SET kind = 'hologram',
+                   body = json_set(body, '$.parts', json('[{"type":"hologram","text":"3D"}]'))
+               WHERE id = (SELECT MIN(id) FROM msg);
+               UPDATE conv SET kind = 'space' WHERE id = (SELECT MIN(id) FROM conv);"#,
+        )
+        .unwrap();
+    let convs = lib.conversations(&Filter { sources: vec![a], ..Default::default() }).unwrap();
+    assert!(convs.iter().any(|c| c.kind == ConversationKind::Unknown));
+    let first = convs.iter().find(|c| lib.messages(c.id, 0, 1).unwrap().iter().any(|r| r.kind == Kind::Unknown));
+    let rows = lib.messages(first.expect("the changed message lists").id, 0, 10).unwrap();
+    let changed = rows.iter().find(|r| r.kind == Kind::Unknown).unwrap();
+    assert_eq!(changed.message.parts, [Part::Unknown { code: "hologram".into(), text: Some("3D".into()) }]);
+    let stats = lib.stats(&Filter::default()).unwrap();
+    assert!(stats.by_kind.iter().any(|(k, n, _)| *k == Kind::Unknown && *n >= 1), "{:?}", stats.by_kind);
+}
+
+/// An app this build doesn't know can't be read back (`app_of`): adding one to `App` must bump `SCHEMA`, so an older
+/// oopz refuses the library ("made by a newer oopz") instead of failing on a row.
+#[test]
+fn a_new_app_bumps_the_library_schema() {
+    assert_eq!((oopz_model::App::ALL.len(), SCHEMA), (7, 1), "an App was added: bump SCHEMA, then this test");
+}

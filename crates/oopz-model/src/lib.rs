@@ -89,6 +89,8 @@ pub enum ConversationKind {
     Broadcast,
     /// Own notes ("message yourself", Saved Messages, LINE Keep, Viber My Notes).
     Notes,
+    /// Also any kind a newer oopz stored that this one doesn't know.
+    #[serde(other)]
     Unknown,
 }
 
@@ -145,6 +147,8 @@ pub struct Message {
     pub starred: bool,
     /// The id of the message this one answers (it may not be in the source).
     pub reply_to: Option<String>,
+    /// Read leniently: a part a newer oopz stored that this one can't read is an [`Part::Unknown`] with its type.
+    #[serde(deserialize_with = "lenient_parts")]
     pub parts: Vec<Part>,
     pub reactions: Vec<Reaction>,
 }
@@ -224,6 +228,29 @@ pub struct Reaction {
     pub by: Option<String>,
     pub from_me: bool,
     pub emoji: String,
+}
+
+/// Parts as stored: each one this build can't read (a part type, a media or card kind, a field a newer oopz wrote)
+/// becomes an [`Part::Unknown`] with the stored type (`card:quiz`, `media:hologram`, `hologram`) and any text it had,
+/// so a library written by a newer oopz still opens (decision 0020).
+fn lenient_parts<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Vec<Part>, D::Error> {
+    use serde_json::Value;
+    let values = Vec::<Value>::deserialize(d)?;
+    Ok(values
+        .into_iter()
+        .map(|v| {
+            serde_json::from_value::<Part>(v.clone()).unwrap_or_else(|_| {
+                let field = |k: &str| v.get(k).and_then(Value::as_str);
+                let kind = field("type").unwrap_or("part");
+                let code = match field("kind") {
+                    Some(inner) if matches!(kind, "card" | "media") => format!("{kind}:{inner}"),
+                    _ => kind.to_owned(),
+                };
+                let text = ["text", "caption", "title"].into_iter().find_map(field).map(str::to_owned);
+                Part::Unknown { code, text }
+            })
+        })
+        .collect())
 }
 
 /// A part of a message (`docs/data-types.md` §3).
@@ -401,7 +428,9 @@ pub enum CallOutcome {
     Cancelled,
     Busy,
     Failed,
+    /// Also any outcome a newer oopz stored that this one doesn't know.
     #[default]
+    #[serde(other)]
     Unknown,
 }
 
@@ -455,7 +484,9 @@ pub enum Event {
     ThemeChanged,
     /// A person changed their profile name, or the chat learned it.
     ProfileChanged,
+    /// Also any event a newer oopz stored that this one doesn't know.
     #[default]
+    #[serde(other)]
     Other,
 }
 
@@ -646,6 +677,8 @@ pub enum Kind {
     Reaction,
     System,
     Deleted,
+    /// Also any kind a newer oopz stored that this one doesn't know.
+    #[serde(other)]
     Unknown,
 }
 
@@ -1181,5 +1214,47 @@ mod tests {
         assert_eq!(MediaKind::from_file_name("STK-1.webp"), MediaKind::Sticker);
         assert_eq!(MediaKind::from_file_name("noext"), MediaKind::Document);
         assert_eq!(MediaKind::mime_for("a.PDF"), Some("application/pdf"));
+    }
+}
+
+/// A library written by a newer oopz: names and parts this build doesn't know read as unknown, never an error.
+#[cfg(test)]
+mod newer_data {
+    use super::*;
+
+    #[test]
+    fn a_message_a_newer_oopz_stored_opens() {
+        let stored = r#"{"id":"1","conversation":"c","sender":null,"from_me":false,"time_ms":1,"edited_ms":null,
+            "edited":false,"deleted":false,"forwarded":false,"starred":false,"reply_to":null,"reactions":[],
+            "a_field_added_later":true,
+            "parts":[
+              {"type":"text","text":"hola","spans":[]},
+              {"type":"hologram","text":"3D"},
+              {"type":"card","kind":"quiz","title":"Capitals","text":null},
+              {"type":"media","kind":"hologram","file":null,"name":null,"mime":null,"size":null,"width":null,
+               "height":null,"secs":null,"caption":"look","view_once":false,"omitted":true},
+              {"type":"system","event":"spaceship_landed","text":"Ana landed"},
+              {"type":"call","video":false,"outcome":"transferred","secs":3}
+            ]}"#;
+        let m: Message = serde_json::from_str(stored).expect("opens");
+        assert_eq!(m.parts[0], Part::text("hola"));
+        assert_eq!(m.parts[1], Part::Unknown { code: "hologram".into(), text: Some("3D".into()) });
+        assert_eq!(m.parts[2], Part::Unknown { code: "card:quiz".into(), text: Some("Capitals".into()) });
+        assert_eq!(m.parts[3], Part::Unknown { code: "media:hologram".into(), text: Some("look".into()) });
+        assert_eq!(m.parts[4], Part::System { event: Event::Other, text: Some("Ana landed".into()) });
+        assert_eq!(m.parts[5], Part::Call { video: false, outcome: CallOutcome::Unknown, secs: Some(3) });
+        assert_eq!(m.kind(), Kind::Unknown);
+    }
+
+    #[test]
+    fn stored_names_a_newer_oopz_wrote_read_as_unknown() {
+        assert_eq!(serde_json::from_str::<Kind>(r#""hologram""#).unwrap(), Kind::Unknown);
+        assert_eq!(serde_json::from_str::<Event>(r#""spaceship_landed""#).unwrap(), Event::Other);
+        assert_eq!(serde_json::from_str::<ConversationKind>(r#""space""#).unwrap(), ConversationKind::Unknown);
+        assert_eq!(serde_json::from_str::<CallOutcome>(r#""transferred""#).unwrap(), CallOutcome::Unknown);
+        // Known names still read as themselves.
+        for k in Kind::ALL {
+            assert_eq!(serde_json::from_str::<Kind>(&format!("\"{}\"", k.code())).unwrap(), k);
+        }
     }
 }

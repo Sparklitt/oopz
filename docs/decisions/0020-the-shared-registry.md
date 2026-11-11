@@ -37,6 +37,12 @@ it's known.
    columns, an optional table gone, an unknown type, a newer `user_version`) opens with all its messages
    (`oopz-gen/tests/schema_changes.rs`). The desktop app's `Kind` and `EventCode` are compared with `oopz-model` by a
    Rust test, and its tables are `Record<Kind, …>` in every language.
+7. **A library written by a newer oopz still opens.** Stored names this build doesn't know read as unknown, never
+   an error: a message's kind (`kind_of`), a conversation's kind, an event (`other`), a call's outcome, and a part
+   (`Part::Unknown` with its stored type: `hologram`, `card:quiz`, `media:hologram`, and any text it had). Fields
+   added later are ignored. An `App` this build doesn't know can't be shown, so adding one bumps the library's
+   `SCHEMA` and an older oopz refuses the library ("made by a newer oopz"); a test holds the two together. Tests:
+   `oopz-model` (`newer_data`), `oopz-core` (`rows_a_newer_oopz_wrote_still_open`).
 
 ## Consequences
 
