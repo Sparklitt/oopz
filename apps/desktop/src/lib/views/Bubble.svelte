@@ -1,12 +1,13 @@
 <script lang="ts">
   // One message, drawn by its kind, with what WhatsApp kept around it: the message it answers, reactions, edits,
-  // forwards, poll votes, call results and file facts. Photos show from the Media folder when the person picked one;
-  // other media are labelled placeholders.
+  // forwards, poll votes, call results and file facts. Photos, stickers and voice notes show from the Media folder
+  // when the person picked one; other media are labelled placeholders. A type oopz doesn't know is a labelled card.
+  import FileView from "../components/FileView.svelte";
   import Icon from "../components/Icon.svelte";
   import type { Line } from "../backend/types";
   import { dateTime, dur, mb, time } from "../format";
   import { strings } from "../i18n";
-  import { app, showMessage } from "../state.svelte";
+  import { app, be, showMessage } from "../state.svelte";
   import Thumb from "./Thumb.svelte";
 
   let { id, line, highlight = false }: { id: number; line: Line; highlight?: boolean } = $props();
@@ -26,7 +27,9 @@
           .join(" · ")
       : t.kinds[90],
   );
-  let kindName = $derived(t.kinds[line.kind] ?? `#${line.kind}`);
+  // A code oopz doesn't know: "WhatsApp: 9999, not shown yet".
+  let known = $derived(t.kinds[line.kind] !== undefined);
+  let kindName = $derived(t.kinds[line.kind] ?? t.lib.notShown("WhatsApp", String(line.kind)));
   let who = $derived(line.from_me ? t.you : line.sender ? `••••${line.sender}` : t.them);
   // A fixed waveform per message, so it doesn't change as the list scrolls.
   let wave = $derived(Array.from({ length: 28 }, (_, i) => 25 + ((line.id * 31 + i * 17) % 75)));
@@ -71,11 +74,19 @@
         </div>
         <span class="label"><Icon name="image" size={14} />{kindName}</span>
       {:else if line.kind === 2}
-        <div class="voice">
-          <span class="play"><Icon name="play" size={14} /></span>
-          <span class="wave" aria-hidden="true">{#each wave as h, i (i)}<i style:height="{h}%"></i>{/each}</span>
-          <Icon name="mic" size={16} />
-        </div>
+        {#snippet voiceBar()}
+          <div class="voice">
+            <span class="play"><Icon name="play" size={14} /></span>
+            <span class="wave" aria-hidden="true">{#each wave as h, i (i)}<i style:height="{h}%"></i>{/each}</span>
+            <Icon name="mic" size={16} />
+          </div>
+        {/snippet}
+        {#if app.mediaFolder}
+          {@const folder = app.mediaFolder}
+          <FileView load={() => be().mediaFile(id, line.id, folder)} as="audio" label={kindName} placeholder={voiceBar} />
+        {:else}
+          {@render voiceBar()}
+        {/if}
         <span class="label">{kindName}</span>
       {:else if line.kind === 9}
         <div class="card"><span class="card-ico"><Icon name="file" size={20} /></span><span class="card-text"><strong>{line.text ?? kindName}</strong><span>{kindName}</span></span></div>
@@ -97,9 +108,19 @@
       {:else if line.kind === 4}
         <div class="card"><span class="card-ico"><Icon name="user" size={20} /></span><span class="card-text"><strong>{kindName}</strong></span></div>
       {:else if line.kind === 20}
-        <span class="sticker"><Icon name="smile" size={44} /><span class="sr-only">{kindName}</span></span>
+        {#snippet stickerMark()}
+          <span class="sticker"><Icon name="smile" size={44} /><span class="sr-only">{kindName}</span></span>
+        {/snippet}
+        {#if app.mediaFolder}
+          {@const folder = app.mediaFolder}
+          <FileView load={() => be().mediaFile(id, line.id, folder)} as="image" label={kindName} sticker placeholder={stickerMark} />
+        {:else}
+          {@render stickerMark()}
+        {/if}
       {:else if line.kind === 15}
         <span class="deleted"><Icon name="ban" size={15} />{t.deleted}</span>
+      {:else if !known}
+        <div class="card"><span class="card-ico"><Icon name="alert" size={20} /></span><span class="card-text"><strong>{kindName}</strong></span></div>
       {/if}
 
       {#if line.text && ![7, 9, 46].includes(line.kind)}

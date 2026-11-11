@@ -91,6 +91,7 @@ export function messageText(m: MessageRow): string {
     if (p.type === "text") words.push(p.text);
     else if (p.type === "media" && p.caption) words.push(p.caption);
     else if (p.type === "link") words.push(p.title ?? p.url);
+    else if (p.type === "card") words.push(...[p.title, p.text].filter((w): w is string => !!w));
     else if ((p.type === "system" || p.type === "unknown") && p.text) words.push(p.text);
     else if (p.type === "poll") words.push(p.question);
   }

@@ -2633,6 +2633,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "msgkinds"
+version = "0.1.0"
+
+[[package]]
 name = "muda"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2982,6 +2986,7 @@ dependencies = [
  "if-addrs",
  "image",
  "jiff",
+ "msgkinds",
  "oopz",
  "oopz-line-export",
  "oopz-model",
@@ -3098,6 +3103,7 @@ dependencies = [
 name = "oopz-model"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "serde",
  "thiserror 2.0.21",
 ]

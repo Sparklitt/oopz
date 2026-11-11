@@ -16,6 +16,7 @@
 import pkg from "../../../package.json";
 import type { AdbDevice, Address, Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, PullStatus, Reply, ReceiveStatus, Stats, Step, Summary, ToolsInstalled } from "./types";
 import { libraryMock } from "./mockLibrary";
+import { mockSticker } from "./mockMedia";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
 const FOLDER = "/home/you/Phone/Databases";
@@ -670,6 +671,11 @@ export function createMock(): Backend {
       g.fill();
       const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", 0.8));
       return blob ? new Response(blob).arrayBuffer() : new ArrayBuffer(0);
+    },
+    async mediaFile(_id, message) {
+      await sleep(100);
+      // Every fourth sticker's file is missing from the Media folder.
+      return hash(message, 4) % 4 === 0 ? new ArrayBuffer(0) : mockSticker(message);
     },
     async backupTables(id) {
       const s = backup(id);

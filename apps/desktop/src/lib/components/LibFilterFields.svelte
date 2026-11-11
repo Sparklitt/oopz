@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import type { AppCode, ContactRow, Kind, LibFilter } from "../backend/types";
   import { strings } from "../i18n";
+  import { KINDS } from "../kinds";
   import { appName, dayStart, lib } from "../library.svelte";
   import { app, be } from "../state.svelte";
 
@@ -12,7 +13,6 @@
   let l = $derived(t.lib);
   let contacts = $state<ContactRow[]>([]);
   let apps = $derived([...new Set(lib.sources.map((s) => s.app))] as AppCode[]);
-  const KINDS: Kind[] = ["text", "link", "photo", "video", "gif", "sticker", "voice", "audio", "document", "location", "contact", "poll", "call", "system", "deleted"];
 
   const day = (ms: number | null, before = false) => {
     if (ms === null) return "";

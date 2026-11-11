@@ -3,6 +3,7 @@
 // .csv Viber, .crypt15 a WhatsApp backup (the mock's right key opens it), anything else a WhatsApp chat export, whose
 // owner the person is asked to pick; a folder, an iPhone backup (any password but "wrong" opens it). Every phone
 // number starts with 9999; every name is made up.
+import { mockSticker } from "./mockMedia";
 import type {
   AdapterInfo,
   AppCode,
@@ -129,6 +130,9 @@ export function libraryMock(opts: {
         else if (r === 5) (kind = "link"), (parts = [{ type: "text", text: "Look: https://example.com/viaje" }, { type: "link", url: "https://example.com/viaje", title: "Example trip" }]);
         else if (r === 6) (kind = "document"), (parts = [{ type: "media", kind: "document", file: null, name: "Billetes tren.pdf", mime: "application/pdf", size: 88_000, width: null, height: null, secs: null, caption: null, view_once: false, omitted: true }]);
         else if (r === 7 && i % 4 === 0) (kind = "system"), (parts = [{ type: "system", event: "member_added", text: null }]);
+        else if (r === 8) (kind = "sticker"), (parts = [{ type: "media", kind: "sticker", file: i % 3 ? `STK-${i}.webp` : null, name: null, mime: "image/webp", size: 18_000, width: 512, height: 512, secs: 0, caption: null, view_once: false, omitted: false }]);
+        else if (r === 9 && c.kind === "group") (kind = "album"), (parts = [{ type: "card", kind: "album", title: null, text: null }]);
+        else if (r === 10 && i % 3 === 0) (kind = "unknown"), (parts = [{ type: "unknown", code: "9999", text: null }]);
         const row: MessageRow = {
           id: ids++, conversation: c.id, source: sid, app, pos: i, time_ms: ts, wall_clock: src.wall_clock, from_me: fromMe && ownerKnown, sender,
           sender_name: people.find((p) => p.id === sender)?.name ?? null, kind, reply: null,
@@ -353,6 +357,12 @@ export function libraryMock(opts: {
     },
     async libMessagesById(list) {
       return list.map((id) => msgs.find((m) => m.id === id)).filter((m): m is MessageRow => !!m).map(withNames);
+    },
+    async libMedia(message, part) {
+      await sleep(80);
+      const p = msgs.find((m) => m.id === message)?.message.parts[part];
+      if (p?.type !== "media" || !p.file) return new ArrayBuffer(0);
+      return p.kind === "sticker" ? mockSticker(message) : new ArrayBuffer(0);
     },
     async libStats(filter) {
       await sleep(120);

@@ -476,6 +476,17 @@ pub fn lib_messages_by_id(lib: State<'_, Lib>, ids: Vec<i64>) -> Result<Vec<Mess
     lib.with(|l| l.messages_by_id(ids))
 }
 
+/// A message's media file as it is (`part`: the part's index), from its source's folder; empty when the folder
+/// doesn't have it, it's view once, or it's larger than the viewer is handed (16 MB).
+#[tauri::command(async)]
+pub fn lib_media(lib: State<'_, Lib>, message: i64, part: usize) -> Result<tauri::ipc::Response, AppError> {
+    let path = lib.with(|l| l.media_file(message, part))?;
+    let bytes = path
+        .filter(|p| std::fs::metadata(p).is_ok_and(|m| m.len() <= super::MEDIA_FILE_MAX))
+        .and_then(|p| std::fs::read(p).ok());
+    Ok(tauri::ipc::Response::new(bytes.unwrap_or_default()))
+}
+
 #[tauri::command(async)]
 pub fn lib_stats(lib: State<'_, Lib>, filter: Filter) -> Result<Stats, AppError> {
     lib.with(|l| l.stats(&filter))

@@ -51,6 +51,7 @@ export const tauri: Backend = {
   positionAt: (id, chat, ts) => invoke("position_at", { id, chat, ts }),
   // Raw bytes: Rust answers with an ipc Response, which arrives as an ArrayBuffer.
   thumbnail: (id, message, media, max) => invoke("thumbnail", { id, message, media, max }),
+  mediaFile: (id, message, media) => invoke("media_file", { id, message, media }),
   backupTables: (id) => invoke("backup_tables", { id }),
   chatTypes: (id, chat) => invoke("chat_types", { id, chat }),
   chatFacts: (id, chat) => invoke("chat_facts", { id, chat }),
@@ -91,6 +92,7 @@ export const tauri: Backend = {
   libCount: (filter) => invoke("lib_count", { filter }),
   libSelected: (selection, order) => invoke("lib_selected", { selection, order }),
   libMessagesById: (ids) => invoke("lib_messages_by_id", { ids }),
+  libMedia: (message, part) => invoke("lib_media", { message, part }),
   libStats: (filter) => invoke("lib_stats", { filter }),
   libPeople: (source) => invoke("lib_people", { source }),
   libContacts: () => invoke("lib_contacts"),

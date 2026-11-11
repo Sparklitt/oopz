@@ -1,13 +1,16 @@
 <script lang="ts">
-  // One library message, from any app, drawn from its parts: text, media (a labelled placeholder), places, contacts,
-  // polls, calls, links and the app's own notices; with the message it answers, reactions, edits and forwards. All
-  // as text, never as HTML.
+  // One library message, from any app, drawn from its parts: text, media (stickers, photos and voice notes from their
+  // file when the source's folder has it, else a labelled placeholder), places, contacts, polls, calls, links, cards
+  // (albums, sticker packs, events…), the app's own notices, and a labelled card for a type oopz doesn't know yet;
+  // with the message it answers, reactions, edits and forwards. All as text, never as HTML.
   import type { MediaPart, MessageRow } from "../backend/types";
   import { dateTime, dur, mb, time } from "../format";
   import { strings } from "../i18n";
   import { appName, messageText, senderOf } from "../library.svelte";
   import { app, be } from "../state.svelte";
-  import Icon, { type IconName } from "./Icon.svelte";
+  import { HAS_DURATION, KIND_ICON, SHOWN_FROM_FILE } from "../kinds";
+  import FileView from "./FileView.svelte";
+  import Icon from "./Icon.svelte";
 
   let {
     m,
@@ -43,8 +46,8 @@
     return () => (live = false);
   });
 
-  const MEDIA_ICON: Record<MediaPart["kind"], IconName> = { photo: "image", video: "video", video_note: "video", gif: "video", sticker: "smile", voice: "mic", audio: "mic", document: "file" };
-  const facts = (p: MediaPart) => [p.secs != null ? dur(p.secs) : null, p.size ? mb(p.size) : null].filter(Boolean).join(" · ");
+  // A sticker, a photo, a GIF or a document has no duration, whatever the source wrote (WhatsApp writes 0).
+  const facts = (p: MediaPart) => [p.secs != null && HAS_DURATION[p.kind] ? dur(p.secs) : null, p.size ? mb(p.size) : null].filter(Boolean).join(" · ");
   let system = $derived(m.kind === "system" || m.kind === "call");
   // Telegram's notices carry only their detail (who, a title), not what happened: the event's label leads.
   let detailOnly = $derived(m.app === "telegram");
@@ -99,13 +102,21 @@
         {#if p.type === "text"}
           <p class="text">{p.text}</p>
         {:else if p.type === "media"}
-          <div class="card">
-            <span class="card-ico"><Icon name={p.view_once ? "once" : MEDIA_ICON[p.kind]} size={20} /></span>
-            <span class="card-text">
-              <strong>{p.name ?? l.media[p.kind]}</strong>
-              <span>{[l.media[p.kind], facts(p), p.view_once ? l.viewOnce : null, p.omitted ? l.omitted : null].filter(Boolean).join(" · ")}</span>
-            </span>
-          </div>
+          {#snippet mediaCard(missing: boolean)}
+            <div class="card" class:small-card={p.kind === "sticker"}>
+              <span class="card-ico"><Icon name={p.view_once ? "once" : KIND_ICON[p.kind]} size={20} /></span>
+              <span class="card-text">
+                <strong>{p.name ?? l.media[p.kind]}</strong>
+                <span>{[l.media[p.kind], facts(p), p.view_once ? l.viewOnce : null, p.omitted ? l.omitted : null, missing ? l.noFile : null].filter(Boolean).join(" · ")}</span>
+              </span>
+            </div>
+          {/snippet}
+          {@const shown = SHOWN_FROM_FILE[p.kind]}
+          {#if shown && p.file && !p.view_once && !p.omitted}
+            <FileView load={() => be().libMedia(m.id, i)} as={shown} label={p.name ?? l.media[p.kind]} sticker={p.kind === "sticker"} placeholder={mediaCard} />
+          {:else}
+            {@render mediaCard(false)}
+          {/if}
           {#if p.caption}<p class="text">{p.caption}</p>{/if}
         {:else if p.type === "location"}
           <div class="card">
@@ -127,8 +138,17 @@
           </ul>
         {:else if p.type === "link"}
           <div class="card"><span class="card-ico"><Icon name="globe" size={20} /></span><span class="card-text">{#if p.title}<strong>{p.title}</strong>{/if}<span class="url">{p.url}</span></span></div>
+        {:else if p.type === "card"}
+          <div class="card">
+            <span class="card-ico"><Icon name={KIND_ICON[p.kind]} size={20} /></span>
+            <span class="card-text"><strong>{p.title ?? l.cards[p.kind]}</strong><span>{l.cards[p.kind]}</span></span>
+          </div>
+          {#if p.text}<p class="text">{p.text}</p>{/if}
         {:else if p.type === "unknown"}
-          <p class="text">{p.text ?? `[${l.kinds.unknown}]`}</p>
+          <div class="card unknown">
+            <span class="card-ico"><Icon name={KIND_ICON.unknown} size={20} /></span>
+            <span class="card-text"><strong>{l.notShown(appName(m.app), p.code)}</strong>{#if p.text}<span>{p.text}</span>{/if}</span>
+          </div>
         {/if}
       {/each}
       <span class="time">
@@ -260,6 +280,13 @@
     border-radius: 10px;
     background: var(--card-in-bubble);
     min-width: 0;
+  }
+  .small-card {
+    max-width: 240px;
+  }
+  .unknown .card-ico {
+    background: var(--surface-2);
+    color: var(--muted);
   }
   .card-ico {
     width: 36px;

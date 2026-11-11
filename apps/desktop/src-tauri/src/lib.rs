@@ -261,6 +261,22 @@ fn thumbnail(
     Ok(tauri::ipc::Response::new(jpeg.unwrap_or_default()))
 }
 
+/// The most bytes of one media file the viewer is handed as it is (a sticker, a voice note).
+const MEDIA_FILE_MAX: u64 = 16 << 20;
+
+/// A sticker's or a voice note's file as it is, from the phone's Media folder the person chose; empty when there's
+/// none, or it's larger than [`MEDIA_FILE_MAX`].
+#[tauri::command(async)]
+fn media_file(
+    state: State<'_, AppState>,
+    id: u32,
+    message: i64,
+    media: PathBuf,
+) -> Result<tauri::ipc::Response, AppError> {
+    let bytes = lock(&state.session).media_file(id, message, &media, MEDIA_FILE_MAX)?;
+    Ok(tauri::ipc::Response::new(bytes.unwrap_or_default()))
+}
+
 #[tauri::command(async)]
 fn find_backups(path: PathBuf) -> Result<Vec<BackupFile>, AppError> {
     session::find_backups(&path)
@@ -705,6 +721,7 @@ pub fn run() {
             save_result,
             open_link,
             thumbnail,
+            media_file,
             backup_tables,
             chat_types,
             chat_facts,
@@ -725,6 +742,7 @@ pub fn run() {
             library::lib_count,
             library::lib_selected,
             library::lib_messages_by_id,
+            library::lib_media,
             library::lib_stats,
             library::lib_people,
             library::lib_contacts,

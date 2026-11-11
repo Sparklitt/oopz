@@ -1,5 +1,6 @@
 // English: every word the app shows, and the language the others are checked against (their keys must match these).
 // Plain words: the person may never have seen a backup file.
+import type { CardKind, EventCode, Kind, MediaKind } from "../backend/types";
 import type { Locale } from "./types.ts";
 
 const en = {
@@ -296,7 +297,7 @@ const en = {
   exportSaved: "Saved",
   showFolder: "Show folder",
   dates: "first and last message",
-  kinds: { 0: "text", 1: "photo", 2: "audio / voice", 3: "video", 4: "contact", 5: "location", 7: "system", 9: "document", 13: "GIF", 15: "deleted", 16: "live location", 20: "sticker", 42: "view once", 46: "poll", 81: "video note", 90: "call", 99: "album" } as Record<number, string>,
+  kinds: { 0: "text", 1: "photo", 2: "audio / voice", 3: "video", 4: "contact", 5: "location", 7: "system", 9: "document", 13: "GIF", 15: "deleted", 16: "live location", 20: "sticker", 42: "view once", 46: "poll", 81: "video note", 90: "call", 99: "album", 105: "sticker pack" } as Record<number, string>,
   screenOnly: "Message text is shown here on your screen only. oopz never writes it to a log or sends it anywhere.",
 
   mergeTitle: "Merge a lost chat",
@@ -620,18 +621,30 @@ const en = {
     someone: "Someone",
     convKinds: { direct: "Chat", group: "Group", channel: "Channel", broadcast: "Broadcast", notes: "Notes", unknown: "Conversation" } as Record<string, string>,
     kinds: {
-      text: "text", link: "link", photo: "photo", video: "video", gif: "GIF", sticker: "sticker", voice: "voice note", audio: "audio",
-      document: "document", location: "location", contact: "contact", poll: "poll", call: "call", system: "notice", deleted: "deleted", unknown: "other",
-    } as Record<string, string>,
-    media: { photo: "Photo", video: "Video", video_note: "Video note", gif: "GIF", sticker: "Sticker", voice: "Voice note", audio: "Audio", document: "Document" } as Record<string, string>,
+      text: "text", link: "link", photo: "photo", video: "video", video_note: "video note", gif: "GIF", voice: "voice note", audio: "audio",
+      sticker: "sticker", document: "document", location: "location", contact: "contact", poll: "poll", call: "call", album: "album",
+      sticker_pack: "sticker pack", event: "event", payment: "payment", game: "game", business: "business message", story: "status update",
+      system: "notice", deleted: "deleted", unknown: "other",
+    } satisfies Record<Kind, string>,
+    media: { photo: "Photo", video: "Video", video_note: "Video note", gif: "GIF", sticker: "Sticker", voice: "Voice note", audio: "Audio", document: "Document" } satisfies Record<MediaKind, string>,
+    cards: { album: "Album", sticker_pack: "Sticker pack", event: "Event", payment: "Payment", game: "Game", business: "Business message", story: "Status update" } satisfies Record<CardKind, string>,
+    /** A type oopz doesn't know yet, as its card says it: the app and its own code. */
+    notShown: (app: string, code: string) => `${app}: ${code}, not shown yet`,
+    noFile: "the file isn't in the backup's media folder",
     outcomes: { answered: "answered", missed: "missed", declined: "declined", cancelled: "cancelled", busy: "busy", failed: "failed", unknown: "result unknown" } as Record<string, string>,
     events: {
       encryption: "Messages are end-to-end encrypted", security_code_changed: "Security code changed", number_changed: "Changed their number",
+      device_changed: "A device was added or removed", account_deleted: "Deleted their account", contact_joined: "Joined the app", business_notice: "Business account notice",
       group_created: "Group created", topic_created: "Topic created", renamed: "Name changed", description_changed: "Description changed", picture_changed: "Picture changed",
+      picture_removed: "Picture removed", settings_changed: "Settings changed",
       member_added: "Someone was added", member_joined: "Someone joined", member_left: "Someone left", member_removed: "Someone was removed",
-      admin_changed: "Admins changed", settings_changed: "Settings changed", disappearing: "Disappearing messages changed", pinned: "A message was pinned",
-      blocked: "Blocked or unblocked", message_deleted: "A message was deleted", history_cleared: "History cleared", other: "Notice",
-    } as Record<string, string>,
+      join_requested: "Someone asked to join", admin_added: "Someone was made admin", admin_removed: "Someone is no longer admin", admin_changed: "Admins changed",
+      owner_changed: "Owner changed", community_changed: "Community changed", invite_link_reset: "Invite link reset", disappearing: "Disappearing messages changed",
+      kept_in_chat: "A message was kept in the chat", chat_locked: "Chat locked", screenshot: "A screenshot was taken", pinned: "A message was pinned",
+      unpinned: "A message was unpinned", blocked: "Blocked or unblocked", unblocked: "Unblocked", message_deleted: "A message was deleted",
+      history_cleared: "History cleared", group_call: "Group call", poll_closed: "Poll closed", payment_status: "Payment status changed",
+      missed_messages: "Missed messages", theme_changed: "Theme changed", other: "Notice",
+    } satisfies Record<EventCode, string>,
     adapterNames: {
       "whatsapp-android": "Android backup (.crypt15, with its 64-digit key)",
       "whatsapp-ios": "iPhone backup (its folder)",
@@ -670,6 +683,7 @@ const en = {
     location: "Location",
     live: "Live location",
     unknown: "Something oopz can't show yet",
+    not_shown: "not shown yet",
     wall_clock: "Times as the phone showed them",
     photo: "Photo",
     video: "Video",

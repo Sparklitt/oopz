@@ -301,7 +301,21 @@ export interface Fact {
 // ---- the library (decision 0016): every app's sources in one place; shapes from crates/oopz-core ----
 
 export type AppCode = "whatsapp" | "telegram" | "sms" | "line" | "viber" | "signal" | "imessage";
-export type Kind = "text" | "link" | "photo" | "video" | "gif" | "sticker" | "voice" | "audio" | "document" | "location" | "contact" | "poll" | "call" | "system" | "deleted" | "unknown";
+/** What a message is: msgkinds' kinds (crates/oopz-model's Kind; a Rust test keeps this list the same). */
+export type Kind =
+  | "text" | "link" | "photo" | "video" | "video_note" | "gif" | "voice" | "audio" | "sticker" | "document" | "location" | "contact" | "poll" | "call"
+  | "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "system" | "deleted" | "unknown";
+export type MediaKind = "photo" | "video" | "video_note" | "gif" | "sticker" | "voice" | "audio" | "document";
+/** The kinds a card part holds (oopz-model's CardKind). */
+export type CardKind = "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story";
+/** What an app's notice says happened (oopz-model's Event; a Rust test keeps this list the same). */
+export type EventCode =
+  | "encryption" | "security_code_changed" | "number_changed" | "device_changed" | "account_deleted" | "contact_joined" | "business_notice"
+  | "group_created" | "topic_created" | "renamed" | "description_changed" | "picture_changed" | "picture_removed" | "settings_changed"
+  | "member_added" | "member_joined" | "member_left" | "member_removed" | "join_requested" | "admin_added" | "admin_removed" | "admin_changed"
+  | "owner_changed" | "community_changed" | "invite_link_reset" | "disappearing" | "kept_in_chat" | "chat_locked" | "screenshot" | "pinned"
+  | "unpinned" | "blocked" | "unblocked" | "message_deleted" | "history_cleared" | "group_call" | "poll_closed" | "payment_status"
+  | "missed_messages" | "theme_changed" | "other";
 export type Order = "conversation" | "time" | "newest";
 
 export interface LibraryInfo {
@@ -364,7 +378,7 @@ export type CallOutcome = "answered" | "missed" | "declined" | "cancelled" | "bu
 
 export interface MediaPart {
   type: "media";
-  kind: "photo" | "video" | "video_note" | "gif" | "sticker" | "voice" | "audio" | "document";
+  kind: MediaKind;
   file: string | null;
   name: string | null;
   mime: string | null;
@@ -385,7 +399,8 @@ export type Part =
   | { type: "poll"; question: string; options: { text: string; voters: string[]; votes: number }[]; multiple: boolean }
   | { type: "call"; video: boolean; outcome: CallOutcome; secs: number | null }
   | { type: "link"; url: string; title: string | null }
-  | { type: "system"; event: string; text: string | null }
+  | { type: "card"; kind: CardKind; title: string | null; text: string | null }
+  | { type: "system"; event: EventCode; text: string | null }
   | { type: "unknown"; code: string; text: string | null };
 
 /** A message as its app's adapter read it (crates/oopz-model). */
@@ -517,7 +532,9 @@ export type ExportFormat = "html" | "json" | "csv" | "txt" | "vcard" | "media-zi
 export type ExportWords = Strings["exportWords"] & {
   /** A call's outcome and a notice with no text of its own, by code. */
   outcomes: Record<string, string>;
-  events: Record<string, string>;
+  events: Record<EventCode, string>;
+  /** An album header, a sticker pack, a calendar event… by its card kind. */
+  cards: Record<CardKind, string>;
 };
 
 export interface ExportOptions {
@@ -623,6 +640,8 @@ export interface Backend {
   positionAt(id: number, chat: number, ts: number): Promise<number | null>;
   /** A photo's thumbnail as JPEG bytes, from the Media (or WhatsApp) folder the person picked; empty when none. */
   thumbnail(id: number, message: number, media: string, max: number): Promise<ArrayBuffer>;
+  /** A sticker's or voice note's file as it is, from the Media folder; empty when there's none. */
+  mediaFile(id: number, message: number, media: string): Promise<ArrayBuffer>;
   backupTables(id: number): Promise<TableInfo[]>;
   chatTypes(id: number, chat: number): Promise<TypeInfo[]>;
   chatFacts(id: number, chat: number): Promise<Fact[]>;
@@ -683,6 +702,8 @@ export interface Backend {
   /** The ids of a selection's messages. */
   libSelected(selection: Selection, order: Order): Promise<number[]>;
   libMessagesById(ids: number[]): Promise<MessageRow[]>;
+  /** A library message's media file (`part`: the part's index) as it is; empty when its source's folder hasn't it. */
+  libMedia(message: number, part: number): Promise<ArrayBuffer>;
   libStats(filter: LibFilter): Promise<LibStats>;
   libPeople(source: number | null): Promise<PersonRow[]>;
   libContacts(): Promise<ContactRow[]>;
