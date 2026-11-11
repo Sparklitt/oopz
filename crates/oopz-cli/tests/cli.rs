@@ -216,3 +216,44 @@ fn search_filters_and_jump_to_a_date() {
     let stats = oopz(&["stats", "--backup", source], Some(KEY_HEX));
     assert!(text(&stats).contains("by day and hour") && text(&stats).contains("Sat: "), "{}", text(&stats));
 }
+
+/// `oopz pull` with a stand-in adb on `PATH` that only lists devices: no adb, no phone, a phone that hasn't allowed
+/// this computer, and two phones without `--serial` are refused before anything is copied or written.
+#[cfg(unix)]
+#[test]
+fn pull_refuses_without_adb_a_phone_or_a_clear_choice() {
+    use std::os::unix::fs::PermissionsExt;
+    let (bin, empty, out) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let adb = bin.path().join("adb");
+    std::fs::write(
+        &adb,
+        "#!/bin/sh\n[ \"$1\" = devices ] || exit 1\nprintf 'List of devices attached\\n%b' \"$DEVICES\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&adb, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let pull = |path: &std::path::Path, devices: &str| {
+        Command::new(env!("CARGO_BIN_EXE_oopz"))
+            .args(["pull", "--out-dir", out.path().to_str().unwrap()])
+            .env("PATH", path)
+            .env_remove("ANDROID_HOME")
+            .env_remove("ANDROID_SDK_ROOT")
+            .env("DEVICES", devices)
+            .output()
+            .unwrap()
+    };
+    let none = pull(empty.path(), "");
+    assert!(!none.status.success() && text(&none).contains("platform-tools"), "{}", text(&none));
+    let cases = [
+        ("", "adb sees no phone"),
+        ("R58N123\tunauthorized usb:1-2 transport_id:4\\n", "hasn't allowed this computer"),
+        (
+            "AAA\tdevice usb:1-1\\nBBB\tdevice usb:1-2\\n",
+            "several phones are connected (AAA, BBB): choose one with --serial",
+        ),
+    ];
+    for (devices, said) in cases {
+        let refused = pull(bin.path(), devices);
+        assert!(!refused.status.success() && text(&refused).contains(said), "{devices}: {}", text(&refused));
+    }
+    assert_eq!(std::fs::read_dir(out.path()).unwrap().count(), 0, "nothing written");
+}

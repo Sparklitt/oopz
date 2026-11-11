@@ -63,6 +63,8 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 tiny_http = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# docs/decisions/0009: the computer's network cards, so the person can pick the address the phone reaches.
+if-addrs = "0.15"
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 # docs/decisions/0009: free disk space before writing a decrypted copy or a merge.
 fs4 = { version = "1.1", default-features = false }

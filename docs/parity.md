@@ -20,7 +20,8 @@ names (`oopz export`), or prints as counts and positions.
 | `export_page` | `oopz export` | `Session::export` (the CLI's words, English: `Labels::english`; the app sends its own) |
 | `missing` | `oopz missing` | `Session::missing` |
 | `merge_chat` | `oopz restore` | `Session::merge` |
-| `receive_start`, `receive_status`, `receive_stop` | `oopz receive` | `receive::start_in` |
+| `receive_start`, `receive_status`, `receive_stop` | `oopz receive` (`--address` to pick another of the listed addresses) | `receive::start_in`, `receive::addresses` |
+| `adb_found`, `adb_devices`, `adb_pair`, `adb_connect`, `adb_pull_start`, `adb_pull_status`, `adb_pull_stop` | `oopz pull` (`--pair`/`--code`, `--connect`; `--remote-dir` CLI only) | `adb::Adb`, `adb::choose`, `adb::plan`, `adb::start_in` |
 | `backup_tables` | `oopz tables` | `Session::tables` |
 | `chat_types` | `oopz types` | `Session::types` |
 | `chat_facts` | `oopz chat-facts` | `Session::chat_facts` |

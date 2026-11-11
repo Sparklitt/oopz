@@ -9,8 +9,11 @@
 // __oopzDrop(["/home/you/Phone/Databases/msgstore.db.crypt15"]) acts like dropping that file on the window. With
 // ?platform=android, picking a file gives a content:// reference to import; add &nospace and the import fails for
 // lack of space. The library (mockLibrary.ts) starts with three invented sources; ?library=empty starts with none.
+// Wi-Fi: the phone opens the page after a second; ?wifi=silent never does (the tips show after 45 s). adb: one phone
+// on USB; ?adb=none hides the option, ?adb=two adds one that hasn't allowed this computer, ?adb=empty has no phone.
+// Pairing works with the code 123456; connecting adds a wireless phone at that address.
 import pkg from "../../../package.json";
-import type { Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
+import type { AdbDevice, Address, Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, PullStatus, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
 import { libraryMock } from "./mockLibrary";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
@@ -343,6 +346,50 @@ export function createMock(): Backend {
   const drops = new Set<(paths: string[]) => void>();
   (window as unknown as { __oopzDrop: (paths: string[]) => void }).__oopzDrop = (paths) => drops.forEach((cb) => cb(paths));
   let receive: { started: number; dest: string; stoppedAt: number | null; how: ReceiveStatus["stopped"] } | null = null;
+  const silent = params.get("wifi") === "silent";
+  const ADDRESSES: Address[] = [
+    { ip: "192.168.1.24", card: "Wi-Fi", likely_virtual: false },
+    { ip: "10.0.0.12", card: "Ethernet", likely_virtual: false },
+    { ip: "172.25.160.1", card: "vEthernet (WSL)", likely_virtual: true },
+  ];
+  const adbMode = params.get("adb");
+  const devices: AdbDevice[] =
+    adbMode === "empty"
+      ? []
+      : [
+          { serial: "R58M41ABCDE", state: "device", model: "SM G965F", wireless: false },
+          ...(adbMode === "two" ? [{ serial: "9A1B2C3D", state: "unauthorized", model: null, wireless: false }] : []),
+        ];
+  let pull: { started: number; media: boolean; stoppedAt: number | null } | null = null;
+
+  /** The copy over adb by the clock: Databases in 4 s, then Media (6 GB) in 10 s. */
+  function pullStatus(): PullStatus {
+    const idle: PullStatus = { running: false, folder: null, done: 0, total: 0, bytes_per_sec: 0, secs_left: null, copied: [], stopped: null, error: null };
+    if (!pull) return idle;
+    const at = (pull.stoppedAt ?? Date.now()) - pull.started;
+    const plan = [
+      { name: "Databases", files: 6, bytes: 2_410_000_000, from: 0, to: 4000 },
+      ...(pull.media ? [{ name: "Media", files: 18_406, bytes: 6_020_000_000, from: 4000, to: 14000 }] : []),
+    ];
+    const total = plan.reduce((n, f) => n + f.bytes, 0);
+    const copied = plan.filter((f) => at >= f.to).map(({ name, files, bytes }) => ({ name, files, bytes }));
+    const cur = plan.find((f) => at >= f.from && at < f.to);
+    const done = copied.reduce((n, f) => n + f.bytes, 0) + (cur ? Math.round(((at - cur.from) / (cur.to - cur.from)) * cur.bytes) : 0);
+    const end = plan[plan.length - 1].to;
+    const stopped = pull.stoppedAt !== null ? "stopped" : at >= end ? "done" : null;
+    const pace = at >= 1000 ? Math.round(done / (at / 1000)) : 0;
+    return {
+      running: stopped === null,
+      folder: stopped === null && cur ? cur.name : null,
+      done: stopped === "stopped" ? copied.reduce((n, f) => n + f.bytes, 0) : done,
+      total,
+      bytes_per_sec: pace,
+      secs_left: pace > 0 && stopped === null ? Math.ceil((end - at) / 1000) : null,
+      copied,
+      stopped,
+      error: null,
+    };
+  }
 
   const library = libraryMock({ sleep, slowly, rightKey: RIGHT_KEY, android, empty: params.get("library") === "empty" });
 
@@ -361,7 +408,12 @@ export function createMock(): Backend {
   }
 
   function receiveStatus(): ReceiveStatus {
-    if (!receive) return { running: false, files: [], current: null, refused: 0, stopped: null, idle_secs_left: 0 };
+    if (!receive) return { running: false, files: [], current: null, refused: 0, stopped: null, idle_secs_left: 0, opened: false };
+    if (silent) {
+      const left = 600 - Math.floor(((receive.stoppedAt ?? Date.now()) - receive.started) / 1000);
+      const stopped = receive.stoppedAt !== null ? receive.how : null;
+      return { running: stopped === null, files: [], current: null, refused: 0, stopped, idle_secs_left: stopped ? 0 : left, opened: false };
+    }
     const at = (receive.stoppedAt ?? Date.now()) - receive.started;
     const plan = [
       { name: "msgstore.db.crypt15", bytes: 412_000_000, from: 2500, to: 8000 },
@@ -389,6 +441,7 @@ export function createMock(): Backend {
       refused: 0,
       stopped,
       idle_secs_left: stopped !== null ? 0 : cur ? 600 : Math.max(0, 600 - Math.floor((at - lastEnd) / 1000)),
+      opened: at >= 1200,
     };
   }
 
@@ -662,10 +715,11 @@ export function createMock(): Backend {
       ];
     },
 
-    async receiveStart(parent) {
+    async receiveStart(parent, ip) {
       await sleep(300);
       receive = { started: Date.now(), dest: `${parent}/oopz-received-2026-11-10`, stoppedAt: null, how: null };
-      return { url: "http://192.168.1.24:8752/", qr_svg: fakeQr(), dest: receive.dest, free: 120_400_000_000 };
+      const at = ip ?? ADDRESSES[0].ip;
+      return { url: `http://${at}:8752/`, qr_svg: fakeQr(), dest: receive.dest, free: 120_400_000_000, ip: at, addresses: ADDRESSES };
     },
     async receiveStatus() {
       return receiveStatus();
@@ -676,6 +730,39 @@ export function createMock(): Backend {
         receive.how = "stopped";
       }
       return receiveStatus();
+    },
+
+    async adbFound() {
+      return !android && adbMode !== "none";
+    },
+    async adbDevices() {
+      await sleep(400);
+      return devices.map((d) => ({ ...d }));
+    },
+    async adbPair(host, code) {
+      await sleep(900);
+      if (!host.includes(":")) fail("adb", `not an address and port like 192.168.1.20:37099: ${host}`);
+      if (code !== "123456") fail("adb", "pairing didn't work: Failed: Wrong password or connection was dropped.");
+    },
+    async adbConnect(host) {
+      await sleep(700);
+      if (!host.includes(":")) fail("adb", `not an address and port like 192.168.1.20:37099: ${host}`);
+      if (!devices.some((d) => d.serial === host)) devices.push({ serial: host, state: "device", model: "Pixel 7", wireless: true });
+    },
+    async adbPullStart(parent, serial, _business, media) {
+      await sleep(500);
+      const device = devices.find((d) => d.serial === serial) ?? fail("no_device", `adb doesn't see a phone named ${serial}`);
+      if (device.state === "unauthorized") fail("unauthorized", "the phone hasn't allowed this computer yet");
+      pull = { started: Date.now(), media, stoppedAt: null };
+      const bytes = media ? 8_430_000_000 : 2_410_000_000;
+      return { dest: `${parent}/oopz-pulled-1`, root: "/sdcard/Android/media/com.whatsapp/WhatsApp", files: media ? 18_412 : 6, bytes, free: 120_400_000_000 };
+    },
+    async adbPullStatus() {
+      return pullStatus();
+    },
+    async adbPullStop() {
+      if (pull && pull.stoppedAt === null && pullStatus().running) pull.stoppedAt = Date.now();
+      return pullStatus();
     },
 
     async updateCheck() {
