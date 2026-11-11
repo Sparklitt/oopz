@@ -321,6 +321,13 @@ const en = {
 
   hideNames: "Hide names",
   hideNamesHint: "Show chats as their kind and the end of their number, for example while sharing your screen.",
+  cliTitle: "The oopz command",
+  cliHint: "Type oopz in a terminal to use oopz's command-line tool (oopz --help).",
+  cliInstalledAt: "Installed at",
+  cliInstall: "Install the oopz command",
+  cliUpdate: "Update the oopz command",
+  cliRemove: "Remove the oopz command",
+  cliNotOnPath: "That folder isn't on your PATH yet. Add this line to your shell's startup file (~/.bashrc, ~/.zshrc or ~/.profile), then open a new terminal:",
 
   edited: "edited",
   forwarded: "Forwarded",

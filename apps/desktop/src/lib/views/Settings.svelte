@@ -4,10 +4,10 @@
   import ErrorNote from "../components/ErrorNote.svelte";
   import Icon, { type IconName } from "../components/Icon.svelte";
   import { LANGS, strings, type Lang } from "../i18n";
-  import type { LinkName } from "../backend/types";
+  import type { AppError, CliStatus, LinkName } from "../backend/types";
   import { dateTime, fmt, mb } from "../format";
   import { lib, libraryWiped, refreshLibrary, setKeep } from "../library.svelte";
-  import { app, be, checkUpdates, loadLastChecked, setAutoUpdates, setHideNames, setLang, setTheme, wipeNow, type Theme } from "../state.svelte";
+  import { app, be, checkUpdates, loadLastChecked, setAutoUpdates, setHideNames, setLang, setTheme, toError, wipeNow, type Theme } from "../state.svelte";
 
   let t = $derived(strings(app.lang));
   let wiped = $state<number | null>(null);
@@ -25,6 +25,21 @@
     wiped = null;
     wiped = (await wipeNow()) ?? null;
     if (wiped !== null) libraryWiped();
+  }
+  // The `oopz` command, where the app puts it on PATH itself (the AppImage, macOS); null hides the row.
+  let cli = $state<CliStatus | null>(null);
+  let cliBusy = $state(false);
+  let cliError = $state<AppError | null>(null);
+  async function changeCli(install: boolean) {
+    cliBusy = true;
+    cliError = null;
+    try {
+      cli = await (install ? be().cliInstall() : be().cliRemove());
+    } catch (e) {
+      cliError = toError(e);
+    } finally {
+      cliBusy = false;
+    }
   }
   let tab = $state<"general" | "updates" | "privacy" | "about">("general");
   let version = $state("");
@@ -47,6 +62,10 @@
     be()
       .appVersion()
       .then((v) => (version = v))
+      .catch(() => {});
+    be()
+      .cliStatus()
+      .then((s) => (cli = s))
       .catch(() => {});
   });
 </script>
@@ -84,7 +103,22 @@
           <label for="hide-names">{t.hideNames}<span class="muted hint-line">{t.hideNamesHint}</span></label>
           <input id="hide-names" class="switch" type="checkbox" role="switch" checked={app.hideNames} onchange={(e) => setHideNames(e.currentTarget.checked)} />
         </div>
+        {#if cli}
+          <div class="set-row">
+            <span>{t.cliTitle}<span class="muted hint-line">{#if cli.installed}{t.cliInstalledAt} <code>{cli.installed}</code>{:else}{t.cliHint}{/if}</span></span>
+            <span class="buttons">
+              {#if cli.installed}
+                {#if cli.stale}<button class="btn" disabled={cliBusy} onclick={() => changeCli(true)}>{t.cliUpdate}</button>{/if}
+                <button class="btn" disabled={cliBusy} onclick={() => changeCli(false)}>{t.cliRemove}</button>
+              {:else}
+                <button class="btn" disabled={cliBusy} onclick={() => changeCli(true)}>{t.cliInstall}</button>
+              {/if}
+            </span>
+          </div>
+        {/if}
       </div>
+      {#if cli?.path_line}<p class="muted">{t.cliNotOnPath}</p><p><code class="path-line">{cli.path_line}</code></p>{/if}
+      <ErrorNote error={cliError} />
     {:else if tab === "updates"}
       <h2 class="h2">{t.updatesTitle}</h2>
       <p class="muted">{t.updatesLead}</p>
@@ -215,6 +249,9 @@
   .hint-line {
     display: block;
     font-size: 13px;
+  }
+  .path-line {
+    user-select: all;
   }
   .set-row {
     display: flex;

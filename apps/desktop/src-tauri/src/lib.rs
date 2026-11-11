@@ -17,6 +17,7 @@ use tauri::ipc::Channel;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
+mod cli;
 mod library;
 
 /// What the app holds while it runs. The decrypted copies live in `tmp`, removed when the app closes.
@@ -649,6 +650,9 @@ pub fn run() {
             library::lib_delete_selection,
             library::lib_export,
             library::lib_export_contacts,
+            cli::cli_status,
+            cli::cli_install,
+            cli::cli_remove,
             #[cfg(desktop)]
             update::update_check,
             #[cfg(desktop)]

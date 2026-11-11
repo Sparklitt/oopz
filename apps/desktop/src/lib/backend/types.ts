@@ -489,6 +489,16 @@ export interface Exported {
   missing_glyphs: number;
 }
 
+/** The `oopz` command in a terminal, where Settings puts it there (the AppImage, macOS). */
+export interface CliStatus {
+  /** Where the command is (a copy, or a link to the app's), or null. */
+  installed: string | null;
+  /** The AppImage's copy is older than the app: installing again updates it. */
+  stale: boolean;
+  /** Its folder isn't on PATH: the line to add to the shell's startup file. */
+  path_line: string | null;
+}
+
 export type LinkName ="source" | "report" | "security" | "licences" | "releases";
 
 /** An error from Rust: a stable code the UI words, and an English detail. */
@@ -569,6 +579,10 @@ export interface Backend {
   updateLastChecked(): Promise<number | null>;
   /** Installs what the last check found, after checking its signature, and restarts the app. */
   updateInstall(onProgress: OnProgress): Promise<void>;
+  /** null where the installer already put `oopz` on PATH (Windows, the .deb and .rpm) or there's none (Android). */
+  cliStatus(): Promise<CliStatus | null>;
+  cliInstall(): Promise<CliStatus>;
+  cliRemove(): Promise<CliStatus>;
   // ---- the library ----
   libraryInfo(): Promise<LibraryInfo>;
   /** Keeps the library between runs (moved to the app's data folder), or not (removed when the app closes). */

@@ -10,7 +10,7 @@
 // ?platform=android, picking a file gives a content:// reference to import; add &nospace and the import fails for
 // lack of space. The library (mockLibrary.ts) starts with three invented sources; ?library=empty starts with none.
 import pkg from "../../../package.json";
-import type { Backend, BackupFile, Call, ChatRow, Filter, Hit, Line, Media, Missing, OnProgress, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
+import type { Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, Reply, ReceiveStatus, Stats, Step, Summary } from "./types";
 import { libraryMock } from "./mockLibrary";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
@@ -338,6 +338,8 @@ export function createMock(): Backend {
   let nextId = 1;
   let updateChecks = 0;
   let lastChecked: number | null = null;
+  // As an AppImage whose ~/.local/bin isn't on PATH; ?cli=none shows a system where the installer did it.
+  let cli: CliStatus | null = android || params.get("cli") === "none" ? null : { installed: null, stale: false, path_line: null };
   const drops = new Set<(paths: string[]) => void>();
   (window as unknown as { __oopzDrop: (paths: string[]) => void }).__oopzDrop = (paths) => drops.forEach((cb) => cb(paths));
   let receive: { started: number; dest: string; stoppedAt: number | null; how: ReceiveStatus["stopped"] } | null = null;
@@ -692,6 +694,17 @@ export function createMock(): Backend {
     async updateInstall(onProgress) {
       await slowly(2500, onProgress, () => "download");
       // The real app restarts here; the mock stays on the last screen.
+    },
+    async cliStatus() {
+      return cli;
+    },
+    async cliInstall() {
+      await sleep(400);
+      return (cli = { installed: "/home/you/.local/bin/oopz", stale: false, path_line: 'export PATH="$HOME/.local/bin:$PATH"' });
+    },
+    async cliRemove() {
+      await sleep(300);
+      return (cli = { installed: null, stale: false, path_line: null });
     },
     ...library,
     onFileDrop(cb) {

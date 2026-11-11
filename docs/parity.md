@@ -31,6 +31,7 @@ names (`oopz export`), or prints as counts and positions.
 | `import_backup`, `save_result` | app only: Android's file picker hands the app references, not paths (decision 0012); the CLI takes paths | |
 | `open_link` | app only: the CLI's `--help` names the repository | |
 | `update_check`, `update_install`, `update_last_checked` | app only: the app updates itself (decision 0011); the CLI binary is replaced by hand | |
+| `cli_status`, `cli_install`, `cli_remove` | `oopz completions` (the shells' tab completion): the app carries the CLI and puts it on PATH (Settings, on macOS and the AppImage) | |
 
 ## The library (every app, decision 0016)
 

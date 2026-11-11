@@ -321,6 +321,13 @@ const es: Strings = {
 
   hideNames: "Ocultar nombres",
   hideNamesHint: "Muestra los chats por su tipo y el final de su número, por ejemplo al compartir pantalla.",
+  cliTitle: "El comando oopz",
+  cliHint: "Escribe oopz en un terminal para usar la herramienta de línea de comandos de oopz (oopz --help).",
+  cliInstalledAt: "Instalado en",
+  cliInstall: "Instalar el comando oopz",
+  cliUpdate: "Actualizar el comando oopz",
+  cliRemove: "Quitar el comando oopz",
+  cliNotOnPath: "Esa carpeta aún no está en tu PATH. Añade esta línea al archivo de inicio de tu shell (~/.bashrc, ~/.zshrc o ~/.profile) y abre un terminal nuevo:",
 
   edited: "editado",
   forwarded: "Reenviado",
