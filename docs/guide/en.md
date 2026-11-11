@@ -82,6 +82,11 @@ a few minutes, and only while this screen is open.
 
 ![The QR code, waiting for the phone](images/en/receive-qr.png)
 
+The page works with no internet at all: the computer and the phone only need to share a network, even a router
+with no internet. With no Wi-Fi around, switch on the phone's hotspot and join the computer to it (no mobile data is
+used). If the computer has several network cards, pick the Wi-Fi one under **Address**; the ones marked "virtual?"
+(WSL, Docker, VPN) rarely work. Once the phone loads the page, oopz says **The phone opened the page**.
+
 If the phone can't open the page:
 
 - Both must be on the **same Wi-Fi**. Switch off mobile data on the phone for a moment, so it doesn't try that way.
@@ -93,8 +98,9 @@ If the phone can't open the page:
 - Type the address shown under the code into the phone's browser by hand, exactly, `http://` included.
 - Still nothing? Use a cable, or adb below.
 
-<!-- TODO shot: receive-tips — the Wi-Fi tips on the Receive screen (another agent is adding them). Add an entry to
-apps/desktop/scripts/screenshots.config.mjs and show it here. -->
+After 45 seconds without the phone, the same tips show on the screen:
+
+![The Wi-Fi tips, when the phone hasn't opened the page](images/en/receive-tips.png)
 
 ### Copy with adb (USB or wireless debugging)
 
@@ -103,13 +109,24 @@ doesn't show up as a drive, or the Wi-Fi page won't connect.
 
 1. On the phone: Settings › About phone, tap **Build number** seven times. Then Settings › Developer options, switch
    on **USB debugging** (or **Wireless debugging**, Android 11 and newer, same Wi-Fi as the computer).
-2. Connect: with a cable, plug it in and allow the computer on the phone. Wirelessly, tap **Pair device with pairing
-   code** on the phone, and give oopz (or `adb pair`) the address and code it shows.
-3. In oopz, choose **Copy with adb**: it finds WhatsApp's backups on the phone and copies them into a new folder,
-   then offers to open them.
+2. In oopz: **Add backup › With USB or wireless debugging (adb)**.
+3. The first time, if this computer has no adb, oopz offers to get it: **Show Google's licence** shows the version,
+   the size and Google's licence; **Accept and download** fetches Android's platform-tools from Google (once, about
+   8–17 MB), checks the file against Google's own checksum, and keeps it in oopz's folder. Nothing is downloaded
+   before you accept. **Settings › General › Android's adb (platform-tools) › Remove** deletes it again.
+4. Connect the phone. With a cable: plug it in and tap **Allow** on the phone. Wirelessly: open **Wireless
+   debugging** in oopz, tap **Pair device with pairing code** on the phone, type the address, port and code it shows,
+   then the address and port under "IP address & port", and **Connect**.
+5. Pick the phone, tick **Media** if you want photos and videos too, and **Choose where to copy**. oopz copies
+   WhatsApp's folder into a new folder, checks every file's size, keeps nothing half-copied, and offers **Use the
+   copied files**.
 
-<!-- TODO shot: adb-copy — the "Copy with adb" screen (another agent is adding it). Add an entry to
-apps/desktop/scripts/screenshots.config.mjs and show it here. -->
+![No adb yet: Google's licence, before anything is downloaded](images/en/adb-get.png)
+
+![Copying with adb: the phones adb sees](images/en/adb-copy.png)
+
+On the command line: `oopz pull --out-dir FOLDER` (add `--media`, `--business`, or `--pair HOST:PORT --code CODE`
+and `--connect HOST:PORT` for wireless debugging). It uses the adb oopz downloaded if there's no other.
 
 Without oopz, the same copy by hand:
 
@@ -323,8 +340,7 @@ decides and takes that risk. Keep the original backup and the moved-aside folder
 The `oopz` command does what the app does, in a terminal; it prints counts, dates and masked ids, never message
 text. The installers put it on your `PATH`; with the AppImage or on macOS, use **Settings › Install the oopz command**.
 
-<!-- TODO shot: settings-cli — the "Install the oopz command" button in Settings (another agent is adding it). Add an
-entry to apps/desktop/scripts/screenshots.config.mjs and show it here. -->
+![Settings › General, with the oopz command row (AppImage)](images/en/settings.png)
 
 ```sh
 oopz backups --dir Databases/          # do they all open, and are they sound?

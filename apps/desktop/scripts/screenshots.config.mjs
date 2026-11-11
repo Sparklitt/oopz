@@ -70,6 +70,37 @@ export const shots = [
       await s.page.locator(".qr svg").waitFor();
     },
   },
+  {
+    // The phone never opens the page (?wifi=silent): the tips come after 45 s, so the fixed clock moves on 46 s.
+    name: "receive-tips",
+    query: { wifi: "silent" },
+    steps: async (s) => {
+      await s.nav(s.t.navReceive);
+      await s.click(s.t.startWifi);
+      await s.page.locator(".qr svg").waitFor();
+      await s.page.clock.setFixedTime(new Date(Date.parse(CLOCK) + 46_000));
+      await s.page.getByText(s.t.wifiTipsTitle).waitFor();
+    },
+  },
+  {
+    name: "adb-copy",
+    steps: async (s) => {
+      await s.nav(s.t.addBackup);
+      await s.click(s.t.fromAdb);
+      await s.page.locator(".device").first().waitFor();
+    },
+  },
+  {
+    // No adb on this computer (?adb=none): Google's licence, shown before anything is downloaded.
+    name: "adb-get",
+    query: { adb: "none" },
+    steps: async (s) => {
+      await s.nav(s.t.addBackup);
+      await s.click(s.t.fromAdb);
+      await s.click(s.t.toolsShow);
+      await s.page.locator("textarea.licence").waitFor();
+    },
+  },
 
   // One backup
   { name: "overview", steps: openBackup },

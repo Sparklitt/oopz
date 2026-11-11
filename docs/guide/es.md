@@ -83,6 +83,12 @@ página solo existe en tu Wi-Fi, durante unos minutos y mientras esta pantalla s
 
 ![El código QR, esperando al teléfono](images/es/receive-qr.png)
 
+La página funciona sin internet: el ordenador y el teléfono solo tienen que compartir una red, aunque sea un router
+sin internet. Sin Wi-Fi cerca, activa el punto de acceso del teléfono y conecta el ordenador a él (no gasta datos
+móviles). Si el ordenador tiene varias tarjetas de red, elige la de Wi-Fi en **Dirección**; las marcadas «¿virtual?»
+(WSL, Docker, VPN) casi nunca funcionan. Cuando el teléfono carga la página, oopz dice **El teléfono abrió la
+página**.
+
 Si el teléfono no consigue abrir la página:
 
 - Los dos tienen que estar en **la misma Wi-Fi**. Quita un momento los datos móviles del teléfono para que no lo
@@ -96,8 +102,9 @@ Si el teléfono no consigue abrir la página:
 - Escribe a mano en el navegador del teléfono la dirección que aparece bajo el código, tal cual, con `http://`.
 - ¿Sigue sin ir? Usa un cable, o adb (abajo).
 
-<!-- TODO captura: receive-tips — los consejos de Wi-Fi en la pantalla Recibir (los está añadiendo otro agente).
-Añade una entrada en apps/desktop/scripts/screenshots.config.mjs y muéstrala aquí. -->
+Si en 45 segundos el teléfono no llega, los mismos consejos salen en la pantalla:
+
+![Los consejos de Wi-Fi, cuando el teléfono no ha abierto la página](images/es/receive-tips.png)
 
 ### Copiar con adb (USB o depuración inalámbrica)
 
@@ -107,13 +114,24 @@ el teléfono no aparece como unidad o la página Wi-Fi no conecta.
 1. En el teléfono: Ajustes › Información del teléfono, toca siete veces **Número de compilación**. Después, en
    Ajustes › Opciones para desarrolladores, activa **Depuración USB** (o **Depuración inalámbrica**, desde Android 11,
    en la misma Wi-Fi que el ordenador).
-2. Conecta: con cable, enchúfalo y permite el ordenador en el teléfono. Sin cable, toca **Vincular dispositivo con
-   código de vinculación** en el teléfono y dale a oopz (o a `adb pair`) la dirección y el código que muestra.
-3. En oopz, elige **Copiar con adb**: busca las copias de WhatsApp en el teléfono, las copia a una carpeta nueva y te
-   ofrece abrirlas.
+2. En oopz: **Añadir copia › Con depuración USB o inalámbrica (adb)**.
+3. La primera vez, si este ordenador no tiene adb, oopz se ofrece a traerlo: **Ver la licencia de Google** muestra la
+   versión, el tamaño y la licencia de Google; **Aceptar y descargar** baja las platform-tools de Android desde Google
+   (una vez, unos 8–17 MB), comprueba el archivo con la suma de control de Google y lo guarda en la carpeta de oopz.
+   No se descarga nada antes de aceptar. **Ajustes › General › adb de Android (platform-tools) › Quitar** lo borra.
+4. Conecta el teléfono. Con cable: enchúfalo y toca **Permitir** en el teléfono. Sin cable: abre **Depuración
+   inalámbrica** en oopz, toca **Vincular dispositivo con código de vinculación** en el teléfono, escribe la dirección,
+   el puerto y el código que muestra, luego la dirección y el puerto de «Dirección IP y puerto», y **Conectar**.
+5. Elige el teléfono, marca **Media** si quieres también fotos y vídeos, y **Elegir dónde copiar**. oopz copia la
+   carpeta de WhatsApp a una carpeta nueva, comprueba el tamaño de cada archivo, no deja nada a medias y te ofrece
+   **Usar los archivos copiados**.
 
-<!-- TODO captura: adb-copy — la pantalla «Copiar con adb» (la está añadiendo otro agente). Añade una entrada en
-apps/desktop/scripts/screenshots.config.mjs y muéstrala aquí. -->
+![Sin adb todavía: la licencia de Google, antes de descargar nada](images/es/adb-get.png)
+
+![Copiar con adb: los teléfonos que ve adb](images/es/adb-copy.png)
+
+En la línea de comandos: `oopz pull --out-dir CARPETA` (añade `--media`, `--business`, o `--pair HOST:PUERTO --code
+CÓDIGO` y `--connect HOST:PUERTO` para la depuración inalámbrica). Usa el adb que descargó oopz si no hay otro.
 
 Sin oopz, la misma copia a mano:
 
@@ -338,8 +356,7 @@ El comando `oopz` hace lo mismo que la app, en una terminal; muestra recuentos, 
 texto de los mensajes. Los instaladores lo dejan en tu `PATH`; con la AppImage o en macOS, usa **Ajustes › Instalar
 el comando oopz**.
 
-<!-- TODO captura: settings-cli — el botón «Instalar el comando oopz» de Ajustes (lo está añadiendo otro agente).
-Añade una entrada en apps/desktop/scripts/screenshots.config.mjs y muéstrala aquí. -->
+![Ajustes › General, con la fila del comando oopz (AppImage)](images/es/settings.png)
 
 ```sh
 oopz backups --dir Databases/          # ¿se abren todas y están sanas?
