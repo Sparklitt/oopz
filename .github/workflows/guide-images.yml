@@ -1,0 +1,83 @@
+# The user guide's pictures (docs/guide/images) are made from the UI with invented data
+# (apps/desktop/scripts/screenshots.mjs). When the UI changes, this makes them again and commits the ones whose pixels
+# changed: on main, as a bot commit; on a pull request from this repository, to its branch. A pull request from a fork
+# can't be pushed to: it fails and lists the pictures to make with `pnpm screenshots`.
+# No loop: the bot commit touches only docs/guide/images, which isn't in the paths below, and a push made with
+# GITHUB_TOKEN starts no workflow anyway.
+name: Guide images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/desktop/src/**
+      - apps/desktop/index.html
+      - apps/desktop/public/**
+      - apps/desktop/package.json
+      - apps/desktop/pnpm-lock.yaml
+      - apps/desktop/scripts/screenshots.mjs
+      - apps/desktop/scripts/screenshots.config.mjs
+      - docs/guide/**
+      - "!docs/guide/images/**"
+      - .github/workflows/guide-images.yml
+  pull_request:
+    paths:
+      - apps/desktop/src/**
+      - apps/desktop/index.html
+      - apps/desktop/public/**
+      - apps/desktop/package.json
+      - apps/desktop/pnpm-lock.yaml
+      - apps/desktop/scripts/screenshots.mjs
+      - apps/desktop/scripts/screenshots.config.mjs
+      - docs/guide/**
+      - "!docs/guide/images/**"
+      - .github/workflows/guide-images.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: guide-images-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    env:
+      FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      # A pull request from this repository: its branch, to push to. Otherwise what the event names.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && env.FORK == 'false' && github.head_ref || '' }}
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm screenshots
+      - name: Commit the pictures that changed
+        working-directory: .
+        run: |
+          if [ -z "$(git status --porcelain -- docs/guide/images)" ]; then
+            echo "The guide's pictures are up to date."
+            exit 0
+          fi
+          git status --short -- docs/guide/images
+          if [ "$FORK" = "true" ]; then
+            echo "::error::The UI changed, so some of the guide's pictures did too (listed above). Run 'pnpm screenshots' in apps/desktop and commit docs/guide/images."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- docs/guide/images
+          git commit -m "Guide images: regenerate after UI change"
+          git push
