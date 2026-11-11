@@ -1158,6 +1158,7 @@ dependencies = [
 name = "oopz-line-export"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "oopz-gen",
  "oopz-model",
  "tempfile",
@@ -1178,6 +1179,7 @@ name = "oopz-sms-xml"
 version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
+ "msgkinds",
  "oopz-gen",
  "oopz-model",
  "quick-xml 0.39.4",
@@ -1188,6 +1190,7 @@ dependencies = [
 name = "oopz-telegram-export"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "oopz-gen",
  "oopz-model",
  "serde_json",
@@ -1210,6 +1213,7 @@ dependencies = [
 name = "oopz-whatsapp-export"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "oopz-gen",
  "oopz-model",
  "tempfile",
