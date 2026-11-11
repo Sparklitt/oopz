@@ -26,6 +26,11 @@ promised by date. The data types themselves live in [data-types.md](data-types.m
 
 ## Showing every type
 
+- **Shared with hilo**: hilo (~/projects/hilo, Rust, its own importers: WhatsApp, Telegram 0028, Signal 0029) and oopz
+  should share one crate for the data-type registry and the adapters, its own repository used by both (a git
+  dependency), so a type or an app version is mapped once. First check both projects' licences, then decide where
+  it lives and migrate one adapter as the pilot.
+
 - **One registry of every data type**, per app and per app version: kind, parts, what's kept, how it's shown, how
   it's exported. Tests: every adapter's every row maps to an entry; every entry has a renderer and an export in each
   format; an unknown type shows a labelled card ("Telegram: dice roll, not shown yet"), never an error and never a
@@ -41,6 +46,9 @@ promised by date. The data types themselves live in [data-types.md](data-types.m
 
 - **Speed**: opening Chats and Insights from the library is slower than from one backup on real data; measure on a
   real-size library first (query plans, indexes, paging), then fix; a budget per screen in docs/performance.md.
+- **One chat or separate, both**: for a linked contact, a "Show as one chat" switch in Chats (all apps' messages
+  with that person merged by time, each marked with its app), next to the separate chats as today. A view only;
+  writing one merged chat into a backup belongs to "Moving to another phone".
 - **Linking contacts**: say plainly that linking only marks the same person across apps (nothing in any backup
   changes), show what will be linked and the result before, and allow unlinking.
 
