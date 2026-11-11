@@ -51,7 +51,10 @@ fn the_full_export_reads_as_its_manifest_says() {
     assert!(
         m.iter().any(|m| matches!(&m.parts[..], [Part::Call { outcome: CallOutcome::Answered, secs: Some(95), .. }]))
     );
-    assert!(m.iter().any(|m| matches!(&m.parts[..], [Part::Unknown { code, .. }] if code == "boost_apply")));
+    // A notice msgkinds names but oopz has no event for: its words.
+    assert!(
+        m.iter().any(|m| matches!(&m.parts[..], [Part::System { text: Some(t), .. }] if t.starts_with("boost apply")))
+    );
     // The rest of core.telegram.org/import-export's schema.
     let text = |m: &Message| m.parts.iter().map(|p| format!("{p:?}")).collect::<String>();
     let has = |needle: &str| m.iter().any(|x| text(x).contains(needle));
@@ -74,7 +77,7 @@ fn the_full_export_reads_as_its_manifest_says() {
     let pinned = m.iter().find(|x| matches!(&x.parts[..], [Part::System { event: Event::Pinned, .. }])).expect("a pin");
     assert_eq!(pinned.reply_to.as_deref(), Some("3"));
     let notes = loaded.info.notes.join("\n");
-    assert!(notes.contains("`action boost_apply`") && notes.contains("`message type something_new`"), "{notes}");
+    assert!(notes.contains("`action something_newer`") && notes.contains("`message type something_new`"), "{notes}");
 }
 
 #[test]

@@ -247,7 +247,9 @@ pub fn generate(seed: u64) -> Export {
         BEN,
         json!({ "action": "remove_members", "members": ["Dani Ficticio"], "text": "" }),
     );
-    group.service(&mut rng, m, Kind::Unknown, BEN, json!({ "action": "boost_apply", "boosts": 1, "text": "" }));
+    group.service(&mut rng, m, Kind::System, BEN, json!({ "action": "boost_apply", "boosts": 1, "text": "" }));
+    // An action no msgkinds row names (a newer Telegram): kept as unknown with its code.
+    group.service(&mut rng, m, Kind::Unknown, BEN, json!({ "action": "something_newer", "text": "" }));
     group.service(
         &mut rng,
         m,
@@ -266,14 +268,14 @@ pub fn generate(seed: u64) -> Export {
     group.service(
         &mut rng,
         m,
-        Kind::System,
+        Kind::Game,
         BEN,
         json!({ "action": "score_in_game", "game_message_id": 2, "score": 120, "text": "" }),
     );
     group.service(
         &mut rng,
         m,
-        Kind::System,
+        Kind::Payment,
         me,
         json!({ "action": "send_payment", "amount": 500, "currency": "JPY", "invoice_message_id": 4, "text": "" }),
     );

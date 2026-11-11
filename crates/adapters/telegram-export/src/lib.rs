@@ -11,8 +11,8 @@ use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use oopz_model::{
-    Adapter, App, CallOutcome, Conversation, ConversationKind, Error, Event, Loaded, Media, MediaKind, Message, Part,
-    Person, PollOption, Reaction, Result, Secret, Source, SourceInfo, civil_to_ms, normalize_phone,
+    Adapter, App, CallOutcome, CardKind, Conversation, ConversationKind, Error, Event, Loaded, Media, MediaKind,
+    Message, Part, Person, PollOption, Reaction, Result, Secret, Source, SourceInfo, civil_to_ms, normalize_phone,
 };
 use serde_json::{Map, Value};
 
@@ -380,17 +380,13 @@ impl Reader {
             x.size = m.get("photo_file_size").and_then(int_of).and_then(|n| u64::try_from(n).ok()).or(x.size);
             media = Some(x);
         } else if m.contains_key("file") || m.contains_key("media_type") {
-            // TODO(msgkinds): msgkinds' main now lists Telegram Desktop's JSON (`Source::TelegramJson`,
-            // `TelegramJsonMedia`): look `media_type` up there instead of this match.
-            let kind = match m.get("media_type").and_then(Value::as_str) {
-                Some("voice_message") => MediaKind::Voice,
-                Some("video_message") => MediaKind::VideoNote,
-                Some("video_file") => MediaKind::Video,
-                Some("animation") => MediaKind::Gif,
-                Some("sticker") => MediaKind::Sticker,
-                Some("audio_file") => MediaKind::Audio,
-                None => MediaKind::Document,
-                Some(other) => {
+            // `media_type` by msgkinds' registry (`Source::TelegramJsonMedia`); none is a plain file.
+            let media_type = m.get("media_type").and_then(Value::as_str);
+            let looked = media_type.map(|t| msgkinds::lookup_name(msgkinds::Source::TelegramJsonMedia, t, None).kind());
+            let kind = match (media_type, looked.and_then(|k| MediaKind::from_kind(k.into()))) {
+                (None, _) => MediaKind::Document,
+                (_, Some(kind)) => kind,
+                (Some(other), None) => {
                     *self.notes.unknown.entry(format!("media type {other}")).or_default() += 1;
                     return vec![Part::Unknown { code: other.to_string(), text: Some(text).filter(|t| !t.is_empty()) }];
                 }
@@ -483,8 +479,9 @@ impl Reader {
         parts
     }
 
-    /// TODO(msgkinds): msgkinds' main now lists the service `action`s (`Source::TelegramJsonAction`): look them up
-    /// there instead of this match; an action no row names stays an unknown part with its code.
+    /// A service message: its `action` looked up in msgkinds' registry (`Source::TelegramJsonAction`). Calls keep
+    /// their outcome and length; cards (payments, games, gifts) and notices with no event of their own say what they
+    /// were in a few words; an action no row names stays an unknown part with its code.
     fn service(&mut self, m: &Map<String, Value>) -> Part {
         let action = m.get("action").and_then(Value::as_str).unwrap_or("");
         let members: Vec<&str> =
@@ -496,8 +493,13 @@ impl Reader {
             title.map(str::to_string).or_else(|| Some(text_of(m.get("text")).0).filter(|t| !t.is_empty()))
         };
         let secs = m.get("duration_seconds").and_then(int_of).and_then(|n| u64::try_from(n).ok());
-        let event = match action {
-            "phone_call" => {
+        let code = if action.is_empty() { "service" } else { action };
+        let Some(entry) = msgkinds::lookup_name(msgkinds::Source::TelegramJsonAction, code, None).entry() else {
+            *self.notes.unknown.entry(format!("action {code}")).or_default() += 1;
+            return Part::Unknown { code: code.to_string(), text };
+        };
+        match entry.kind {
+            msgkinds::Kind::Call if action == "phone_call" => {
                 let outcome = match m.get("discard_reason").and_then(Value::as_str) {
                     Some("missed") => CallOutcome::Missed,
                     Some("busy") => CallOutcome::Busy,
@@ -507,60 +509,29 @@ impl Reader {
                     None if secs.is_some_and(|s| s > 0) => CallOutcome::Answered,
                     _ => CallOutcome::Unknown,
                 };
-                return Part::Call {
-                    video: m.get("is_video").and_then(Value::as_bool).unwrap_or(false),
-                    outcome,
-                    secs,
-                };
+                Part::Call { video: m.get("is_video").and_then(Value::as_bool).unwrap_or(false), outcome, secs }
             }
-            "group_call" => {
+            msgkinds::Kind::Call => {
                 let outcome = if secs.is_some_and(|s| s > 0) { CallOutcome::Answered } else { CallOutcome::Unknown };
-                return Part::Call { video: false, outcome, secs };
+                Part::Call { video: false, outcome, secs }
             }
-            "create_group" | "create_channel" | "migrate_from_group" => Event::GroupCreated,
-            "invite_members" => Event::MemberAdded,
-            "join_group_by_link" | "join_group_by_request" => Event::MemberJoined,
-            "remove_members" => Event::MemberRemoved,
-            "edit_group_title" => Event::Renamed,
-            "edit_group_photo" | "delete_group_photo" => Event::PictureChanged,
-            "pin_message" => Event::Pinned,
-            "clear_history" => Event::HistoryCleared,
-            "set_messages_ttl" => Event::Disappearing,
-            "migrate_to_supergroup"
-            | "edit_chat_theme"
-            | "set_chat_wallpaper"
-            | "set_same_chat_wallpaper"
-            | "allow_sending_messages"
-            | "attach_menu_bot_allowed"
-            | "web_app_bot_allowed" => Event::SettingsChanged,
-            "topic_created" => Event::TopicCreated,
-            "topic_edit" => Event::Renamed,
-            "suggest_profile_photo" => Event::PictureChanged,
-            "joined_telegram" => Event::MemberJoined,
-            "invite_to_group_call" => Event::MemberAdded,
-            "score_in_game"
-            | "send_payment"
-            | "take_screenshot"
-            | "send_passport_values"
-            | "proximity_reached"
-            | "requested_phone_number"
-            | "group_call_scheduled"
-            | "send_webview_data"
-            | "send_premium_gift"
-            | "requested_peer"
-            | "gift_code_prize"
-            | "giveaway_launch" => {
+            msgkinds::Kind::System => {
+                let event = Event::from(entry.event.unwrap_or(msgkinds::Event::Other));
+                // The notice's own facts (a score, a date) are kept; so are its words when no event says it.
                 let detail = notice(action, m);
-                let text = [Some(detail), text].into_iter().flatten().filter(|t| !t.is_empty()).collect::<Vec<_>>();
-                return Part::System { event: Event::Other, text: Some(text.join(": ")).filter(|t| !t.is_empty()) };
+                let has_facts = detail != action.replace('_', " ");
+                if event == Event::Other || has_facts {
+                    let text = [Some(detail), text].into_iter().flatten().filter(|t| !t.is_empty()).collect::<Vec<_>>();
+                    return Part::System { event, text: Some(text.join(": ")).filter(|t| !t.is_empty()) };
+                }
+                Part::System { event, text }
             }
-            other => {
-                let code = if other.is_empty() { "service" } else { other };
-                *self.notes.unknown.entry(format!("action {code}")).or_default() += 1;
-                return Part::Unknown { code: code.to_string(), text };
-            }
-        };
-        Part::System { event, text }
+            kind => match CardKind::from_kind(kind.into()) {
+                Some(kind) => Part::Card { kind, title: Some(notice(action, m)), text },
+                // A row of a kind no card holds (a poll's or a story's notice): its words, as a notice.
+                None => Part::System { event: Event::Other, text: Some(notice(action, m)) },
+            },
+        }
     }
 }
 
