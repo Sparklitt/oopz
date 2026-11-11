@@ -26,20 +26,17 @@ promised by date. The data types themselves live in [data-types.md](data-types.m
 
 ## Showing every type
 
-- **Shared with hilo**: hilo (~/projects/hilo, Rust, its own importers: WhatsApp, Telegram 0028, Signal 0029) and oopz
-  should share one crate for the data-type registry and the adapters, its own repository used by both (a git
-  dependency), so a type or an app version is mapped once. First check both projects' licences, then decide where
-  it lives and migrate one adapter as the pilot.
-
-- **One registry of every data type**, per app and per app version: kind, parts, what's kept, how it's shown, how
-  it's exported. Tests: every adapter's every row maps to an entry; every entry has a renderer and an export in each
-  format; an unknown type shows a labelled card ("Telegram: dice roll, not shown yet"), never an error and never a
-  gap; an unknown app version still opens (unknown columns ignored, missing optional ones leave details out).
-- **Known gaps**: stickers show "0:00" (no duration for stickers) and a placeholder instead of the image; animated
-  stickers (WebP, Lottie/TGS), view-once media, polls with votes, reactions per person, edits with history, pinned
-  and starred, replies to media, forwarded-many-times, status updates, communities and channels, call links, group
-  calls, disappearing-message changes, Telegram topics (`topic_created` shows as "Group created"), adapter notes in
-  English in the Spanish UI.
+- **The shared registry, the rest of the way** (decision [0020](decisions/0020-the-shared-registry.md) settled it:
+  msgkinds, with its readers' tests here). Left: switch the WhatsApp chat export to msgkinds' `whatsapp_export`
+  names, and Telegram, SMS, LINE and Viber once msgkinds lists them (each adapter's `TODO(msgkinds)`); read the
+  app's version from a backup so the registry picks the row for that version; publish msgkinds and depend on it by
+  git.
+- **Known gaps**: Lottie/TGS and video stickers (animated WebP plays), polls with votes on iPhone, reactions per
+  person, edits with history, pinned and starred, replies to media, forwarded-many-times, status updates,
+  communities and channels, call links, group calls (iPhone's call log), disappearing-message changes, Telegram
+  topics (`topic_created` shows as "Group created"), adapter notes in English in the Spanish UI. Stickers no longer
+  show "0:00", and show their image when the source's media folder has the file (decision 0020, `oopz-export`'s and
+  the adapter's tests).
 - **Reuse hilo's** WhatsApp type and group mapping where it fits (hilo's decision 0034 is already cited).
 
 ## The library

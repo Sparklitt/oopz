@@ -20,21 +20,16 @@ the person's own iPhone on their own computer. An encrypted backup asks for the 
 | `ZWAGROUPMEMBER` (`ZMEMBERJID`, `ZCONTACTNAME`) | group members and senders, members who left included |
 | `ContactsV2.sqlite` `ZWAADDRESSBOOKCONTACT`, then `ZWAPROFILEPUSHNAME`, then the chat's partner name | names |
 | `ZWAMESSAGE.ZMESSAGEDATE` | seconds since 2001-01-01 UTC (negative is before 2001) |
-| `ZMESSAGETYPE` 0 | text |
-| 1, 2, 3, 8, 11, 15 | photo, video, voice (`.opus`) or audio, document (`ZTITLE`), GIF, sticker; bytes from `Message/Media/…` |
-| 4 | contact card (`ZVCARDNAME`, `ZVCARDSTRING`) |
-| 5 | location (`ZLATITUDE`, `ZLONGITUDE`) |
-| 6 | system line |
-| 7 | text with a link |
-| 14 | deleted |
-| anything else | unknown (code kept), counted in the notes |
+| `ZMESSAGETYPE` | its kind from msgkinds' registry (`whatsapp_ios`, decision [0020](../decisions/0020-the-shared-registry.md)): text, link, photo, video, voice (`.opus`) or audio, document (`ZTITLE`), GIF, sticker, video note, contact card (`ZVCARDNAME`, `ZVCARDSTRING`), location (`ZLATITUDE`, `ZLONGITUDE`), view-once media (only that it was sent), poll (question only), call, album, business messages, deleted; bytes from `Message/Media/…` |
+| `ZGROUPEVENTTYPE` of a type 6 or 10 | what happened (`whatsapp_ios_system`, `whatsapp_ios_notice`): group changes, encryption and security-code notices; a missed-call notice is a call |
+| a type no row names | unknown (code kept), counted in the notes |
 | `ZSTARRED` | starred |
 
 ## Not read yet (said in the notes)
 
 Reactions, replies (quoted messages), edits and poll votes: WhatsApp keeps them in protocol buffers
-(`ZWAMESSAGEINFO`, `ZMETADATA`) whose layout needs a real backup to confirm. Group events are system lines without
-wording (`ZGROUPEVENTTYPE` values unconfirmed). Calls (types seen as 59 / 66 in some versions) are kept as unknown.
+(`ZWAMESSAGEINFO`, `ZMETADATA`) whose layout needs a real backup to confirm. Group events take their event from msgkinds' rows (reported by other readers, not yet seen in a backup of ours);
+a call's duration and outcome live in `CallHistory.sqlite`, not read yet. Poll options are in a protocol buffer.
 
 ## Edge cases covered by tests
 
@@ -45,5 +40,5 @@ backup without WhatsApp; `%` and `_` in paths; file names on the library side cl
 
 ## Needs a real backup to confirm
 
-The type codes above beyond 0–8, the group event codes, whether `ZMEDIALOCALPATH` is always relative, and the
+The type codes beyond 0–8 and the group event codes (msgkinds marks them "reported"), whether `ZMEDIALOCALPATH` is always relative, and the
 protocol-buffer fields for replies and reactions. Test data: `oopz-gen --ios OUT [--ios-password PW]`.

@@ -1,8 +1,11 @@
 # Every kind of data oopz handles
 
-The catalogue every adapter maps to (`crates/oopz-model`). An app's type that matches none is kept as
-`unknown(app, code)`, shown as "#code", counted and exported, never dropped. When an adapter meets one, it's added
-here. Per-app mappings and the versions checked are in `docs/adapters/<app>.md`. Apps: WA WhatsApp, TG Telegram, SG
+The catalogue every adapter maps to (`crates/oopz-model`). The kinds, the events and what each app's type codes
+mean, per app version, live in the registry shared with hilo, msgkinds (decision
+[0020](decisions/0020-the-shared-registry.md); its `docs/kinds.md` and `docs/apps/`): a new code or app version is
+added there first. An app's type that matches none is kept as `unknown(app, code)`, shown as a labelled card
+("WhatsApp: 9999, not shown yet"), counted and exported, never dropped. This page is the wider catalogue the model
+grows towards. Per-app mappings and the versions checked are in `docs/adapters/<app>.md`. Apps: WA WhatsApp, TG Telegram, SG
 Signal, LN LINE, VB Viber, WC WeChat, KK Kik, MS Messenger/Instagram, IM iMessage, SMS SMS/MMS/RCS, DC Discord, SL
 Slack, GC Google Chat.
 
