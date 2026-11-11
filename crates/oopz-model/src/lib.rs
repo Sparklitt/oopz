@@ -206,6 +206,10 @@ impl Message {
                     }
                     add(title.as_deref().unwrap_or(""));
                 }
+                Part::Card { title, text, .. } => {
+                    add(title.as_deref().unwrap_or(""));
+                    add(text.as_deref().unwrap_or(""));
+                }
                 Part::System { text, .. } | Part::Unknown { text, .. } => add(text.as_deref().unwrap_or("")),
                 Part::Call { .. } => {}
             }
@@ -258,12 +262,20 @@ pub enum Part {
         url: String,
         title: Option<String>,
     },
+    /// An album header, a sticker pack, a calendar event, a payment, a game, a business message or a story: what
+    /// the source names it (`title`) and any text it had.
+    Card {
+        kind: CardKind,
+        title: Option<String>,
+        text: Option<String>,
+    },
     /// The app's own notice (`docs/data-types.md` §4).
     System {
         event: Event,
         text: Option<String>,
     },
-    /// What the adapter couldn't place: the app's own type code, and any text it had.
+    /// What the adapter couldn't place: the app's own type code, and any text it had. Shown as a labelled card
+    /// ("WhatsApp: 9999, not shown yet"), counted and exported, never dropped.
     Unknown {
         code: String,
         text: Option<String>,
@@ -284,6 +296,7 @@ impl Part {
             Part::Poll { .. } => Kind::Poll,
             Part::Call { .. } => Kind::Call,
             Part::Link { .. } => Kind::Link,
+            Part::Card { kind, .. } => (*kind).into(),
             Part::System { .. } => Kind::System,
             Part::Unknown { .. } => Kind::Unknown,
         }
@@ -393,34 +406,213 @@ pub enum CallOutcome {
 }
 
 /// The app's own notices (`docs/data-types.md` §4), grouped; the app's wording is kept in [`Part::System::text`].
+/// The same vocabulary as [`msgkinds::Event`] (decision 0020), under the names oopz stored first: `topic_created` is
+/// msgkinds' `topic_changed`, and `admin_changed` (an export that doesn't say which way) is kept for what it says.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
     Encryption,
     SecurityCodeChanged,
     NumberChanged,
+    DeviceChanged,
+    AccountDeleted,
+    ContactJoined,
+    BusinessNotice,
     GroupCreated,
-    /// A topic (a thread inside a group) was created.
+    /// A topic (a thread inside a group) was created, edited or closed.
     TopicCreated,
     Renamed,
     DescriptionChanged,
     PictureChanged,
+    PictureRemoved,
+    SettingsChanged,
     MemberAdded,
     MemberJoined,
     MemberLeft,
     MemberRemoved,
+    JoinRequested,
+    AdminAdded,
+    AdminRemoved,
+    /// Someone was made admin or stopped being one, and the source doesn't say which.
     AdminChanged,
-    SettingsChanged,
+    OwnerChanged,
+    CommunityChanged,
+    InviteLinkReset,
     Disappearing,
+    KeptInChat,
+    ChatLocked,
+    Screenshot,
     Pinned,
+    Unpinned,
     Blocked,
+    Unblocked,
     MessageDeleted,
     HistoryCleared,
+    GroupCall,
+    PollClosed,
+    PaymentStatus,
+    MissedMessages,
+    ThemeChanged,
     #[default]
     Other,
 }
 
-/// What a message is, for filters, counts and the kind chips: one per message ([`Message::kind`]).
+impl Event {
+    /// Every event, [`Event::Other`] last.
+    pub const ALL: [Event; 41] = [
+        Event::Encryption,
+        Event::SecurityCodeChanged,
+        Event::NumberChanged,
+        Event::DeviceChanged,
+        Event::AccountDeleted,
+        Event::ContactJoined,
+        Event::BusinessNotice,
+        Event::GroupCreated,
+        Event::TopicCreated,
+        Event::Renamed,
+        Event::DescriptionChanged,
+        Event::PictureChanged,
+        Event::PictureRemoved,
+        Event::SettingsChanged,
+        Event::MemberAdded,
+        Event::MemberJoined,
+        Event::MemberLeft,
+        Event::MemberRemoved,
+        Event::JoinRequested,
+        Event::AdminAdded,
+        Event::AdminRemoved,
+        Event::AdminChanged,
+        Event::OwnerChanged,
+        Event::CommunityChanged,
+        Event::InviteLinkReset,
+        Event::Disappearing,
+        Event::KeptInChat,
+        Event::ChatLocked,
+        Event::Screenshot,
+        Event::Pinned,
+        Event::Unpinned,
+        Event::Blocked,
+        Event::Unblocked,
+        Event::MessageDeleted,
+        Event::HistoryCleared,
+        Event::GroupCall,
+        Event::PollClosed,
+        Event::PaymentStatus,
+        Event::MissedMessages,
+        Event::ThemeChanged,
+        Event::Other,
+    ];
+
+    /// The stored name (the serialized one): msgkinds' name, except `topic_created` and `admin_changed`.
+    pub fn code(self) -> &'static str {
+        match self {
+            Event::TopicCreated => "topic_created",
+            Event::AdminChanged => "admin_changed",
+            e => msgkinds::Event::from(e).as_str(),
+        }
+    }
+}
+
+impl From<msgkinds::Event> for Event {
+    fn from(e: msgkinds::Event) -> Self {
+        use msgkinds::Event as E;
+        match e {
+            E::Encryption => Event::Encryption,
+            E::SecurityCodeChanged => Event::SecurityCodeChanged,
+            E::NumberChanged => Event::NumberChanged,
+            E::DeviceChanged => Event::DeviceChanged,
+            E::AccountDeleted => Event::AccountDeleted,
+            E::ContactJoined => Event::ContactJoined,
+            E::BusinessNotice => Event::BusinessNotice,
+            E::GroupCreated => Event::GroupCreated,
+            E::TopicChanged => Event::TopicCreated,
+            E::Renamed => Event::Renamed,
+            E::DescriptionChanged => Event::DescriptionChanged,
+            E::PictureChanged => Event::PictureChanged,
+            E::PictureRemoved => Event::PictureRemoved,
+            E::SettingsChanged => Event::SettingsChanged,
+            E::MemberAdded => Event::MemberAdded,
+            E::MemberJoined => Event::MemberJoined,
+            E::MemberLeft => Event::MemberLeft,
+            E::MemberRemoved => Event::MemberRemoved,
+            E::JoinRequested => Event::JoinRequested,
+            E::AdminAdded => Event::AdminAdded,
+            E::AdminRemoved => Event::AdminRemoved,
+            E::OwnerChanged => Event::OwnerChanged,
+            E::CommunityChanged => Event::CommunityChanged,
+            E::InviteLinkReset => Event::InviteLinkReset,
+            E::Disappearing => Event::Disappearing,
+            E::KeptInChat => Event::KeptInChat,
+            E::ChatLocked => Event::ChatLocked,
+            E::Screenshot => Event::Screenshot,
+            E::Pinned => Event::Pinned,
+            E::Unpinned => Event::Unpinned,
+            E::Blocked => Event::Blocked,
+            E::Unblocked => Event::Unblocked,
+            E::MessageDeleted => Event::MessageDeleted,
+            E::HistoryCleared => Event::HistoryCleared,
+            E::GroupCall => Event::GroupCall,
+            E::PollClosed => Event::PollClosed,
+            E::PaymentStatus => Event::PaymentStatus,
+            E::MissedMessages => Event::MissedMessages,
+            E::ThemeChanged => Event::ThemeChanged,
+            E::Other => Event::Other,
+        }
+    }
+}
+
+impl From<Event> for msgkinds::Event {
+    fn from(e: Event) -> Self {
+        use msgkinds::Event as E;
+        match e {
+            Event::Encryption => E::Encryption,
+            Event::SecurityCodeChanged => E::SecurityCodeChanged,
+            Event::NumberChanged => E::NumberChanged,
+            Event::DeviceChanged => E::DeviceChanged,
+            Event::AccountDeleted => E::AccountDeleted,
+            Event::ContactJoined => E::ContactJoined,
+            Event::BusinessNotice => E::BusinessNotice,
+            Event::GroupCreated => E::GroupCreated,
+            Event::TopicCreated => E::TopicChanged,
+            Event::Renamed => E::Renamed,
+            Event::DescriptionChanged => E::DescriptionChanged,
+            Event::PictureChanged => E::PictureChanged,
+            Event::PictureRemoved => E::PictureRemoved,
+            Event::SettingsChanged => E::SettingsChanged,
+            Event::MemberAdded => E::MemberAdded,
+            Event::MemberJoined => E::MemberJoined,
+            Event::MemberLeft => E::MemberLeft,
+            Event::MemberRemoved => E::MemberRemoved,
+            Event::JoinRequested => E::JoinRequested,
+            Event::AdminAdded => E::AdminAdded,
+            Event::AdminRemoved => E::AdminRemoved,
+            // msgkinds has no "either way": the closer of the two.
+            Event::AdminChanged => E::AdminAdded,
+            Event::OwnerChanged => E::OwnerChanged,
+            Event::CommunityChanged => E::CommunityChanged,
+            Event::InviteLinkReset => E::InviteLinkReset,
+            Event::Disappearing => E::Disappearing,
+            Event::KeptInChat => E::KeptInChat,
+            Event::ChatLocked => E::ChatLocked,
+            Event::Screenshot => E::Screenshot,
+            Event::Pinned => E::Pinned,
+            Event::Unpinned => E::Unpinned,
+            Event::Blocked => E::Blocked,
+            Event::Unblocked => E::Unblocked,
+            Event::MessageDeleted => E::MessageDeleted,
+            Event::HistoryCleared => E::HistoryCleared,
+            Event::GroupCall => E::GroupCall,
+            Event::PollClosed => E::PollClosed,
+            Event::PaymentStatus => E::PaymentStatus,
+            Event::MissedMessages => E::MissedMessages,
+            Event::ThemeChanged => E::ThemeChanged,
+            Event::Other => E::Other,
+        }
+    }
+}
+
+/// What a message is, for filters, counts and the kind chips: one per message ([`Message::kind`]). The same kinds,
+/// under the same names, as [`msgkinds::Kind`] (decision 0020); kept as oopz's own type so it can be serialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
@@ -428,71 +620,137 @@ pub enum Kind {
     Link,
     Photo,
     Video,
+    VideoNote,
     Gif,
-    Sticker,
     Voice,
     Audio,
+    Sticker,
     Document,
     Location,
     Contact,
     Poll,
     Call,
+    Album,
+    StickerPack,
+    Event,
+    Payment,
+    Game,
+    Business,
+    Story,
     System,
     Deleted,
     Unknown,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 16] = [
+    pub const ALL: [Kind; 24] = [
         Kind::Text,
         Kind::Link,
         Kind::Photo,
         Kind::Video,
+        Kind::VideoNote,
         Kind::Gif,
-        Kind::Sticker,
         Kind::Voice,
         Kind::Audio,
+        Kind::Sticker,
         Kind::Document,
         Kind::Location,
         Kind::Contact,
         Kind::Poll,
         Kind::Call,
+        Kind::Album,
+        Kind::StickerPack,
+        Kind::Event,
+        Kind::Payment,
+        Kind::Game,
+        Kind::Business,
+        Kind::Story,
         Kind::System,
         Kind::Deleted,
         Kind::Unknown,
     ];
 
+    /// The stored name: msgkinds' own.
     pub fn code(self) -> &'static str {
-        match self {
-            Kind::Text => "text",
-            Kind::Link => "link",
-            Kind::Photo => "photo",
-            Kind::Video => "video",
-            Kind::Gif => "gif",
-            Kind::Sticker => "sticker",
-            Kind::Voice => "voice",
-            Kind::Audio => "audio",
-            Kind::Document => "document",
-            Kind::Location => "location",
-            Kind::Contact => "contact",
-            Kind::Poll => "poll",
-            Kind::Call => "call",
-            Kind::System => "system",
-            Kind::Deleted => "deleted",
-            Kind::Unknown => "unknown",
-        }
+        msgkinds::Kind::from(self).as_str()
     }
 
     pub fn from_code(code: &str) -> Option<Kind> {
-        Kind::ALL.into_iter().find(|k| k.code() == code)
+        code.parse::<msgkinds::Kind>().ok().map(Kind::from)
     }
 
     /// A media file comes with it.
     pub fn is_media(self) -> bool {
-        matches!(
-            self,
-            Kind::Photo | Kind::Video | Kind::Gif | Kind::Sticker | Kind::Voice | Kind::Audio | Kind::Document
-        )
+        msgkinds::Kind::from(self).is_media()
+    }
+
+    /// It plays for a while: a sticker, a photo, a GIF, a document or an album never shows a duration.
+    pub fn has_duration(self) -> bool {
+        msgkinds::Kind::from(self).has_duration()
+    }
+}
+
+impl From<msgkinds::Kind> for Kind {
+    fn from(k: msgkinds::Kind) -> Self {
+        use msgkinds::Kind as K;
+        match k {
+            K::Text => Kind::Text,
+            K::Link => Kind::Link,
+            K::Photo => Kind::Photo,
+            K::Video => Kind::Video,
+            K::VideoNote => Kind::VideoNote,
+            K::Gif => Kind::Gif,
+            K::Voice => Kind::Voice,
+            K::Audio => Kind::Audio,
+            K::Sticker => Kind::Sticker,
+            K::Document => Kind::Document,
+            K::Location => Kind::Location,
+            K::Contact => Kind::Contact,
+            K::Poll => Kind::Poll,
+            K::Call => Kind::Call,
+            K::Album => Kind::Album,
+            K::StickerPack => Kind::StickerPack,
+            K::Event => Kind::Event,
+            K::Payment => Kind::Payment,
+            K::Game => Kind::Game,
+            K::Business => Kind::Business,
+            K::Story => Kind::Story,
+            K::System => Kind::System,
+            K::Deleted => Kind::Deleted,
+            K::Unknown => Kind::Unknown,
+        }
+    }
+}
+
+impl From<Kind> for msgkinds::Kind {
+    fn from(k: Kind) -> Self {
+        use msgkinds::Kind as K;
+        match k {
+            Kind::Text => K::Text,
+            Kind::Link => K::Link,
+            Kind::Photo => K::Photo,
+            Kind::Video => K::Video,
+            Kind::VideoNote => K::VideoNote,
+            Kind::Gif => K::Gif,
+            Kind::Voice => K::Voice,
+            Kind::Audio => K::Audio,
+            Kind::Sticker => K::Sticker,
+            Kind::Document => K::Document,
+            Kind::Location => K::Location,
+            Kind::Contact => K::Contact,
+            Kind::Poll => K::Poll,
+            Kind::Call => K::Call,
+            Kind::Album => K::Album,
+            Kind::StickerPack => K::StickerPack,
+            Kind::Event => K::Event,
+            Kind::Payment => K::Payment,
+            Kind::Game => K::Game,
+            Kind::Business => K::Business,
+            Kind::Story => K::Story,
+            Kind::System => K::System,
+            Kind::Deleted => K::Deleted,
+            Kind::Unknown => K::Unknown,
+        }
     }
 }
 
@@ -500,12 +758,116 @@ impl From<MediaKind> for Kind {
     fn from(m: MediaKind) -> Self {
         match m {
             MediaKind::Photo => Kind::Photo,
-            MediaKind::Video | MediaKind::VideoNote => Kind::Video,
+            MediaKind::Video => Kind::Video,
+            MediaKind::VideoNote => Kind::VideoNote,
             MediaKind::Gif => Kind::Gif,
             MediaKind::Sticker => Kind::Sticker,
             MediaKind::Voice => Kind::Voice,
             MediaKind::Audio => Kind::Audio,
             MediaKind::Document => Kind::Document,
+        }
+    }
+}
+
+impl MediaKind {
+    /// The media kind of a message kind, for the kinds that come with a file.
+    pub fn from_kind(kind: Kind) -> Option<MediaKind> {
+        Some(match kind {
+            Kind::Photo => MediaKind::Photo,
+            Kind::Video => MediaKind::Video,
+            Kind::VideoNote => MediaKind::VideoNote,
+            Kind::Gif => MediaKind::Gif,
+            Kind::Sticker => MediaKind::Sticker,
+            Kind::Voice => MediaKind::Voice,
+            Kind::Audio => MediaKind::Audio,
+            Kind::Document => MediaKind::Document,
+            _ => return None,
+        })
+    }
+}
+
+/// What a [`Part::Card`] is: the kinds the model holds as a title and text until each gets its own part.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CardKind {
+    /// The header above several photos or videos sent together; the items follow as their own messages.
+    Album,
+    StickerPack,
+    /// A calendar event or reminder.
+    Event,
+    Payment,
+    Game,
+    Business,
+    Story,
+}
+
+impl CardKind {
+    pub const ALL: [CardKind; 7] = [
+        CardKind::Album,
+        CardKind::StickerPack,
+        CardKind::Event,
+        CardKind::Payment,
+        CardKind::Game,
+        CardKind::Business,
+        CardKind::Story,
+    ];
+
+    /// The card kind of a message kind, for the kinds a card holds.
+    pub fn from_kind(kind: Kind) -> Option<CardKind> {
+        Some(match kind {
+            Kind::Album => CardKind::Album,
+            Kind::StickerPack => CardKind::StickerPack,
+            Kind::Event => CardKind::Event,
+            Kind::Payment => CardKind::Payment,
+            Kind::Game => CardKind::Game,
+            Kind::Business => CardKind::Business,
+            Kind::Story => CardKind::Story,
+            _ => return None,
+        })
+    }
+}
+
+impl From<CardKind> for Kind {
+    fn from(c: CardKind) -> Self {
+        match c {
+            CardKind::Album => Kind::Album,
+            CardKind::StickerPack => Kind::StickerPack,
+            CardKind::Event => Kind::Event,
+            CardKind::Payment => Kind::Payment,
+            CardKind::Game => Kind::Game,
+            CardKind::Business => Kind::Business,
+            CardKind::Story => Kind::Story,
+        }
+    }
+}
+
+impl From<App> for msgkinds::App {
+    fn from(a: App) -> Self {
+        match a {
+            App::WhatsApp => msgkinds::App::WhatsApp,
+            App::Telegram => msgkinds::App::Telegram,
+            App::Sms => msgkinds::App::Sms,
+            App::Line => msgkinds::App::Line,
+            App::Viber => msgkinds::App::Viber,
+            App::Signal => msgkinds::App::Signal,
+            App::IMessage => msgkinds::App::IMessage,
+        }
+    }
+}
+
+impl App {
+    /// oopz's app for one of msgkinds', when oopz reads it (WhatsApp Business reads as WhatsApp).
+    pub fn from_msgkinds(a: msgkinds::App) -> Option<App> {
+        use msgkinds::App as A;
+        match a {
+            A::WhatsApp | A::WhatsAppBusiness => Some(App::WhatsApp),
+            A::Telegram => Some(App::Telegram),
+            A::Sms => Some(App::Sms),
+            A::Line => Some(App::Line),
+            A::Viber => Some(App::Viber),
+            A::Signal => Some(App::Signal),
+            A::IMessage => Some(App::IMessage),
+            A::Messenger | A::Instagram | A::WeChat | A::Kik | A::Discord | A::Slack | A::GoogleChat | A::Hilo => None,
         }
     }
 }
@@ -715,6 +1077,49 @@ mod tests {
         // The serialized names are the codes.
         for a in App::ALL {
             assert_eq!(serde_json::to_string(&a).unwrap(), format!("{:?}", a.code()));
+        }
+    }
+
+    /// Decision 0020: oopz's kinds are msgkinds' kinds, in the same order and under the same stored names.
+    #[test]
+    fn kinds_are_msgkinds_kinds() {
+        assert_eq!(Kind::ALL.len(), msgkinds::Kind::ALL.len());
+        for (k, shared) in Kind::ALL.into_iter().zip(msgkinds::Kind::ALL) {
+            assert_eq!(msgkinds::Kind::from(k), shared);
+            assert_eq!(Kind::from(shared), k);
+            assert_eq!(serde_json::to_string(&k).unwrap(), format!("{:?}", shared.as_str()));
+            assert_eq!(k.has_duration(), shared.has_duration());
+        }
+        for name in ["text", "link", "photo", "video", "gif", "sticker", "voice", "audio", "document", "location"] {
+            assert!(Kind::from_code(name).is_some(), "{name}");
+        }
+        assert!(!Kind::Sticker.has_duration() && !Kind::Photo.has_duration() && !Kind::Album.has_duration());
+        for c in CardKind::ALL {
+            assert_eq!(CardKind::from_kind(c.into()), Some(c));
+        }
+    }
+
+    /// Every msgkinds event has an oopz one and back; the stored names are oopz's, the serialized ones.
+    #[test]
+    fn events_map_both_ways() {
+        for e in msgkinds::Event::ALL.into_iter().chain([msgkinds::Event::Other]) {
+            assert_eq!(msgkinds::Event::from(Event::from(e)), e);
+        }
+        for e in Event::ALL {
+            assert_eq!(serde_json::to_string(&e).unwrap(), format!("{:?}", e.code()));
+            if !matches!(e, Event::TopicCreated | Event::AdminChanged) {
+                assert_eq!(e.code(), msgkinds::Event::from(e).as_str());
+            }
+        }
+        assert_eq!(Event::from(msgkinds::Event::TopicChanged), Event::TopicCreated);
+    }
+
+    #[test]
+    fn apps_map_to_msgkinds_apps() {
+        for a in App::ALL {
+            let shared = msgkinds::App::from(a);
+            assert_eq!(shared.as_str(), a.code());
+            assert_eq!(App::from_msgkinds(shared), Some(a));
         }
     }
 

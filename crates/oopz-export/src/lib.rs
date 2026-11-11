@@ -114,6 +114,8 @@ pub struct Words {
     pub location: String,
     pub live: String,
     pub unknown: String,
+    /// After an app and its own code, for a type oopz doesn't know: "WhatsApp: 9999, not shown yet".
+    pub not_shown: String,
     pub wall_clock: String,
     pub photo: String,
     pub video: String,
@@ -129,6 +131,8 @@ pub struct Words {
     /// A call's outcome by its code (`missed`), and an app notice with no text of its own by its event's code.
     pub outcomes: BTreeMap<String, String>,
     pub events: BTreeMap<String, String>,
+    /// An album header, a sticker pack, a calendar event… by its card kind's code (`sticker_pack`).
+    pub cards: BTreeMap<String, String>,
 }
 
 impl Default for Words {
@@ -150,6 +154,7 @@ impl Default for Words {
             location: "Location".into(),
             live: "Live location".into(),
             unknown: "Something oopz can't show yet".into(),
+            not_shown: "not shown yet".into(),
             wall_clock: "Times as the phone showed them".into(),
             photo: "Photo".into(),
             video: "Video".into(),
@@ -191,6 +196,15 @@ impl Default for Words {
                 ("message_deleted", "A message was deleted"),
                 ("history_cleared", "History cleared"),
                 ("other", "Notice"),
+            ]),
+            cards: owned(&[
+                ("album", "Album"),
+                ("sticker_pack", "Sticker pack"),
+                ("event", "Event"),
+                ("payment", "Payment"),
+                ("game", "Game"),
+                ("business", "Business message"),
+                ("story", "Status update"),
             ]),
         }
     }
@@ -366,7 +380,7 @@ fn size(bytes: u64) -> String {
 }
 
 /// One line per part, as plain text (TXT, CSV's `text` column for non-text parts).
-fn part_lines(part: &Part, w: &Words) -> Vec<String> {
+fn part_lines(part: &Part, app: App, w: &Words) -> Vec<String> {
     match part {
         Part::Text { text } => vec![text.clone()],
         Part::Media(media) if media.view_once => vec![format!("[{}]", w.view_once)],
@@ -378,7 +392,8 @@ fn part_lines(part: &Part, w: &Words) -> Vec<String> {
             if let Some(s) = media.size {
                 facts.push(size(s));
             }
-            if let Some(s) = media.secs {
+            // A sticker, a photo or a document has no duration, whatever the source wrote (WhatsApp writes 0).
+            if let Some(s) = media.secs.filter(|_| Kind::from(media.kind).has_duration()) {
                 facts.push(format!("{}:{:02}", s / 60, s % 60));
             }
             if media.omitted {
@@ -421,8 +436,18 @@ fn part_lines(part: &Part, w: &Words) -> Vec<String> {
         Part::System { text, event } => {
             vec![format!("— {} —", text.clone().unwrap_or_else(|| Words::code_word(&w.events, event)))]
         }
+        Part::Card { kind, title, text } => {
+            let mut head = Words::code_word(&w.cards, kind);
+            if let Some(t) = title {
+                let _ = write!(head, ": {t}");
+            }
+            let mut lines = vec![format!("[{head}]")];
+            lines.extend(text.clone());
+            lines
+        }
         Part::Unknown { code, text } => {
-            vec![format!("[{} #{code}]{}", w.unknown, text.as_ref().map_or(String::new(), |t| format!(" {t}")))]
+            let label = format!("{}: {code}, {}", app.name(), w.not_shown);
+            vec![format!("[{label}]{}", text.as_ref().map_or(String::new(), |t| format!(" {t}")))]
         }
     }
 }
@@ -439,7 +464,7 @@ fn message_lines(row: &MessageRow, w: &Words) -> Vec<String> {
         {
             continue;
         }
-        lines.extend(part_lines(part, w));
+        lines.extend(part_lines(part, row.app, w));
     }
     lines
 }

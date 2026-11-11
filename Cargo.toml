@@ -26,6 +26,9 @@ oopz-telegram-export = { path = "crates/adapters/telegram-export" }
 oopz-sms-xml = { path = "crates/adapters/sms-xml" }
 oopz-line-export = { path = "crates/adapters/line-export" }
 oopz-viber-export = { path = "crates/adapters/viber-export" }
+# docs/decisions/0020: the registry of message kinds, events and type codes shared with hilo (MIT OR Apache-2.0).
+# By path until it's published (msgkinds' decision 0001): a checkout next to this one.
+msgkinds = { path = "../msgkinds/crates/msgkinds" }
 
 # docs/decisions/0004 for the cryptography crates; nothing else may be added without a record.
 aes-gcm = "0.11"

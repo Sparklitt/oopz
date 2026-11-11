@@ -115,7 +115,7 @@ pub fn generate(seed: u64) -> Export {
             json!({ "file": "voice_messages/audio_1@01-01-2024_10-05-00.ogg", "media_type": "voice_message", "mime_type": "audio/ogg", "duration_seconds": 7, "file_size": 20480 }),
         ),
         (
-            Kind::Video,
+            Kind::VideoNote,
             BEN,
             json!({ "file": "round_video_messages/file_1@01-01-2024.mp4", "media_type": "video_message", "mime_type": "video/mp4", "duration_seconds": 12, "width": 384, "height": 384 }),
         ),

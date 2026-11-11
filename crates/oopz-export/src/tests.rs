@@ -258,9 +258,9 @@ fn any_language_works() {
     assert!(txt.contains("Mimi: =HYPERLINK") && txt.contains("(zorbed)") && txt.contains("[Pikka · 5 B]"), "{txt}");
     assert!(read(&run(&lib, dir.path(), Format::Html, &o).path).contains("lang=\"x-zorb\""));
     let call = Part::Call { video: false, outcome: m::CallOutcome::Missed, secs: None };
-    assert_eq!(part_lines(&call, &words), ["[Voice call · zipped]"]);
+    assert_eq!(part_lines(&call, App::WhatsApp, &words), ["[Voice call · zipped]"]);
     let notice = Part::System { event: m::Event::GroupCreated, text: None };
-    assert_eq!(part_lines(&notice, &words), ["— Bloop —"]);
+    assert_eq!(part_lines(&notice, App::WhatsApp, &words), ["— Bloop —"]);
     // Words the app leaves out are English.
     let partial: Options = serde_json::from_str(r#"{"words":{"me":"Mimi"}}"#).unwrap();
     assert_eq!((partial.words.me.as_str(), partial.words.edited.as_str()), ("Mimi", "edited"));

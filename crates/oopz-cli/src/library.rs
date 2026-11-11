@@ -42,8 +42,8 @@ struct FilterArgs {
     /// Person ids (`oopz lib people`), the same way.
     #[arg(long, value_delimiter = ',')]
     person: Vec<i64>,
-    /// Message kinds: text, link, photo, video, gif, sticker, voice, audio, document, location, contact, poll, call,
-    /// system, deleted, unknown.
+    /// Message kinds: text, link, photo, video, video_note, gif, voice, audio, sticker, document, location, contact,
+    /// poll, call, album, sticker_pack, event, payment, game, business, story, system, deleted, unknown.
     #[arg(long, value_delimiter = ',')]
     kind: Vec<String>,
     /// `me` (sent) or `them` (received).
@@ -70,7 +70,12 @@ impl FilterArgs {
         let kinds = self
             .kind
             .iter()
-            .map(|k| Kind::from_code(k).with_context(|| format!("unknown kind {k:?}")))
+            .map(|k| {
+                Kind::from_code(k).with_context(|| {
+                    let all = Kind::ALL.map(Kind::code).join(", ");
+                    format!("unknown kind {k:?} (one of: {all})")
+                })
+            })
             .collect::<Result<_>>()?;
         let from_me = match self.from.as_deref() {
             None => None,
