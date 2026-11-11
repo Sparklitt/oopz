@@ -300,7 +300,7 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
                 m.edited = edited;
             }
             content::Read::Parts { .. } => {
-                let event = content::event(&text);
+                let event = content::event(&text, &mut stats);
                 group_event |= matches!(
                     event,
                     Event::GroupCreated

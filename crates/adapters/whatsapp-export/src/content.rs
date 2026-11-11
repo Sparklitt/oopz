@@ -30,6 +30,9 @@ pub enum Read {
 /// What had to be read around, for the notes.
 #[derive(Debug, Default)]
 pub struct Stats {
+    /// Every lookup in msgkinds' registry and wording tables; its report joins the notes. The export doesn't say
+    /// which WhatsApp wrote it.
+    pub reading: msgkinds::Reading,
     pub unknown_lines: usize,
     pub kindless_media: usize,
     pub missing_files: usize,
@@ -49,50 +52,111 @@ impl Stats {
         if self.missing_files > 0 {
             notes.push(format!("{} files named in the chat aren't in the export", self.missing_files));
         }
+        notes.extend(self.reading.report().lines());
     }
 }
 
-const DELETED_OTHER: [&str; 4] =
-    ["This message was deleted", "Se eliminó este mensaje", "Este mensaje fue eliminado", "Mensagem apagada"];
-const DELETED_OWN: [&str; 3] = ["You deleted this message", "Eliminaste este mensaje", "Você apagou esta mensagem"];
+/// "<This message was edited>" at a message's end, in the languages known; another language's stays in the text.
 const EDITED: [&str; 3] = ["<This message was edited>", "<Se editó este mensaje.>", "<Mensagem editada>"];
-const OMITTED: [&str; 4] = ["<Media omitted>", "<Multimedia omitido>", "<Mídia oculta>", "<Medien ausgeschlossen>"];
-const ATTACHED: [&str; 6] = [
-    " (file attached)",
-    " (archivo adjunto)",
-    " (Datei angehängt)",
-    " (fichier joint)",
-    " (arquivo anexado)",
-    " (file allegato)",
-];
-/// iPhone's "image omitted" and the like: the whole text.
-const OMITTED_IOS: [(&str, MediaKind); 12] = [
-    ("image omitted", MediaKind::Photo),
-    ("video omitted", MediaKind::Video),
-    ("audio omitted", MediaKind::Voice),
-    ("sticker omitted", MediaKind::Sticker),
-    ("gif omitted", MediaKind::Gif),
-    ("document omitted", MediaKind::Document),
-    ("imagen omitida", MediaKind::Photo),
-    ("video omitido", MediaKind::Video),
-    ("audio omitido", MediaKind::Voice),
-    ("sticker omitido", MediaKind::Sticker),
-    ("gif omitido", MediaKind::Gif),
-    ("documento omitido", MediaKind::Document),
-];
 
+/// What a message's body holds. msgkinds' wording tables name it (`media_type::sources::whatsapp_export::content`:
+/// the languages its `LANGUAGES` lists) and its registry row says what it is; names, places and captions are taken
+/// out by punctuation, the same in every language. A body in other wording is text: kept, and counted when it looks
+/// like one of WhatsApp's own `<…>` markers.
 pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
+    use msgkinds::media_type::sources::whatsapp_export as words;
     let t = text.trim_start_matches(MARKS);
-    let bare = t.trim().trim_matches(MARKS).trim_end_matches('.');
-    if DELETED_OTHER.contains(&bare) {
-        return Read::Deleted { own: false };
+    let (body, edited) = strip_edited(t);
+    let code = words::content(body);
+    let row = stats.reading.lookup_name(msgkinds::Source::WhatsAppExport, code).entry();
+    match code {
+        "deleted" | "deleted_admin" => return Read::Deleted { own: false },
+        "deleted_own" => return Read::Deleted { own: true },
+        "text" if words::unread_marker(body) => stats.reading.fallback(msgkinds::Source::WhatsAppExport),
+        _ => {}
     }
-    if DELETED_OWN.contains(&bare) {
-        return Read::Deleted { own: true };
-    }
-    let (t, edited) = strip_edited(t);
-    let parts = parts(t, files, stats);
+    let parts = parts(code, row, body, files, stats);
     Read::Parts { parts, edited }
+}
+
+fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stats: &mut Stats) -> Vec<Part> {
+    let bare = t.trim().trim_matches(MARKS);
+    let lower = bare.to_lowercase();
+    let (first, rest) = t.split_once('\n').unwrap_or((t, ""));
+    let first_bare = first.trim().trim_matches(MARKS);
+    let caption = || Some(rest.trim().to_string()).filter(|c| !c.is_empty());
+    let row_media = row.and_then(|e| MediaKind::from_kind(e.kind.into()));
+
+    match code {
+        "omitted" => {
+            stats.kindless_media += 1;
+            vec![media(MediaKind::Document, None, None, true)]
+        }
+        "image_omitted" | "video_omitted" | "video_note_omitted" | "audio_omitted" | "sticker_omitted"
+        | "gif_omitted" => vec![media(row_media.unwrap_or(MediaKind::Document), None, None, true)],
+        // `informe.pdf • 3 pages ‎document omitted`: the name is before the dot, or before iPhone's mark.
+        "document_omitted" => {
+            let before = first.trim().trim_start_matches(MARKS);
+            let name = match (before.find(" • "), before.rfind(MARKS)) {
+                (Some(at), _) => &before[..at],
+                (None, Some(at)) if at > 0 => &before[..at],
+                _ => "",
+            };
+            let name = Some(name.trim().to_string()).filter(|n| !n.is_empty());
+            vec![media(MediaKind::Document, name, None, true)]
+        }
+        "contact_omitted" => vec![Part::Contact { name: None, phones: Vec::new(), vcard: None }],
+        "view_once" => {
+            let kind = if lower.contains("video") || lower.contains("vídeo") || lower.contains("vidéo") {
+                MediaKind::Video
+            } else if ["voice", "voz", "audio", "sprach", "vocal", "voce"].iter().any(|w| lower.contains(w)) {
+                MediaKind::Voice
+            } else {
+                MediaKind::Photo
+            };
+            let mut m = media(kind, None, None, true);
+            if let Part::Media(m) = &mut m {
+                m.view_once = true;
+            }
+            vec![m]
+        }
+        "attached" | "contact_attached" => {
+            // iPhone: `<attached: NAME>` then a caption; Android: `NAME (file attached)`, the caption below.
+            let found = if first_bare.starts_with('<') {
+                first_bare.split_once(": ").and_then(|(_, after)| after.split_once('>')).map(|(name, more)| {
+                    let mut c = more.trim().to_string();
+                    if !rest.trim().is_empty() {
+                        if !c.is_empty() {
+                            c.push('\n');
+                        }
+                        c.push_str(rest.trim());
+                    }
+                    (name, Some(c).filter(|c| !c.is_empty()))
+                })
+            } else {
+                first_bare.rfind(" (").map(|at| (first_bare[..at].split(" • ").next().unwrap_or(""), caption()))
+            };
+            match found.map(|(name, c)| (name.trim(), c)) {
+                Some((name, c)) if !name.is_empty() => vec![file_part(name, c, files, stats)],
+                _ => text_parts(t),
+            }
+        }
+        "live_location" => vec![Part::Location { lat: None, lng: None, name: None, live: true }],
+        "location" => {
+            let url = first_bare.split_once(": ").map_or("", |(_, u)| u).trim();
+            let (lat, lng) = coordinates(url).unzip();
+            vec![Part::Location { lat, lng, name: caption(), live: false }]
+        }
+        "poll" => vec![poll(rest)],
+        "missed_voice_call" | "missed_video_call" | "voice_call" | "video_call" => {
+            let outcome = if code.starts_with("missed") { CallOutcome::Missed } else { CallOutcome::Unknown };
+            let video = row.is_some_and(|e| e.has(msgkinds::Flag::Video));
+            vec![Part::Call { video, outcome, secs: None }]
+        }
+        // "Waiting for this message": WhatsApp's own line, its words kept.
+        "pending" => vec![Part::System { event: Event::Other, text: Some(bare.to_string()) }],
+        _ => text_parts(t),
+    }
 }
 
 fn strip_edited(t: &str) -> (&str, bool) {
@@ -105,107 +169,7 @@ fn strip_edited(t: &str) -> (&str, bool) {
     (t, false)
 }
 
-fn parts(t: &str, files: &Files, stats: &mut Stats) -> Vec<Part> {
-    let single = !t.contains('\n');
-    let bare = t.trim().trim_matches(MARKS);
-    let lower = bare.to_lowercase();
-    let (first, rest) = t.split_once('\n').unwrap_or((t, ""));
-    let caption = || Some(rest.trim().to_string()).filter(|c| !c.is_empty());
-
-    if OMITTED.contains(&bare) {
-        stats.kindless_media += 1;
-        return vec![media(MediaKind::Document, None, None, true)];
-    }
-    if single {
-        for (word, kind) in OMITTED_IOS {
-            if lower == word {
-                return vec![media(kind, None, None, true)];
-            }
-            if kind == MediaKind::Document && lower.ends_with(word) {
-                let name = bare
-                    .get(..bare.len().saturating_sub(word.len()))
-                    .unwrap_or("")
-                    .split(" • ")
-                    .next()
-                    .unwrap_or("")
-                    .trim();
-                let name = Some(name.to_string()).filter(|n| !n.is_empty());
-                return vec![media(kind, name, None, true)];
-            }
-        }
-        if lower == "contact card omitted" || lower == "tarjeta de contacto omitida" {
-            return vec![Part::Contact { name: None, phones: Vec::new(), vcard: None }];
-        }
-        if bare.chars().count() <= 80
-            && ["view once", "visualización única", "ver una vez"].iter().any(|w| lower.contains(w))
-        {
-            let kind = if lower.contains("video") || lower.contains("vídeo") {
-                MediaKind::Video
-            } else if ["voice", "voz", "audio"].iter().any(|w| lower.contains(w)) {
-                MediaKind::Voice
-            } else {
-                MediaKind::Photo
-            };
-            let mut m = media(kind, None, None, true);
-            if let Part::Media(m) = &mut m {
-                m.view_once = true;
-            }
-            return vec![m];
-        }
-    }
-
-    let first_bare = first.trim().trim_matches(MARKS);
-    for open in ["<attached: ", "<adjunto: "] {
-        if let Some(after) = first_bare.strip_prefix(open)
-            && let Some((name, more)) = after.split_once('>')
-        {
-            let mut caption_text = more.trim().to_string();
-            if !rest.trim().is_empty() {
-                if !caption_text.is_empty() {
-                    caption_text.push('\n');
-                }
-                caption_text.push_str(rest.trim());
-            }
-            let caption = Some(caption_text).filter(|c| !c.is_empty());
-            return vec![file_part(name.trim(), caption, files, stats)];
-        }
-    }
-    for suffix in ATTACHED {
-        if let Some(name) = first_bare.strip_suffix(suffix) {
-            let name = name.split(" • ").next().unwrap_or(name).trim();
-            if !name.is_empty() {
-                return vec![file_part(name, caption(), files, stats)];
-            }
-        }
-    }
-
-    let first_lower = first_bare.to_lowercase();
-    if ["live location shared", "ubicación en tiempo real compartida"].iter().any(|w| first_lower.starts_with(w)) {
-        return vec![Part::Location { lat: None, lng: None, name: None, live: true }];
-    }
-    for word in ["location: ", "ubicación: ", "localização: ", "standort: "] {
-        if first_lower.starts_with(word) {
-            let url = first_bare.get(word.len()..).unwrap_or("").trim();
-            let (lat, lng) = coordinates(url).unzip();
-            return vec![Part::Location { lat, lng, name: caption(), live: false }];
-        }
-    }
-
-    if ["POLL:", "ENCUESTA:", "ENQUETE:", "UMFRAGE:"].contains(&first_bare) {
-        return vec![poll(rest)];
-    }
-
-    if single {
-        let call = lower.split(',').next().unwrap_or("").trim();
-        let missed = ["missed voice call", "missed video call", "llamada de voz perdida", "videollamada perdida"];
-        let plain = ["voice call", "video call", "llamada de voz", "videollamada"];
-        if missed.contains(&call) || plain.contains(&call) {
-            let outcome = if missed.contains(&call) { CallOutcome::Missed } else { CallOutcome::Unknown };
-            let video = call.contains("video");
-            return vec![Part::Call { video, outcome, secs: None }];
-        }
-    }
-
+fn text_parts(t: &str) -> Vec<Part> {
     let mut parts = vec![Part::text(t)];
     parts.extend(links(t).into_iter().map(|url| Part::Link { url, title: None }));
     parts
@@ -361,19 +325,58 @@ pub fn is_notice(parts: &[Part]) -> bool {
     parts.iter().all(|p| matches!(p, Part::Text { .. } | Part::Link { .. }))
 }
 
-/// The kind of notice, from its wording (English and Spanish).
-///
 /// The kind of notice, from its wording: msgkinds names it (`media_type::sources::whatsapp_export::notice`, English
 /// and Spanish, Android and iPhone) and its registry row (`Source::WhatsAppExport`) says what happened.
-pub fn event(text: &str) -> Event {
+/// Wording no table has is an `other` notice with its words, counted as a fallback.
+pub fn event(text: &str, stats: &mut Stats) -> Event {
     let code = msgkinds::media_type::sources::whatsapp_export::notice(text);
-    let row = msgkinds::lookup_name(msgkinds::Source::WhatsAppExport, code, None).entry();
+    if code == "notice" {
+        stats.reading.fallback(msgkinds::Source::WhatsAppExport);
+    }
+    let row = stats.reading.lookup_name(msgkinds::Source::WhatsAppExport, code).entry();
     row.and_then(|e| e.event).map_or(Event::Other, Event::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn parts_of(text: &str, stats: &mut Stats) -> Vec<Part> {
+        match read(text, &Files::default(), stats) {
+            Read::Parts { parts, .. } => parts,
+            Read::Deleted { .. } => panic!("{text:?} read as deleted"),
+        }
+    }
+
+    /// msgkinds' wording tables in other languages, and wording no table has: kept as text and counted.
+    #[test]
+    fn other_languages_and_unknown_wording() {
+        let mut stats = Stats::default();
+        assert!(matches!(read("Diese Nachricht wurde gelöscht.", &Files::default(), &mut stats), Read::Deleted { .. }));
+        assert!(matches!(&parts_of("<Médias omis>", &mut stats)[..], [Part::Media(m)] if m.omitted));
+        assert!(
+            matches!(&parts_of("\u{200e}immagine omessa", &mut stats)[..], [Part::Media(m)] if m.kind == MediaKind::Photo)
+        );
+        assert!(matches!(
+            &parts_of("Verpasster Videoanruf", &mut stats)[..],
+            [Part::Call { video: true, outcome: CallOutcome::Missed, .. }]
+        ));
+        // Any language: the file's name comes out by its punctuation.
+        assert!(matches!(
+            &parts_of("IMG-20240101-WA0001.jpg (plik załączony)\nfoto", &mut stats)[..],
+            [Part::Media(m)] if m.file.as_deref() == Some("IMG-20240101-WA0001.jpg") && m.caption.as_deref() == Some("foto")
+        ));
+        // Words that only look like a call stay text.
+        assert!(matches!(&parts_of("Video call tomorrow?", &mut stats)[..], [Part::Text { .. }]));
+        assert!(stats.reading.report().fallback.is_empty());
+        // A marker in wording no table has stays text and is counted; so is a notice.
+        assert!(matches!(&parts_of("<Mediji izpuščeni>", &mut stats)[..], [Part::Text { .. }]));
+        assert_eq!(event("Ana je ustvarila skupino", &mut stats), Event::Other);
+        assert_eq!(stats.reading.report().fallback, vec![(msgkinds::Source::WhatsAppExport, 2)]);
+        let mut notes = Vec::new();
+        stats.notes(&mut notes);
+        assert!(notes.iter().any(|n| n.starts_with("2 lines in whatsapp_export")), "{notes:?}");
+    }
 
     #[test]
     fn links_and_coordinates() {
