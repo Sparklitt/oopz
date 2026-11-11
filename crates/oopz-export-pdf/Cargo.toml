@@ -17,6 +17,7 @@ unicode-bidi.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+oopz-gen.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -1093,6 +1093,7 @@ dependencies = [
  "fs4",
  "jiff",
  "oopz-core",
+ "oopz-gen",
  "oopz-model",
  "serde",
  "serde_json",
@@ -1107,6 +1108,7 @@ dependencies = [
  "krilla",
  "oopz-core",
  "oopz-export",
+ "oopz-gen",
  "oopz-model",
  "rustybuzz",
  "serde",
@@ -1218,6 +1220,7 @@ dependencies = [
 name = "oopz-whatsapp-ios"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "oopz-gen",
  "oopz-ios-backup",
  "oopz-model",

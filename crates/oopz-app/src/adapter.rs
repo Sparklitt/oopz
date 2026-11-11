@@ -291,7 +291,11 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
                 secs: call.as_ref().and_then(|c| c.secs).and_then(|s| u64::try_from(s).ok()),
             });
         }
-        m::Kind::System => parts.push(system(line.action, text.clone())),
+        // A row may say what happened itself; type 7 leaves it to `action_type`.
+        m::Kind::System => parts.push(match entry.event {
+            Some(event) => m::Part::System { event: event.into(), text: text.clone() },
+            None => system(line.action, text.clone()),
+        }),
         m::Kind::Album
         | m::Kind::StickerPack
         | m::Kind::Event
@@ -393,9 +397,14 @@ mod tests {
             let msg = message("1", line(code), None);
             let kind = msg.kind();
             assert_ne!(kind, m::Kind::Unknown, "message_type {code}");
-            // Type 2 is refined to a voice note or an audio file; type 7 is a system line.
+            // Type 2 is refined to a voice note or an audio file; a link row whose text has no address (a group
+            // invite) reads as text.
             let want = m::Kind::from(entry.kind);
-            assert!(kind == want || (code == 2 && kind == m::Kind::Voice), "message_type {code}: {kind:?}");
+            let refined = (code == 2 && kind == m::Kind::Voice) || (want == m::Kind::Link && kind == m::Kind::Text);
+            assert!(kind == want || refined, "message_type {code}: {kind:?}");
+            if let (Some(event), [m::Part::System { event: got, .. }]) = (entry.event, msg.parts.as_slice()) {
+                assert_eq!(msgkinds::Event::from(*got), event, "message_type {code}");
+            }
             if entry.has(Flag::ViewOnce) {
                 assert!(msg.text().is_empty(), "a view-once caption is never kept");
             }

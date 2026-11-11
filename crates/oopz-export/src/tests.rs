@@ -265,3 +265,85 @@ fn any_language_works() {
     let partial: Options = serde_json::from_str(r#"{"words":{"me":"Mimi"}}"#).unwrap();
     assert_eq!((partial.words.me.as_str(), partial.words.edited.as_str()), ("Mimi", "edited"));
 }
+
+/// A library holding oopz-gen's message of every kind and notice of every event.
+fn every_kind() -> (tempfile::TempDir, Library) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut lib = Library::open(&dir.path().join("lib")).unwrap();
+    lib.import(&mut oopz_gen::every_kind::every_kind(), "every-kind", "fp-every", &mut |_, _| true).unwrap();
+    (dir, lib)
+}
+
+/// msgkinds' registry.md, "What readers test on their side", 2: every kind and every event exports in every text
+/// format, and a kind without a duration never shows one (its file says 0 seconds).
+#[test]
+fn every_kind_and_event_exports_without_a_duration_where_none_belongs() {
+    let (dir, lib) = every_kind();
+    let total = (Kind::ALL.len() + m::Event::ALL.len()) as u64;
+    let w = Words::default();
+    for format in [Format::Html, Format::Json, Format::Csv, Format::Txt] {
+        let written = run(&lib, dir.path(), format, &utc());
+        assert_eq!(written.messages, total, "{format:?}");
+        let text = read(&written.path);
+        // Durations follow a " · " (times of day are "00:00", so a bare "0:00" would match them).
+        assert!(!text.contains("· 0:00"), "{format:?}: a duration of 0 for a kind without one");
+        if format == Format::Json {
+            continue;
+        }
+        for word in [&w.sticker, &w.photo, &w.document, &w.gif, &w.video_note, &w.deleted] {
+            assert!(text.contains(word.as_str()), "{format:?}: {word}");
+        }
+        assert!(text.contains("· 1:15"), "{format:?}: kinds that play keep their duration");
+        for card in m::CardKind::ALL {
+            assert!(text.contains(&format!("{} 9999", m::Kind::from(card).code())), "{format:?}: {card:?}");
+            assert!(text.contains(&Words::code_word(&w.cards, card)), "{format:?}: {card:?}'s word");
+        }
+        for event in m::Event::ALL {
+            let word = Words::code_word(&w.events, event);
+            assert_ne!(word, event.code(), "an English word for {event:?}");
+            assert!(text.contains(&esc(&word)), "{format:?}: {event:?}");
+        }
+    }
+    // Each message's kind is in the CSV's kind column.
+    let csv = read(&run(&lib, dir.path(), Format::Csv, &utc()).path);
+    for kind in Kind::ALL {
+        assert!(csv.contains(&format!(",{},", kind.code())), "{kind:?}");
+    }
+}
+
+/// 3: an unknown code is a labelled line in every format, and counted.
+#[test]
+fn an_unknown_code_is_labelled_counted_and_exported() {
+    let (dir, lib) = every_kind();
+    for format in [Format::Html, Format::Csv, Format::Txt] {
+        let text = read(&run(&lib, dir.path(), format, &utc()).path);
+        assert!(text.contains("[WhatsApp: 9999, not shown yet]"), "{format:?}");
+    }
+    let json = read(&run(&lib, dir.path(), Format::Json, &utc()).path);
+    assert!(json.contains(r#""type":"unknown","code":"9999""#));
+    let stats = lib.stats(&Filter::default()).unwrap();
+    assert!(stats.by_kind.iter().any(|(k, n, _)| *k == Kind::Unknown && *n == 1), "{:?}", stats.by_kind);
+    for kind in Kind::ALL {
+        let only = Selection { filter: Filter { kinds: vec![kind], ..Default::default() }, ..Default::default() };
+        let w = export(&lib, &only, Format::Txt, &utc(), dir.path(), &mut |_, _| true).unwrap();
+        let want = if kind == Kind::System { 1 + m::Event::ALL.len() as u64 } else { 1 };
+        assert_eq!(w.messages, want, "filtered by {kind:?}");
+    }
+}
+
+/// What the app shows a sticker, photo or voice note from: the file in the source's folder, never a view-once one or
+/// one outside it.
+#[test]
+fn a_media_file_is_found_only_inside_its_folder() {
+    let (_dir, lib) = setup();
+    let ids = lib.selected(&all(), Order::Conversation).unwrap();
+    let rows = lib.messages_by_id(&ids).unwrap();
+    let id = |key: &str| rows.iter().find(|r| r.message.id == key).unwrap().id;
+    assert!(lib.media_file(id("3"), 0).unwrap().unwrap().ends_with("IMG-1.jpg"));
+    assert!(lib.media_file(id("3"), 1).unwrap().unwrap().ends_with("sub/IMG-1.jpg"));
+    assert_eq!(lib.media_file(id("4"), 0).unwrap(), None, "missing");
+    assert_eq!(lib.media_file(id("4"), 1).unwrap(), None, "outside the folder");
+    assert_eq!(lib.media_file(id("5"), 0).unwrap(), None, "view once");
+    assert_eq!(lib.media_file(id("1"), 0).unwrap(), None, "not media");
+    assert_eq!(lib.media_file(9_999_999, 0).unwrap(), None, "no such message");
+}

@@ -19,6 +19,8 @@ oopz-model = { path = "crates/oopz-model" }
 oopz-core = { path = "crates/oopz-core" }
 oopz-export = { path = "crates/oopz-export" }
 oopz-export-pdf = { path = "crates/oopz-export-pdf" }
+# Synthetic test data (dev-dependencies only).
+oopz-gen = { path = "crates/oopz-gen" }
 oopz-ios-backup = { path = "crates/ios-backup" }
 oopz-whatsapp-ios = { path = "crates/adapters/whatsapp-ios" }
 oopz-whatsapp-export = { path = "crates/adapters/whatsapp-export" }

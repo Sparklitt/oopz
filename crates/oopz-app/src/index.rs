@@ -295,6 +295,15 @@ impl Index {
         let mut reactions = self.db.prepare_cached("SELECT emoji, from_me FROM react WHERE msg = ?1 ORDER BY rowid")?;
         let mut poll = self.db.prepare_cached("SELECT name, votes FROM poll WHERE msg = ?1 ORDER BY ord")?;
         for line in &mut lines {
+            // A sticker, a photo or a document has no duration, whatever WhatsApp wrote (it writes 0): msgkinds says
+            // which kinds play.
+            if let Some(media) = &mut line.media
+                && !msgkinds::lookup(msgkinds::Source::WhatsAppAndroid, msgkinds::Code::Int(line.kind), None)
+                    .kind()
+                    .has_duration()
+            {
+                media.secs = None;
+            }
             line.reactions =
                 reactions.query_map([line.id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
             if line.kind == POLL {

@@ -611,6 +611,21 @@ impl Library {
             .map(PathBuf::from))
     }
 
+    /// The file of a message's media part (`part`: its index in the message's parts), when the source's media folder
+    /// has it: never a view-once file, never a path leaving that folder.
+    pub fn media_file(&self, message: i64, part: usize) -> Result<Option<PathBuf>> {
+        let Some(row) = self.messages_by_id(&[message])?.pop() else { return Ok(None) };
+        let Some(m::Part::Media(media)) = row.message.parts.get(part) else { return Ok(None) };
+        let (Some(rel), false) = (media.file.as_deref(), media.view_once) else { return Ok(None) };
+        let rel = Path::new(rel);
+        if !rel.components().all(|c| matches!(c, std::path::Component::Normal(_))) {
+            return Ok(None);
+        }
+        let Some(root) = self.media_root(row.source)?.and_then(|r| r.canonicalize().ok()) else { return Ok(None) };
+        let Ok(path) = root.join(rel).canonicalize() else { return Ok(None) };
+        Ok((path.starts_with(&root) && path.is_file()).then_some(path))
+    }
+
     /// Removes a source, its rows and its media folder; contacts left with nobody and no card data go too.
     pub fn remove_source(&mut self, id: i64) -> Result<()> {
         let tx = self.db.transaction()?;

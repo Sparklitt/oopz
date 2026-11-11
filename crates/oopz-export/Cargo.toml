@@ -18,5 +18,8 @@ serde_json.workspace = true
 tempfile.workspace = true
 zip.workspace = true
 
+[dev-dependencies]
+oopz-gen.workspace = true
+
 [lints]
 workspace = true

@@ -16,6 +16,7 @@ names (`oopz export`), or prints as counts and positions.
 | `search`, `message_position` | `oopz search` (where, not what; filters by type, side or sender, dates) | `Session::search`, `Session::position` |
 | `position_at` | `oopz jump` | `Session::position_at` |
 | `thumbnail` | `oopz thumbnail` (to a file) | `Session::thumbnail` |
+| `media_file`, `lib_media` | app only: a sticker, photo or voice note shown from its file; `oopz lib export --format media-zip` copies the files | `Session::media_file`, `Library::media_file` |
 | `chat_len`, `chat_lines` | `oopz export --chat` (the chat's text, to a file) | `Session::lines` |
 | `export_page` | `oopz export` | `Session::export` (the CLI's words, English: `Labels::english`; the app sends its own) |
 | `missing` | `oopz missing` | `Session::missing` |

@@ -90,6 +90,49 @@ fn new_tables_and_columns_are_ignored() {
     use_it(&backup, &key).expect("unknown tables, columns and a newer user_version don't matter");
 }
 
+/// Every message the library adapter streams from the backup, and how many are unknown parts with `code`.
+fn read_all(backup: &Path, key: &str, code: &str) -> (usize, usize) {
+    use oopz_model::{Adapter, Part};
+    let mut source = oopz_app::adapter::WhatsAppAdapter.open(backup, Some(key)).expect("opens");
+    let ids: Vec<String> = source.conversations().iter().map(|c| c.id.clone()).collect();
+    let (mut all, mut unknown) = (0, 0);
+    for id in ids {
+        source
+            .messages(&id, &mut |m| {
+                all += 1;
+                unknown += usize::from(m.parts.iter().any(|p| matches!(p, Part::Unknown { code: c, .. } if c == code)));
+                true
+            })
+            .unwrap();
+    }
+    (all, unknown)
+}
+
+/// msgkinds' registry.md, "What readers test on their side", 4: a WhatsApp version oopz hasn't seen (a newer
+/// user_version, columns it doesn't know, an optional table gone, a message type no registry row names) opens with
+/// all its messages; the unknown type is kept as a labelled unknown part with its code.
+#[test]
+fn an_unknown_whatsapp_version_opens_with_all_its_messages() {
+    let (_dir, backup, key) = generated();
+    let (before, none) = read_all(&backup, &key, "9999");
+    assert!(before > 100 && none == 0);
+    change(
+        &backup,
+        &key,
+        "ALTER TABLE message ADD COLUMN future_flag INTEGER NOT NULL DEFAULT 7;
+         ALTER TABLE message_media ADD COLUMN future_codec TEXT;
+         ALTER TABLE chat ADD COLUMN future INTEGER;
+         DROP TABLE message_system;
+         UPDATE message SET message_type = 9999
+             WHERE _id IN (SELECT _id FROM message WHERE chat_row_id IS NOT NULL AND message_type = 0 LIMIT 5);
+         PRAGMA user_version = 9999;",
+    );
+    let (after, unknown) = read_all(&backup, &key, "9999");
+    assert_eq!(after, before, "every message is still there");
+    assert_eq!(unknown, 5, "each unknown type is kept with its code");
+    use_it(&backup, &key).expect("and the viewer opens it too");
+}
+
 #[test]
 fn odd_values_in_known_columns_open() {
     let (_dir, backup, key) = generated();

@@ -27,6 +27,7 @@ use oopz::crypt15::{self, Key};
 use rusqlite::Connection;
 
 pub mod corpus;
+pub mod every_kind;
 pub mod exports;
 pub mod ios;
 pub mod media;

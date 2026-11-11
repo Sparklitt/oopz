@@ -482,10 +482,9 @@ impl Session {
         self.index(id)?.search(query, filter, limit)
     }
 
-    /// A small JPEG of a picture message's file, at most `max` pixels on its longer side, from `media` (the phone's
-    /// `Media/` folder, or the `WhatsApp` folder holding it; only read). `None` when the backup names no file, the
-    /// file isn't there, or it isn't a picture oopz reads (JPEG, PNG, WebP).
-    pub fn thumbnail(&self, id: u32, message: i64, media: &Path, max: u32) -> Result<Option<Vec<u8>>> {
+    /// Where a message's file is in `media` (the phone's `Media/` folder, or the `WhatsApp` folder holding it), when
+    /// the backup names one inside it.
+    fn media_path(&self, id: u32, message: i64, media: &Path) -> Result<Option<PathBuf>> {
         let db = self.get(id)?.backup.db();
         let file_path: Option<String> = db
             .query_row("SELECT file_path FROM message_media WHERE message_row_id = ?1", [message], |r| r.get(0))
@@ -498,7 +497,25 @@ impl Session {
             .map_err(oopz::Error::from)?;
         let Some(rel) = file_path.as_deref().and_then(oopz::media_relative) else { return Ok(None) };
         let root = if media.join("Media").is_dir() { media.join("Media") } else { media.to_path_buf() };
-        let path = root.join(rel);
+        Ok(Some(root.join(rel)))
+    }
+
+    /// A sticker's or a voice note's file as it is (an animated WebP keeps its frames), at most `max` bytes; `None`
+    /// when the backup names no file, it isn't there, or it's larger.
+    pub fn media_file(&self, id: u32, message: i64, media: &Path, max: u64) -> Result<Option<Vec<u8>>> {
+        let Some(path) = self.media_path(id, message, media)? else { return Ok(None) };
+        match fs::metadata(&path) {
+            Ok(m) if m.is_file() && m.len() <= max => {}
+            _ => return Ok(None),
+        }
+        Ok(fs::read(&path).ok())
+    }
+
+    /// A small JPEG of a picture message's file, at most `max` pixels on its longer side, from `media` (the phone's
+    /// `Media/` folder, or the `WhatsApp` folder holding it; only read). `None` when the backup names no file, the
+    /// file isn't there, or it isn't a picture oopz reads (JPEG, PNG, WebP).
+    pub fn thumbnail(&self, id: u32, message: i64, media: &Path, max: u32) -> Result<Option<Vec<u8>>> {
+        let Some(path) = self.media_path(id, message, media)? else { return Ok(None) };
         // A picture this large isn't a photo WhatsApp sent; don't read it into memory.
         match fs::metadata(&path) {
             Ok(m) if m.is_file() && m.len() <= THUMBNAIL_MAX_FILE => {}
@@ -943,6 +960,21 @@ mod tests {
         assert_eq!(session.thumbnail(s.id, 5, media.path(), 256).unwrap(), None);
         assert_eq!(session.thumbnail(s.id, 1, media.path(), 256).unwrap(), None);
         assert_eq!(session.thumbnail(s.id, -7, media.path(), 256).unwrap(), None);
+    }
+
+    #[test]
+    fn a_media_file_comes_as_it_is_up_to_a_size() {
+        let fx = fixture::build();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::default();
+        let s = session.check(&fx.backup, KEY_HEX, tmp.path()).unwrap();
+        let media = tempfile::tempdir().unwrap();
+        let file = media.path().join("Media/WhatsApp Images/IMG-00000001-WA0001.jpg");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, b"RIFF\0\0\0\0WEBPVP8X animated").unwrap();
+        assert_eq!(session.media_file(s.id, 3, media.path(), 1 << 20).unwrap().unwrap(), fs::read(&file).unwrap());
+        assert_eq!(session.media_file(s.id, 3, media.path(), 4).unwrap(), None, "larger than asked");
+        assert_eq!(session.media_file(s.id, 1, media.path(), 1 << 20).unwrap(), None, "no file named");
     }
 
     #[test]

@@ -200,3 +200,28 @@ fn a_stop_leaves_nothing() {
     assert_eq!(fs::read_dir(&out).unwrap().count(), 0);
     assert_eq!(export_pdf(&lib, &Selection::default(), &opts(), &out, &mut |_, _| true).unwrap_err().code, "not_found");
 }
+
+/// msgkinds' registry.md, "What readers test on their side", 2 and 3: every kind, every event and an unknown code
+/// lay out into the PDF, each as lines of its own, with no duration for a kind without one.
+#[test]
+fn every_kind_and_event_lays_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut lib = Library::open(&dir.path().join("lib")).unwrap();
+    lib.import(&mut oopz_gen::every_kind::every_kind(), "every-kind", "fp-every", &mut |_, _| true).unwrap();
+    let ids = lib.selected(&all(), Order::Conversation).unwrap();
+    let total = Kind::ALL.len() + oopz_model::Event::ALL.len();
+    assert_eq!(ids.len(), total);
+    let words = oopz_export::Words::default();
+    for row in lib.messages_by_id(&ids).unwrap() {
+        let lines = oopz_export::row_lines(&row, &words);
+        assert!(lines.iter().any(|l| !l.trim().is_empty()), "{:?} has no lines", row.kind);
+        assert!(!lines.iter().any(|l| l.contains("· 0:00")), "{:?}: {lines:?}", row.kind);
+        if row.kind == Kind::Unknown {
+            assert_eq!(lines, ["[WhatsApp: 9999, not shown yet]"]);
+        }
+    }
+    let w = export_pdf(&lib, &all(), &opts(), dir.path(), &mut |_, _| true).unwrap();
+    assert_eq!(w.messages, total as u64);
+    let bytes = fs::read(&w.path).unwrap();
+    assert!(bytes.starts_with(b"%PDF-") && bytes.len() > 1000);
+}
