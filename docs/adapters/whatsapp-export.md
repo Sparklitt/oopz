@@ -20,7 +20,7 @@ password: the chat as the app writes it from a chat's menu (More > Export chat).
 | Export | Model |
 |---|---|
 | `Name: text` | `Text` (+ a `Link` per `http(s)://` link) |
-| line with no `Name: ` | `System` (event from the wording, English and Spanish; else `Other`) |
+| line with no `Name: ` | `System` (event from msgkinds' wording in the export's language; else `Other`, counted) |
 | iPhone: `Name: ` + U+200E + plain text | `System` (iPhone writes notices under the chat's name) |
 | `<Media omitted>`, `<Multimedia omitido>` | `Media` kind `Document`, `omitted` (the export doesn't say which kind) |
 | iPhone `image/video/audio/sticker/GIF/document omitted` (and Spanish) | `Media` of that kind, `omitted` |
@@ -53,6 +53,12 @@ A file whose first five non-empty lines hold no message line (`NotThisFormat`); 
 
 ## Tested
 
+Every word above is a row of msgkinds' `data/wording/whatsapp_export.toml` (English and Spanish seen; Portuguese,
+German, French, Italian unconfirmed); oopz keeps none of its own (the edited marker and view-once words included).
+The export's language is found once from its lines (`msgkinds::wording::detect`), and only that language's words
+are read: "Video call" typed in a Spanish chat stays text. A marker in another language is kept as text and counted;
+the notes say which language the rest was read in.
+
 `oopz-gen --export whatsapp-txt` writes one group chat in four layouts (Android, US 12-hour, Spanish with CRLF, iPhone
 with BOM and marks) with every line above; the tests read each (alone, zipped, in a folder) against its manifest, and
 truncated files, noise, a 64 KB+ line, dates before 1970, after 2099 and that don't exist, unsafe zip entries.
@@ -60,5 +66,6 @@ truncated files, noise, a 64 KB+ line, dates before 1970, after 2099 and that do
 ## Still needs a real export to confirm
 
 The exact wording of view-once, call and live-location lines in each language; documents' ` • N pages` in other
-languages; exports in languages other than English and Spanish (dates and placeholders are read, notices fall back to
-`Other`); old exports from Windows Phone or BlackBerry.
+languages; exports in Portuguese, German, French and Italian (their wording is unconfirmed; any other language: dates
+and file names are read, other markers stay text, notices fall back to `Other`); old exports from Windows Phone or
+BlackBerry.

@@ -33,6 +33,8 @@ pub struct Stats {
     /// Every lookup in msgkinds' registry and wording tables; its report joins the notes. The export doesn't say
     /// which WhatsApp wrote it.
     pub reading: msgkinds::Reading,
+    /// The export's language, found from its lines (`msgkinds::wording::detect`); `None`: every language is tried.
+    pub language: Option<&'static str>,
     pub unknown_lines: usize,
     pub kindless_media: usize,
     pub missing_files: usize,
@@ -56,23 +58,25 @@ impl Stats {
     }
 }
 
-/// "<This message was edited>" at a message's end, in the languages known; another language's stays in the text.
-const EDITED: [&str; 3] = ["<This message was edited>", "<Se editó este mensaje.>", "<Mensagem editada>"];
-
-/// What a message's body holds. msgkinds' wording tables name it (`media_type::sources::whatsapp_export::content`:
-/// the languages its `LANGUAGES` lists) and its registry row says what it is; names, places and captions are taken
-/// out by punctuation, the same in every language. A body in other wording is text: kept, and counted when it looks
-/// like one of WhatsApp's own `<…>` markers.
+/// What a message's body holds. msgkinds' wording tables name it, in the export's language
+/// (`media_type::sources::whatsapp_export::content_in`), and its registry row says what it is; names, places and
+/// captions are taken out by punctuation, the same in every language. A body in other wording is text: kept, and
+/// counted when it looks like one of WhatsApp's own `<…>` markers.
 pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
     use msgkinds::media_type::sources::whatsapp_export as words;
     let t = text.trim_start_matches(MARKS);
-    let (body, edited) = strip_edited(t);
-    let code = words::content(body);
+    let (body, edited) = match words::edited(stats.language, t) {
+        Some(body) => (body, true),
+        None => (t, false),
+    };
+    let code = words::content_in(stats.language, body);
     let row = stats.reading.lookup_name(msgkinds::Source::WhatsAppExport, code).entry();
     match code {
         "deleted" | "deleted_admin" => return Read::Deleted { own: false },
         "deleted_own" => return Read::Deleted { own: true },
-        "text" if words::unread_marker(body) => stats.reading.fallback(msgkinds::Source::WhatsAppExport),
+        "text" if words::unread_marker_in(stats.language, body) => {
+            stats.reading.fallback(msgkinds::Source::WhatsAppExport)
+        }
         _ => {}
     }
     let parts = parts(code, row, body, files, stats);
@@ -81,7 +85,6 @@ pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
 
 fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stats: &mut Stats) -> Vec<Part> {
     let bare = t.trim().trim_matches(MARKS);
-    let lower = bare.to_lowercase();
     let (first, rest) = t.split_once('\n').unwrap_or((t, ""));
     let first_bare = first.trim().trim_matches(MARKS);
     let caption = || Some(rest.trim().to_string()).filter(|c| !c.is_empty());
@@ -107,14 +110,8 @@ fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stat
         }
         "contact_omitted" => vec![Part::Contact { name: None, phones: Vec::new(), vcard: None }],
         "view_once" => {
-            let kind = if lower.contains("video") || lower.contains("vídeo") || lower.contains("vidéo") {
-                MediaKind::Video
-            } else if ["voice", "voz", "audio", "sprach", "vocal", "voce"].iter().any(|w| lower.contains(w)) {
-                MediaKind::Voice
-            } else {
-                MediaKind::Photo
-            };
-            let mut m = media(kind, None, None, true);
+            let kind = msgkinds::media_type::sources::whatsapp_export::view_once_kind(stats.language, bare);
+            let mut m = media(MediaKind::from_kind(kind.into()).unwrap_or(MediaKind::Photo), None, None, true);
             if let Part::Media(m) = &mut m {
                 m.view_once = true;
             }
@@ -157,16 +154,6 @@ fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stat
         "pending" => vec![Part::System { event: Event::Other, text: Some(bare.to_string()) }],
         _ => text_parts(t),
     }
-}
-
-fn strip_edited(t: &str) -> (&str, bool) {
-    let trimmed = t.trim_end();
-    for suffix in EDITED {
-        if let Some(rest) = trimmed.strip_suffix(suffix) {
-            return (rest.trim_end().trim_end_matches(MARKS).trim_end(), true);
-        }
-    }
-    (t, false)
 }
 
 fn text_parts(t: &str) -> Vec<Part> {
@@ -325,11 +312,12 @@ pub fn is_notice(parts: &[Part]) -> bool {
     parts.iter().all(|p| matches!(p, Part::Text { .. } | Part::Link { .. }))
 }
 
-/// The kind of notice, from its wording: msgkinds names it (`media_type::sources::whatsapp_export::notice`, English
-/// and Spanish, Android and iPhone) and its registry row (`Source::WhatsAppExport`) says what happened.
-/// Wording no table has is an `other` notice with its words, counted as a fallback.
+/// The kind of notice, from its wording: msgkinds names it in the export's language
+/// (`media_type::sources::whatsapp_export::notice_in`, Android and iPhone) and its registry row
+/// (`Source::WhatsAppExport`) says what happened. Wording no table has is an `other` notice with its words, counted
+/// as a fallback.
 pub fn event(text: &str, stats: &mut Stats) -> Event {
-    let code = msgkinds::media_type::sources::whatsapp_export::notice(text);
+    let code = msgkinds::media_type::sources::whatsapp_export::notice_in(stats.language, text);
     if code == "notice" {
         stats.reading.fallback(msgkinds::Source::WhatsAppExport);
     }

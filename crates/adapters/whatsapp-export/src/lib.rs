@@ -260,6 +260,17 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
 
     let conversation = chat.clone().unwrap_or_else(|| "chat".into());
     let mut stats = content::Stats::default();
+    // One language per export: found from its lines (a message's body as a body, a line with no sender as a notice),
+    // then only that language's words are read, so another language's words in a message stay its text.
+    let lines = raws.iter().filter(|r| r.header.is_some()).map(|r| {
+        let text = r.text.trim_start_matches(header::MARKS);
+        match r.sender {
+            Some(_) => (msgkinds::wording::Section::Body, text.lines().next().unwrap_or("")),
+            None => (msgkinds::wording::Section::Notice, text),
+        }
+    });
+    stats.language = msgkinds::wording::detect(msgkinds::Source::WhatsAppExport, lines);
+    stats.reading.language(msgkinds::Source::WhatsAppExport, stats.language);
     let mut messages = Vec::with_capacity(raws.len());
     let mut owner_hints: Vec<String> = Vec::new();
     let mut bad_dates = 0;

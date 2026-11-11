@@ -21,15 +21,22 @@ the text file LINE writes from a chat's menu (Settings > Export chat history).
 | LINE | Model |
 |---|---|
 | `time name text` | `Text` (+ `Link`s) |
-| `[Photo]` `[写真]` / `[Sticker]` `[スタンプ]` / `[Video]` `[動画]` / `[Voice message]` `[ボイスメッセージ]` | `Media` `Photo` / `Sticker` / `Video` / `Voice`, `omitted` |
+| `[Photo]` `[写真]` / `[Sticker]` `[スタンプ]` / `[Video]` `[動画]` / `[Voice message]` `[ボイスメッセージ]` / `[Audio]` / `[GIF]` | `Media` `Photo` / `Sticker` / `Video` / `Voice` / `Audio` / `Gif`, `omitted` |
 | `[File]` `[ファイル]` (+ name) | `Media` `Document`, `omitted` |
 | `[Album]` `[アルバム]` (+ name) | `Media` `Photo`, `omitted` (the name as caption) |
 | `[Contact]` `[連絡先]` | `Contact` |
 | `[Location]` `[位置情報]` (+ name) | `Location` without coordinates |
-| `☎ Call time 0:15` / `☎ 通話時間 0:15` | `Call` `Answered`, 15 s |
-| `☎ Missed call` `☎ 不在着信` / `☎ Canceled call` `☎ キャンセル` / other `☎` | `Call` `Missed` / `Cancelled` / `Unknown` |
-| notice `X unsent a message.` / `Xが送信を取り消しました` | a `deleted` message from X |
-| other notices | `System` (joined, invited, removed, left, group name, group photo, announcement; else `Other`) |
+| `[Poll]` `[投票]` (+ question) | `Poll` with the question, no options (not exported) |
+| `[Note]` `[ノート]` | `Text`: the marker (the post's text isn't exported) |
+| `☎ Call time 0:15` / `☎ 通話時間 0:15` (`Video call time`: video) | `Call` `Answered`, 15 s |
+| `☎ Missed call` `☎ 不在着信` `☎ No answer` / `☎ Canceled call` `☎ キャンセル` / `☎ Group call started.` / other `☎` | `Call` `Missed` / `Cancelled` / `Unknown` / `Unknown` (counted) |
+| notice `X unsent a message.` / `Xがメッセージの送信を取り消しました` | a `deleted` message from X |
+| other notices | `System` from msgkinds' rows (joined, added, removed, left, renamed, picture, announcement, group call ended; else `Other`, counted) |
+
+Every marker, call and notice word is a row of msgkinds' `data/wording/line.toml` (oopz keeps no words of its own):
+the export's language is found once from its lines (`msgkinds::wording::detect`) and only its words are read, so a
+`[Photo]` typed in a Japanese chat stays text. Spanish markers and the words no public reader shows (video calls,
+`キャンセル`, `応答なし`, the shorter Japanese notices) are marked `unconfirmed` there.
 
 - **Ids**: `line:N`, the message's first line. **Conversation**: one, named from the header (else the file name); a
   group for `Chat history in`, more than two senders, or a member notice.

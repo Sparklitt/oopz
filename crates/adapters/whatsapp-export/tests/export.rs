@@ -194,3 +194,22 @@ fn a_new_language_or_layout_keeps_every_line() {
         Err(e) => assert!(matches!(e, Error::NotThisFormat(_)), "{e}"),
     }
 }
+
+/// An export is read in its own language: another language's words in a message are that person's text, and a
+/// marker in another language is kept and counted, with the language the rest was read in.
+#[test]
+fn an_export_is_read_in_its_own_language() {
+    let spanish = "01/02/2024, 10:00 - Ana: <Multimedia omitido>\n\
+        01/02/2024, 10:01 - Ana: imagen omitida\n\
+        01/02/2024, 10:02 - Ben: Video call\n\
+        01/02/2024, 10:03 - Ben: Videollamada perdida\n\
+        01/02/2024, 10:04 - Ana: <Media omitted>\n\
+        01/02/2024, 10:05 - Ana: hola <Se editó este mensaje.>\n";
+    let loaded = read("Chat de WhatsApp con Ben.txt", spanish.as_bytes()).expect("read");
+    let kinds: Vec<Kind> = loaded.messages.iter().map(|m| m.kind()).collect();
+    assert_eq!(kinds, [Kind::Document, Kind::Photo, Kind::Text, Kind::Call, Kind::Text, Kind::Text]);
+    assert!(matches!(&loaded.messages[2].parts[..], [Part::Text { .. }]), "a person's English words");
+    assert!(loaded.messages[5].edited);
+    let notes = loaded.info.notes.join("\n");
+    assert!(notes.contains("1 lines in whatsapp_export (read as es)"), "{notes}");
+}

@@ -220,8 +220,25 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
     };
 
     let mut notes = vec!["times are the phone's local time, read as UTC: the export doesn't say its time zone".into()];
-    // msgkinds' LINE rows, and the lines in wording neither they nor oopz know (counted, kept as they are).
+    // msgkinds' LINE rows, and the lines in wording they don't know (counted, kept as they are). One language per
+    // export, found from its markers, calls and notices; then only that language's words are read.
     let mut reading = msgkinds::Reading::new(None);
+    let language = {
+        use msgkinds::wording::Section;
+        let lines = raws.iter().map(|r| {
+            let t = r.text.trim();
+            if r.notice {
+                (Section::Notice, t.to_string())
+            } else if let Some(call) = t.strip_prefix('☎') {
+                (Section::Call, format!("☎ {}", call.trim()))
+            } else {
+                (Section::Body, t.to_string())
+            }
+        });
+        let lines: Vec<(Section, String)> = lines.collect();
+        msgkinds::wording::detect(msgkinds::Source::LineTxt, lines.iter().map(|(s, t)| (*s, t.as_str())))
+    };
+    reading.language(msgkinds::Source::LineTxt, language);
     let (mut day_first, mut month_first) = (false, false);
     for d in raws.iter().filter_map(|r| r.day).filter(|d| d.ambiguous) {
         day_first |= d.a > 12;
@@ -267,11 +284,11 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
         };
         let text = raw.text.trim_end_matches('\n').to_string();
         if raw.notice {
-            if let Some(who) = unsent(&text) {
+            if let Some(who) = unsent(language, &text) {
                 m.sender = Some(who.to_string());
                 m.deleted = true;
             } else {
-                let event = event(&text, &mut reading);
+                let event = event(language, &text, &mut reading);
                 group_event |= matches!(
                     event,
                     Event::MemberJoined | Event::MemberAdded | Event::MemberLeft | Event::MemberRemoved
@@ -284,7 +301,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
                 senders.push(sender.clone());
             }
             m.sender = Some(sender);
-            m.parts = parts(&text, &mut reading);
+            m.parts = parts(language, &text, &mut reading);
         }
         messages.push(m);
     }
@@ -462,104 +479,89 @@ fn parse(
     }
 }
 
-/// `X unsent a message.`, `Xが送信を取り消しました`: who.
-fn unsent(text: &str) -> Option<&str> {
-    let t = text.trim().trim_end_matches(['.', '。']);
-    t.strip_suffix(" unsent a message")
-        .or_else(|| t.strip_suffix("が送信を取り消しました"))
-        .map(str::trim)
-        .filter(|w| !w.is_empty())
+/// `X unsent a message.`, `Xがメッセージの送信を取り消しました`: who (msgkinds' LINE rows whose kind is deleted).
+fn unsent<'a>(language: Option<&str>, text: &'a str) -> Option<&'a str> {
+    let (code, who) = msgkinds::media_type::sources::line::notice(language, text)?;
+    let deleted = msgkinds::lookup_name(msgkinds::Source::LineTxt, code, None).kind() == msgkinds::Kind::Deleted;
+    if deleted { who } else { None }
 }
 
-/// What a notice says happened: msgkinds' LINE rows first (`Source::LineTxt`: a notice's code is the end of its
-/// line, "joined the group."), then the words oopz met that msgkinds doesn't list yet (no public export shows them).
-/// A notice in neither's words is an `other` notice with its words, counted in `reading`.
-fn event(text: &str, reading: &mut msgkinds::Reading) -> Event {
-    let line = text.trim();
-    let listed = msgkinds::Source::LineTxt
-        .entries()
-        .iter()
-        .find(|e| e.kind == msgkinds::Kind::System && matches!(e.code, msgkinds::Code::Name(w) if line.ends_with(w)));
-    if let Some(e) = listed {
-        return e.event.map_or(Event::Other, Event::from);
-    }
-    let event = oopz_words(text);
-    if event == Event::Other {
-        reading.fallback(msgkinds::Source::LineTxt);
-    }
-    event
-}
-
-fn oopz_words(text: &str) -> Event {
-    let t = text.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| t.contains(w));
-    if has(&["joined", "参加"]) {
-        Event::MemberJoined
-    } else if has(&["invited", "招待"]) {
-        Event::MemberAdded
-    } else if has(&["removed", "削除"]) {
-        Event::MemberRemoved
-    } else if has(&[" left", "退会"]) {
-        Event::MemberLeft
-    } else if has(&["group name", "グループ名"]) {
-        Event::Renamed
-    } else if has(&["group photo", "group profile photo", "グループ画像"]) {
-        Event::PictureChanged
-    } else if has(&["announcement", "アナウンス"]) {
-        Event::Pinned
-    } else {
-        Event::Other
+/// What a notice says happened: msgkinds' LINE rows, in the export's language (`media_type::sources::line::notice`;
+/// a notice's code is LINE's own words, "joined the group."). A notice in other words is an `other` notice with its
+/// words, counted in `reading`.
+fn event(language: Option<&str>, text: &str, reading: &mut msgkinds::Reading) -> Event {
+    match msgkinds::media_type::sources::line::notice(language, text) {
+        Some((code, _)) => {
+            let row = reading.lookup_name(msgkinds::Source::LineTxt, code).entry();
+            row.and_then(|e| e.event).map_or(Event::Other, Event::from)
+        }
+        None => {
+            reading.fallback(msgkinds::Source::LineTxt);
+            Event::Other
+        }
     }
 }
 
-/// `[Photo]` and the like: the kind, or a contact or a place.
-const PLACEHOLDERS: [(&str, &str); 8] = [
-    ("[Photo]", "[写真]"),
-    ("[Sticker]", "[スタンプ]"),
-    ("[Video]", "[動画]"),
-    ("[File]", "[ファイル]"),
-    ("[Voice message]", "[ボイスメッセージ]"),
-    ("[Contact]", "[連絡先]"),
-    ("[Location]", "[位置情報]"),
-    ("[Album]", "[アルバム]"),
-];
-
-/// A `[…]` placeholder or a ☎ line in wording oopz doesn't know stays text, counted in `reading`.
-fn parts(text: &str, reading: &mut msgkinds::Reading) -> Vec<Part> {
+/// A `[…]` marker or a ☎ line: what msgkinds' LINE rows say it is, in the export's language. One in wording they
+/// don't know stays text, counted in `reading`.
+fn parts(language: Option<&str>, text: &str, reading: &mut msgkinds::Reading) -> Vec<Part> {
+    use msgkinds::Kind as K;
     let t = text.trim();
-    let marker = t.starts_with('[') && t.ends_with(']') && !t.contains('\n') && t.chars().count() <= 30;
-    if marker && !PLACEHOLDERS.iter().any(|(en, ja)| t.starts_with(en) || t.starts_with(ja)) {
-        reading.fallback(msgkinds::Source::LineTxt);
-    }
-    for (i, (en, ja)) in PLACEHOLDERS.iter().enumerate() {
-        let Some(rest) = t.strip_prefix(en).or_else(|| t.strip_prefix(ja)) else { continue };
-        let rest = Some(rest.trim().to_string()).filter(|r| !r.is_empty());
+    if let Some((kind, rest)) = msgkinds::media_type::sources::line::marker(language, t) {
+        let rest = rest.map(str::to_string);
         let media = |kind| Part::Media(Media { kind, omitted: true, ..Default::default() });
-        return vec![match i {
-            0 => media(MediaKind::Photo),
-            1 => media(MediaKind::Sticker),
-            2 => media(MediaKind::Video),
-            3 => Part::Media(Media { kind: MediaKind::Document, name: rest, omitted: true, ..Default::default() }),
-            4 => media(MediaKind::Voice),
-            5 => Part::Contact { name: rest, phones: Vec::new(), vcard: None },
-            6 => Part::Location { lat: None, lng: None, name: rest, live: false },
-            _ => Part::Media(Media { kind: MediaKind::Photo, caption: rest, omitted: true, ..Default::default() }),
+        return vec![match kind {
+            K::Photo => media(MediaKind::Photo),
+            K::Video => media(MediaKind::Video),
+            K::Sticker => media(MediaKind::Sticker),
+            K::Voice => media(MediaKind::Voice),
+            K::Audio => media(MediaKind::Audio),
+            K::Gif => media(MediaKind::Gif),
+            K::Document => {
+                Part::Media(Media { kind: MediaKind::Document, name: rest, omitted: true, ..Default::default() })
+            }
+            K::Contact => Part::Contact { name: rest, phones: Vec::new(), vcard: None },
+            K::Location => Part::Location { lat: None, lng: None, name: rest, live: false },
+            K::Album => {
+                Part::Media(Media { kind: MediaKind::Photo, caption: rest, omitted: true, ..Default::default() })
+            }
+            // The question may follow; options and votes aren't exported.
+            K::Poll => Part::Poll { question: rest.unwrap_or_default(), options: Vec::new(), multiple: false },
+            // A Notes post: its text isn't in the export, the marker is all there is.
+            K::Text
+            | K::Link
+            | K::VideoNote
+            | K::Call
+            | K::StickerPack
+            | K::Event
+            | K::Payment
+            | K::Game
+            | K::Business
+            | K::Story
+            | K::Reaction
+            | K::System
+            | K::Deleted
+            | K::Unknown => Part::text(text),
         }];
     }
+    let marker = t.starts_with('[') && t.ends_with(']') && !t.contains('\n') && t.chars().count() <= 30;
+    if marker {
+        reading.fallback(msgkinds::Source::LineTxt);
+    }
     if let Some(call) = t.strip_prefix('☎') {
-        let call = call.trim();
-        let video = call.to_lowercase().contains("video") || call.contains("ビデオ");
-        let (outcome, secs) = if let Some(d) =
-            ["Call time", "Video call time", "通話時間", "ビデオ通話時間"].iter().find_map(|p| call.strip_prefix(p))
-        {
-            (CallOutcome::Answered, duration(d.trim()))
-        } else if ["Missed call", "不在着信", "No answer", "応答なし"].iter().any(|p| call.starts_with(p)) {
-            (CallOutcome::Missed, None)
-        } else if ["Canceled call", "Cancelled call", "キャンセル"].iter().any(|p| call.starts_with(p)) {
-            (CallOutcome::Cancelled, None)
-        } else {
-            reading.fallback(msgkinds::Source::LineTxt);
-            (CallOutcome::Unknown, None)
+        let (outcome, secs, video) = match msgkinds::media_type::sources::line::call(language, call) {
+            Some((code, rest, video)) => match code {
+                "☎ Call time" | "☎ 通話時間" => (CallOutcome::Answered, duration(rest), video),
+                "☎ Missed call" | "☎ 不在着信" | "☎ No answer" => (CallOutcome::Missed, None, video),
+                "☎ Canceled call" | "☎ 通話をキャンセルしました" => {
+                    (CallOutcome::Cancelled, None, video)
+                }
+                _ => (CallOutcome::Unknown, None, video),
+            },
+            None => {
+                reading.fallback(msgkinds::Source::LineTxt);
+                (CallOutcome::Unknown, None, false)
+            }
         };
         return vec![Part::Call { video, outcome, secs }];
     }
@@ -592,10 +594,50 @@ mod tests {
     #[test]
     fn unknown_wording_is_kept_and_counted() {
         let mut r = msgkinds::Reading::new(None);
-        assert!(matches!(&parts("[Foto]", &mut r)[..], [Part::Text { .. }]));
-        assert!(matches!(&parts("[Photo]", &mut r)[..], [Part::Media(_)]));
-        assert_eq!(event("Ana ha lasciato il gruppo", &mut r), Event::Other);
-        assert_eq!(r.report().fallback, vec![(msgkinds::Source::LineTxt, 2)]);
+        assert!(matches!(&parts(Some("en"), "[Foto]", &mut r)[..], [Part::Text { .. }]));
+        assert!(matches!(&parts(None, "[Foto]", &mut r)[..], [Part::Media(_)]));
+        assert!(matches!(&parts(None, "[Photo]", &mut r)[..], [Part::Media(_)]));
+        assert_eq!(event(None, "Ana ha lasciato il gruppo", &mut r), Event::Other);
+        assert!(matches!(
+            &parts(None, "☎ Llamada perdida", &mut r)[..],
+            [Part::Call { outcome: CallOutcome::Unknown, .. }]
+        ));
+        assert_eq!(r.report().fallback, vec![(msgkinds::Source::LineTxt, 3)]);
+    }
+
+    /// Every marker, call and notice msgkinds' LINE rows have, in the words oopz reads them with.
+    #[test]
+    fn markers_calls_and_notices() {
+        let mut r = msgkinds::Reading::new(None);
+        let one = |t: &str, r: &mut msgkinds::Reading| parts(None, t, r).remove(0);
+        assert!(
+            matches!(one("[File] informe.pdf", &mut r), Part::Media(Media { kind: MediaKind::Document, name: Some(n), .. }) if n == "informe.pdf")
+        );
+        assert!(
+            matches!(one("[Album] Viaje", &mut r), Part::Media(Media { kind: MediaKind::Photo, caption: Some(c), .. }) if c == "Viaje")
+        );
+        assert!(matches!(one("[Poll] ¿Cena?", &mut r), Part::Poll { question, .. } if question == "¿Cena?"));
+        assert!(matches!(one("[GIF]", &mut r), Part::Media(Media { kind: MediaKind::Gif, .. })));
+        assert!(matches!(one("[オーディオ]", &mut r), Part::Media(Media { kind: MediaKind::Audio, .. })));
+        assert!(matches!(one("[Note]", &mut r), Part::Text { .. }));
+        assert!(matches!(
+            one("☎ Video call time 1:02:03", &mut r),
+            Part::Call { video: true, outcome: CallOutcome::Answered, secs: Some(3723) }
+        ));
+        assert!(matches!(
+            one("☎ 通話時間 0:15", &mut r),
+            Part::Call { video: false, outcome: CallOutcome::Answered, secs: Some(15) }
+        ));
+        assert!(matches!(one("☎ 応答なし", &mut r), Part::Call { outcome: CallOutcome::Missed, .. }));
+        assert!(matches!(one("☎ Cancelled call", &mut r), Part::Call { outcome: CallOutcome::Cancelled, .. }));
+        assert!(matches!(one("☎ Group call started.", &mut r), Part::Call { outcome: CallOutcome::Unknown, .. }));
+        assert_eq!(event(None, "Ana changed the group's name to \"B\"", &mut r), Event::Renamed);
+        assert_eq!(event(None, "Ana joined the group.", &mut r), Event::MemberJoined);
+        assert_eq!(event(None, "Anaがグループに参加しました。", &mut r), Event::MemberJoined);
+        assert_eq!(unsent(None, "Ana unsent a message."), Some("Ana"));
+        assert_eq!(unsent(None, "Anaが送信を取り消しました"), Some("Ana"));
+        assert_eq!(unsent(None, "Ana joined the group."), None);
+        assert!(r.report().is_empty(), "{:?}", r.report());
     }
 
     #[test]
