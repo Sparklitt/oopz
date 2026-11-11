@@ -88,9 +88,20 @@ The desktop app: download the installer for your system from the
   choose **Open Anyway**.
 - **Linux**: `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) or `.AppImage` (any; make it executable).
 
-The command-line tool `oopz`: `oopz-cli-<version>-<system>.tar.gz` (`.zip` on Windows) from the same release, for
-Linux (x86_64, arm64), Windows (x86_64) and macOS (universal). Unpack it and put `oopz` on your `PATH`; on macOS, if
-it's blocked, run `xattr -d com.apple.quarantine oopz` once.
+The command-line tool `oopz` comes with the app; open a new terminal after installing and type `oopz --help`:
+
+- **Windows**: both installers put the app's folder on `PATH` (the setup `.exe` for you, the `.msi` for every user) and
+  take it off when you uninstall, so `oopz` works in cmd and PowerShell.
+- **Linux** `.deb` and `.rpm`: `oopz` is `/usr/bin/oopz`, with bash, zsh and fish completion and `man oopz`.
+- **AppImage** and **macOS**: in oopz, **Settings › General › Install the oopz command**. The AppImage copies it to
+  `~/.local/bin`; macOS links `/usr/local/bin/oopz` to the app (it asks for your password), or `~/.local/bin` if you
+  say no. If that folder isn't on your `PATH`, Settings shows the line to add.
+
+Or the command alone: `oopz-cli-<version>-<system>.tar.gz` (`.zip` on Windows) from the same release, for Linux
+(x86_64, arm64), Windows (x86_64), macOS (universal) and Android in [Termux](https://termux.dev)
+(`aarch64-linux-android`, 64-bit phones). Unpack it and put `oopz` on your `PATH` (in Termux, `$PREFIX/bin`); on
+macOS, if it's blocked, run `xattr -d com.apple.quarantine oopz` once. For tab completion, see
+`oopz completions --help`.
 
 To check a download is the one built here from this source, compare its hash with the release's `SHA256SUMS.txt`
 (`sha256sum <file>`, or `Get-FileHash <file>` in PowerShell) and verify its provenance with the GitHub CLI:
