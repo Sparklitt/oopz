@@ -171,3 +171,26 @@ fn nothing_panics() {
     let loaded = read("x.txt", huge.as_bytes()).expect("a long line");
     assert!(loaded.messages[0].text().len() > 64 * 1024);
 }
+
+/// What happens when WhatsApp changes its export (msgkinds' registry.md, "What readers test on their side", 4): a
+/// language no table has keeps every line (as text, or `other` notices) and the notes count them; a line layout
+/// oopz can't read keeps its lines as unknown, counted; never a lost line.
+#[test]
+fn a_new_language_or_layout_keeps_every_line() {
+    let polish = "01/02/2024, 10:00 - Wiadomości i połączenia są szyfrowane metodą end-to-end.\n\
+        01/02/2024, 10:01 - Ana: <Pominięto multimedia>\n\
+        01/02/2024, 10:02 - Ana: IMG-20240201-WA0001.jpg (plik załączony)\n\
+        01/02/2024, 10:03 - Ben: hola\n";
+    let loaded = read("WhatsApp Chat with Ben.txt", polish.as_bytes()).expect("read");
+    assert_eq!(loaded.messages.len(), 4);
+    assert!(matches!(&loaded.messages[2].parts[..], [Part::Media(_)]), "files are found by WhatsApp's names");
+    let notes = loaded.info.notes.join("\n");
+    assert!(notes.contains("2 lines in whatsapp_export"), "{notes}");
+    assert!(!notes.contains("Pominięto"), "notes never hold message text");
+
+    let new_layout = "2024-02-01T10:00:00 | Ana | hola\n2024-02-01T10:01:00 | Ben | adiós\n";
+    match read("WhatsApp Chat with Ben.txt", new_layout.as_bytes()) {
+        Ok(l) => assert_eq!(l.messages.len(), 2, "every line kept"),
+        Err(e) => assert!(matches!(e, Error::NotThisFormat(_)), "{e}"),
+    }
+}

@@ -122,3 +122,54 @@ fn nothing_panics() {
     let long = format!("01/02/2024,10:00,Ana,,{}\n", "مرحبا Z̤͔ͧ̑̓ ".repeat(8000));
     assert!(read("x.csv", long.as_bytes()).expect("read").messages[0].text().len() > 64 * 1024);
 }
+
+/// What happens when Viber changes its CSV (msgkinds' registry.md, "What readers test on their side", 4): columns it
+/// adds or reorders are found by their header, a column it drops leaves that detail out, and a file with neither a
+/// date nor a message column is refused.
+mod format_changes {
+    use super::*;
+
+    /// The one-to-one chat's file (it has a header) with `f` applied to every row, the header included.
+    fn changed(f: impl Fn(Vec<&str>) -> Vec<String>) -> (Loaded, Loaded) {
+        let export = viber_csv::generate(3);
+        let (name, bytes) = &export.files[0];
+        let text = String::from_utf8(bytes.clone()).unwrap();
+        let plain = read(name, bytes).unwrap();
+        let mut rdr = csv::ReaderBuilder::new().has_headers(false).flexible(true).from_reader(text.as_bytes());
+        let mut out = csv::Writer::from_writer(Vec::new());
+        for r in rdr.records() {
+            let r = r.unwrap();
+            out.write_record(f(r.iter().collect())).unwrap();
+        }
+        let bytes = out.into_inner().unwrap();
+        (plain, read(name, &bytes).unwrap_or_else(|e| panic!("{e}")))
+    }
+
+    #[test]
+    fn columns_added_or_reordered_are_found_by_their_header() {
+        let (plain, loaded) = changed(|row| {
+            // Message, Sender, Date, Time, Phone, then a new column.
+            let extra = if row[0] == "Date" { "Reactions" } else { "👍" };
+            [row[4], row[2], row[0], row[1], row[3], extra].map(str::to_string).to_vec()
+        });
+        assert_eq!(tally(&loaded), tally(&plain));
+        assert_eq!(
+            loaded.messages.iter().map(|m| (m.time_ms, m.text())).collect::<Vec<_>>(),
+            plain.messages.iter().map(|m| (m.time_ms, m.text())).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_column_dropped_leaves_that_detail_out() {
+        let (plain, loaded) = changed(|row| [row[0], row[1], row[2], row[4]].map(str::to_string).to_vec());
+        assert_eq!(loaded.messages.len(), plain.messages.len());
+        assert!(loaded.people.iter().all(|p| p.phone.is_none() || p.me));
+    }
+
+    #[test]
+    fn a_file_without_dates_or_messages_is_refused() {
+        let export = viber_csv::generate(3);
+        let (name, _) = &export.files[0];
+        assert!(matches!(read(name, b"Sender,Phone\nAna,+99990000001\n"), Err(Error::NotThisFormat(_))));
+    }
+}

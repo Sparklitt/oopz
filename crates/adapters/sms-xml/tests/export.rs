@@ -135,3 +135,68 @@ fn nothing_panics_on_noise() {
         format!("<smses><sms address=\"1\" type=\"1\" date=\"1\" body=\"{}\" /></smses>", "مرحبا Z̤͔ͧ̑̓ ".repeat(8000));
     assert!(read(long.as_bytes()).expect("read").messages[0].text().len() > 64 * 1024);
 }
+
+/// What happens when SMS Backup & Restore changes its XML (msgkinds' registry.md, "What readers test on their side",
+/// 4): attributes and elements it adds are ignored (elements counted in the notes), optional attributes it drops
+/// leave those details out, and a record without what it needs is kept and said; another root is refused.
+mod format_changes {
+    use super::*;
+
+    fn text(i: usize) -> (String, Manifest) {
+        let export = sms_xml::generate(3);
+        (String::from_utf8(export.files[i].1.clone()).unwrap(), export.manifest)
+    }
+
+    #[test]
+    fn attributes_and_elements_added_are_ignored() {
+        let (sms, _) = text(0);
+        let plain = read(sms.as_bytes()).unwrap();
+        let changed = sms
+            .replace("<sms ", "<sms rcs_kind=\"chat\" encrypted=\"1\" ")
+            .replace("<mms ", "<mms spam_score=\"0.1\" ")
+            .replace("</smses>", "  <rcs_chat id=\"1\"><participant /></rcs_chat>\n</smses>");
+        let loaded = read(changed.as_bytes()).expect("reads");
+        assert_eq!(tally(std::slice::from_ref(&loaded)), tally(&[plain]));
+        assert!(loaded.info.notes.iter().any(|n| n.contains("`rcs_chat`")), "{:?}", loaded.info.notes);
+    }
+
+    #[test]
+    fn optional_attributes_dropped_leave_details_out() {
+        let (sms, _) = text(0);
+        let plain = read(sms.as_bytes()).unwrap();
+        let mut changed = sms.clone();
+        for attr in ["contact_name", "readable_date", "date_sent", "sub_id", "service_center", "read"] {
+            changed = drop_attr(&changed, attr);
+        }
+        let loaded = read(changed.as_bytes()).expect("reads");
+        assert_eq!(loaded.messages.len(), plain.messages.len());
+        let (calls, _) = text(1);
+        let loaded = read(drop_attr(&drop_attr(&calls, "contact_name"), "duration").as_bytes()).expect("reads");
+        assert!(loaded.messages.iter().all(|m| matches!(&m.parts[..], [Part::Call { secs: None, .. }])));
+    }
+
+    #[test]
+    fn records_without_what_they_need_are_kept_and_said() {
+        let (sms, _) = text(0);
+        let plain = read(sms.as_bytes()).unwrap();
+        let loaded = read(drop_attr(&drop_attr(&sms, "date"), "type").as_bytes()).expect("reads");
+        assert_eq!(loaded.messages.len(), plain.messages.len());
+        let notes = loaded.info.notes.join("\n");
+        assert!(notes.contains("records without a date"), "{notes}");
+        assert!(matches!(read(sms.replace("smses", "messages_v2").as_bytes()), Err(Error::NotThisFormat(_))));
+    }
+
+    /// Removes every `name="…"` attribute.
+    fn drop_attr(xml: &str, name: &str) -> String {
+        let needle = format!(" {name}=\"");
+        let mut out = String::with_capacity(xml.len());
+        let mut rest = xml;
+        while let Some(at) = rest.find(&needle) {
+            out.push_str(&rest[..at]);
+            let after = &rest[at + needle.len()..];
+            rest = after.find('"').map_or("", |end| &after[end + 1..]);
+        }
+        out.push_str(rest);
+        out
+    }
+}

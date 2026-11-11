@@ -131,3 +131,51 @@ fn nothing_panics() {
     let long = format!("[LINE] Chat history with X\n2024/01/01(Mon)\n10:00\tX\t{}\n", "مرحبا Z̤͔ͧ̑̓ ".repeat(8000));
     assert!(read("x.txt", long.as_bytes()).expect("read").messages[0].text().len() > 64 * 1024);
 }
+
+/// What happens when LINE changes its `.txt` (msgkinds' registry.md, "What readers test on their side", 4): lines it
+/// adds are kept as unknown and counted, a column it adds stays in the text, and lines missing what dates them are
+/// kept without a time and said; nothing is dropped.
+mod format_changes {
+    use super::*;
+
+    fn text() -> (String, String, Manifest) {
+        let export = line_txt::generate(3, line_txt::Layout::ALL[0]);
+        let (name, bytes) = &export.files[0];
+        (name.clone(), String::from_utf8(bytes.clone()).unwrap(), export.manifest)
+    }
+
+    #[test]
+    fn lines_added_before_the_chat_are_kept_and_counted() {
+        let (name, t, manifest) = text();
+        let changed = format!("Exported by LINE 99.0\u{a0}(beta)\n{t}");
+        let loaded = read(&name, changed.as_bytes()).expect("reads");
+        assert!(loaded.messages.len() >= manifest.messages);
+        let notes = loaded.info.notes.join("\n");
+        assert!(loaded.messages.len() == manifest.messages || notes.contains("kept as unknown"), "{notes}");
+    }
+
+    #[test]
+    fn a_column_added_stays_in_the_text() {
+        let (name, t, manifest) = text();
+        let changed: String = t
+            .lines()
+            .map(|l| if l.matches('\t').count() >= 2 { format!("{l}\t✓✓\n") } else { format!("{l}\n") })
+            .collect();
+        let loaded = read(&name, changed.as_bytes()).expect("reads");
+        assert_eq!(loaded.messages.len(), manifest.messages);
+    }
+
+    #[test]
+    fn messages_without_their_date_line_are_kept_without_a_time() {
+        let (name, t, manifest) = text();
+        // The header, then every line but the date lines.
+        let mut lines = t.lines();
+        let head: Vec<&str> = lines.by_ref().take(2).collect();
+        let body: Vec<&str> = lines.filter(|l| l.contains('\t') || l.is_empty() || !l.contains('/')).collect();
+        let changed = [head, body].concat().join("\n");
+        let loaded = read(&name, changed.as_bytes()).expect("reads");
+        assert_eq!(loaded.messages.len(), manifest.messages);
+        let notes = loaded.info.notes.join("\n");
+        assert!(notes.contains("before any date line") || notes.contains("without a time"), "{notes}");
+    }
+}

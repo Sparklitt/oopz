@@ -122,3 +122,52 @@ fn not_a_backup_or_no_whatsapp_inside() {
     let e = BUSINESS.open(&out, None).err().unwrap();
     assert!(e.to_string().contains("no WhatsApp Business"), "{e}");
 }
+
+/// What happens when WhatsApp changes `ChatStorage.sqlite` (msgkinds' registry.md, "What readers test on their side",
+/// 4): columns and tables it adds are ignored, an optional table it drops leaves those details out, and a required
+/// table missing is refused with its name; never a panic or a lost message.
+mod format_changes {
+    use super::*;
+
+    /// A plain generated backup with `sql` run on its `ChatStorage.sqlite`, in place.
+    fn changed(sql: &str) -> (tempfile::TempDir, std::path::PathBuf, oopz_gen::ios::Manifest) {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("backup");
+        let m = oopz_gen::ios::generate(&out, None, false).unwrap();
+        let backup = oopz_ios_backup::Backup::open(&out, None).unwrap();
+        let id = backup.file(oopz_whatsapp_ios::DOMAIN, "ChatStorage.sqlite").unwrap().unwrap().file_id;
+        let db = rusqlite::Connection::open(out.join(&id[..2]).join(&id)).unwrap();
+        db.execute_batch(sql).unwrap_or_else(|e| panic!("{sql}: {e}"));
+        (dir, out, m)
+    }
+
+    fn messages(out: &std::path::Path) -> Result<Vec<Message>, oopz_model::Error> {
+        let mut s = WHATSAPP.open(out, None)?;
+        Ok(read_all(s.as_mut()))
+    }
+
+    #[test]
+    fn columns_and_tables_added_are_ignored() {
+        let (_d, out, m) = changed(
+            "ALTER TABLE ZWAMESSAGE ADD COLUMN ZAISUMMARY TEXT DEFAULT 'x';
+             ALTER TABLE ZWACHATSESSION ADD COLUMN ZTHEME INTEGER;
+             CREATE TABLE ZWAMESSAGEEFFECT (Z_PK INTEGER PRIMARY KEY, ZMESSAGE INTEGER, ZKIND INTEGER);",
+        );
+        assert_eq!(messages(&out).unwrap().len(), m.messages);
+    }
+
+    #[test]
+    fn an_optional_table_dropped_leaves_details_out() {
+        let (_d, out, m) = changed("DROP TABLE ZWAMEDIAITEM; DROP TABLE ZWAGROUPMEMBER;");
+        let all = messages(&out).unwrap();
+        assert_eq!(all.len(), m.messages);
+        assert!(all.iter().flat_map(|m| &m.parts).all(|p| !matches!(p, Part::Media(x) if x.file.is_some())));
+    }
+
+    #[test]
+    fn a_required_table_missing_is_refused_with_its_name() {
+        let (_d, out, _) = changed("DROP TABLE ZWAMESSAGE;");
+        let err = messages(&out).expect_err("refused").to_string();
+        assert!(err.contains("ZWAMESSAGE"), "{err}");
+    }
+}

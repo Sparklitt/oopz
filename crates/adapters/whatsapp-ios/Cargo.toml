@@ -15,6 +15,7 @@ rusqlite.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
+rusqlite.workspace = true
 oopz-gen = { path = "../../oopz-gen" }
 oopz-ios-backup = { workspace = true, features = ["write"] }
 tempfile.workspace = true

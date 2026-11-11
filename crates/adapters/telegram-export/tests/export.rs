@@ -153,3 +153,77 @@ fn nothing_panics() {
     let huge = r#"{"messages": [{"id": 1, "type": "message", "text": "", "reactions": [{"type": "emoji", "emoji": "x", "count": 99999999999}]}]}"#;
     assert_eq!(read(huge.as_bytes()).expect("read").messages[0].reactions.len(), 1000);
 }
+
+/// What happens when Telegram Desktop changes its export (msgkinds' registry.md, "What readers test on their side",
+/// 4): keys it adds are ignored, optional keys it drops leave those details out (said in the notes), and a missing
+/// or changed required part is refused with what's wrong; never a panic or a lost message.
+mod format_changes {
+    use super::*;
+    use serde_json::{Value, json};
+
+    fn changed(f: impl Fn(&mut Value)) -> (Vec<u8>, Manifest) {
+        let export = telegram_json::generate(3);
+        let mut v: Value = serde_json::from_slice(&export.files[0].1).unwrap();
+        f(&mut v);
+        (serde_json::to_vec(&v).unwrap(), export.manifest)
+    }
+
+    fn each_message(v: &mut Value, f: &dyn Fn(&mut serde_json::Map<String, Value>)) {
+        for chat in v["chats"]["list"].as_array_mut().unwrap() {
+            for m in chat["messages"].as_array_mut().unwrap() {
+                f(m.as_object_mut().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn keys_added_anywhere_are_ignored() {
+        let (bytes, manifest) = changed(|v| {
+            v["export_format_version"] = json!(99);
+            for chat in v["chats"]["list"].as_array_mut().unwrap() {
+                chat["folder_id"] = json!({"nested": [1, 2]});
+            }
+            each_message(v, &|m| {
+                m.insert("ai_summary".into(), json!({"text": "x"}));
+                m.insert("paid_stars".into(), json!(5));
+            });
+        });
+        let loaded = read(&bytes).expect("reads");
+        assert_eq!(tally(&loaded), manifest);
+    }
+
+    #[test]
+    fn optional_keys_dropped_leave_details_out() {
+        let (bytes, manifest) = changed(|v| {
+            v.as_object_mut().unwrap().remove("personal_information");
+            v.as_object_mut().unwrap().remove("contacts");
+            each_message(v, &|m| {
+                m.remove("date_unixtime");
+                m.remove("text_entities");
+                m.remove("from_id");
+                m.remove("edited");
+            });
+        });
+        let loaded = read(&bytes).expect("reads");
+        assert_eq!(loaded.messages.len(), manifest.messages);
+        assert_eq!(loaded.conversations.len(), manifest.conversations);
+        let notes = loaded.info.notes.join("\n");
+        assert!(loaded.info.wall_clock && notes.contains("no zone"), "{notes}");
+        assert!(loaded.info.owner.is_none() && notes.contains("pick yourself"), "{notes}");
+    }
+
+    #[test]
+    fn a_required_part_missing_or_changed_is_refused_with_what() {
+        let (no_chats, _) = changed(|v| {
+            v.as_object_mut().unwrap().remove("chats");
+        });
+        assert!(matches!(read(&no_chats), Err(Error::NotThisFormat(_))));
+        let (not_a_list, _) = changed(|v| v["chats"]["list"] = json!({"0": {}}));
+        let Err(Error::UnsupportedVersion(why)) = read(&not_a_list) else { panic!("refused") };
+        assert!(why.contains("chats aren't a list"), "{why}");
+        // A chat whose messages changed shape keeps the chat, and says so.
+        let (odd_messages, _) = changed(|v| v["chats"]["list"][0]["messages"] = json!("later"));
+        let loaded = read(&odd_messages).expect("reads the rest");
+        assert!(!loaded.conversations.is_empty());
+    }
+}
