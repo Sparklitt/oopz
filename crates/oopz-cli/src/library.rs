@@ -430,6 +430,9 @@ pub fn run(lib_args: Lib) -> Result<()> {
                     if s.wall_clock { "  times as the phone showed them" } else { "" },
                     if s.owner_known { "" } else { "  owner unknown (set-me)" },
                 );
+                if let Some(format) = &s.format {
+                    println!("      format: {format}");
+                }
                 for note in &s.notes {
                     println!("      note: {note}");
                 }

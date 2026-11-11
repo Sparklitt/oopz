@@ -51,6 +51,9 @@ pub struct Info {
     pub product_version: Option<String>,
     /// When the backup was made (Unix ms).
     pub date_ms: Option<i64>,
+    /// The apps backed up, by bundle id (`net.whatsapp.WhatsApp`), with the version each was at
+    /// (`Applications` → `CFBundleVersion`, else `CFBundleShortVersionString`).
+    pub apps: std::collections::BTreeMap<String, String>,
 }
 
 /// One file in the backup.
@@ -110,6 +113,19 @@ pub fn info(dir: &Path) -> Result<Info> {
         device_name: text("DeviceName"),
         product_version: text("ProductVersion"),
         date_ms,
+        apps: m
+            .get("Applications")
+            .and_then(|a| a.as_dictionary())
+            .into_iter()
+            .flatten()
+            .filter_map(|(id, app)| {
+                let app = app.as_dictionary()?;
+                let v = ["CFBundleVersion", "CFBundleShortVersionString"]
+                    .into_iter()
+                    .find_map(|k| app.get(k).and_then(|v| v.as_string()))?;
+                Some((id.clone(), v.to_owned()))
+            })
+            .collect(),
     })
 }
 

@@ -110,13 +110,17 @@ impl Adapter for WhatsAppIosAdapter {
             }
             None => HashMap::new(),
         };
+        // The WhatsApp version backed up, from the manifest's `Applications` (decision 0020).
+        let bundle = if self.business { "net.whatsapp.WhatsAppSMB" } else { "net.whatsapp.WhatsApp" };
+        let version = backup.info.apps.get(bundle).cloned();
         let mut source = IosSource {
             info: SourceInfo {
                 app: App::WhatsApp,
                 adapter: self.id().into(),
                 format: Some(format!(
-                    "{} on iPhone{}",
+                    "{}{} on iPhone{}",
                     if self.business { "WhatsApp Business" } else { "WhatsApp" },
+                    version.as_deref().map(|v| format!(" {v}")).unwrap_or_default(),
                     backup.info.product_version.as_deref().map(|v| format!(" (iOS {v})")).unwrap_or_default()
                 )),
                 owner: Some(Person { id: ME.into(), me: true, ..Default::default() }),
@@ -128,6 +132,7 @@ impl Adapter for WhatsAppIosAdapter {
             conversations: Vec::new(),
             columns: HashMap::new(),
             domain,
+            reading: msgkinds::Reading::new(version.as_deref()),
             unknown: HashMap::new(),
             missing_media: 0,
             large_media: 0,
@@ -164,6 +169,9 @@ struct IosSource {
     /// Columns each table has (this WhatsApp version's).
     columns: HashMap<&'static str, Vec<String>>,
     domain: &'static str,
+    /// Every lookup, at the WhatsApp version the backup's manifest names; its report joins the notes.
+    reading: msgkinds::Reading,
+    /// Types a row names but this reader can't place (none today): kept as unknown parts.
     unknown: HashMap<i64, u64>,
     missing_media: u64,
     large_media: u64,
@@ -469,8 +477,7 @@ impl Source for IosSource {
             // What `ZMESSAGETYPE` (and a notice's `ZGROUPEVENTTYPE`) means comes from msgkinds' registry
             // (decision 0020); a type it doesn't name stays an unknown part with its code.
             let opus = path.as_deref().is_some_and(|p| p.ends_with(".opus"));
-            let Some((kind_of, row, detail)) = resolve(kind, event_type, opus) else {
-                *self.unknown.entry(kind).or_default() += 1;
+            let Some((kind_of, row, detail)) = resolve(kind, event_type, opus, &mut self.reading) else {
                 parts.push(Part::Unknown { code: kind.to_string(), text });
                 msg.parts = parts;
                 if !each(msg) {
@@ -569,8 +576,14 @@ impl Source for IosSource {
 
 /// What a message's `ZMESSAGETYPE` means, from msgkinds' registry: its kind, the row that settled it, and whether that
 /// row is a group event's or notice's (`ZGROUPEVENTTYPE`). `None` for a type no row names.
-fn resolve(kind: i64, event_type: Option<i64>, opus: bool) -> Option<(m::Kind, &'static msgkinds::Entry, bool)> {
-    let entry = msgkinds::lookup(Registry::WhatsAppIos, Code::Int(kind), None).entry()?;
+/// Looked up at the backup's WhatsApp version through `reading`, which counts what it couldn't answer.
+fn resolve(
+    kind: i64,
+    event_type: Option<i64>,
+    opus: bool,
+    reading: &mut msgkinds::Reading,
+) -> Option<(m::Kind, &'static msgkinds::Entry, bool)> {
+    let entry = reading.lookup(Registry::WhatsAppIos, Code::Int(kind)).entry()?;
     // A group event (6) or a chat notice (10) says what happened in `ZGROUPEVENTTYPE` (a channel event, 55, keeps
     // its words: its codes are its own).
     let detail = match kind {
@@ -578,7 +591,8 @@ fn resolve(kind: i64, event_type: Option<i64>, opus: bool) -> Option<(m::Kind, &
         10 => Some(Registry::WhatsAppIosNotice),
         _ => None,
     }
-    .and_then(|src| msgkinds::lookup(src, Code::Int(event_type?), None).entry());
+    .and_then(|src| Some(reading.lookup(src, Code::Int(event_type?)).entry()))
+    .flatten();
     let row = detail.unwrap_or(entry);
     let mut kind = m::Kind::from(row.kind);
     // Type 3 is a voice note when its file is Opus.
@@ -610,6 +624,7 @@ impl IosSource {
                 MAX_MEDIA >> 20
             ));
         }
+        self.info.notes.extend(self.reading.report().lines());
     }
 }
 
@@ -627,21 +642,22 @@ mod tests {
             Code::Name(n) => panic!("{n}"),
         };
         for entry in Registry::WhatsAppIos.entries() {
-            let (kind, row, _) = resolve(int(entry), None, false).expect("a row");
+            let (kind, row, _) = resolve(int(entry), None, false, &mut msgkinds::Reading::new(None)).expect("a row");
             assert_ne!(kind, m::Kind::Unknown, "ZMESSAGETYPE {}", int(entry));
             assert_eq!(kind, m::Kind::from(row.kind));
         }
-        assert_eq!(resolve(3, None, true).unwrap().0, m::Kind::Voice);
+        assert_eq!(resolve(3, None, true, &mut msgkinds::Reading::new(None)).unwrap().0, m::Kind::Voice);
         for (source, kind) in [(Registry::WhatsAppIosSystem, 6), (Registry::WhatsAppIosNotice, 10)] {
             for entry in source.entries() {
-                let (got, row, detail) = resolve(kind, Some(int(entry)), false).expect("a row");
+                let (got, row, detail) =
+                    resolve(kind, Some(int(entry)), false, &mut msgkinds::Reading::new(None)).expect("a row");
                 assert!(detail && std::ptr::eq(row, entry), "{source} {}", int(entry));
                 assert_ne!(got, m::Kind::Unknown, "{source} {}", int(entry));
             }
         }
         // A type or an event no row names: unknown, or a notice that keeps its words.
-        assert!(resolve(9999, None, false).is_none());
-        let (kind, _, detail) = resolve(6, Some(9999), false).unwrap();
+        assert!(resolve(9999, None, false, &mut msgkinds::Reading::new(None)).is_none());
+        let (kind, _, detail) = resolve(6, Some(9999), false, &mut msgkinds::Reading::new(None)).unwrap();
         assert_eq!((kind, detail), (m::Kind::System, false));
     }
 }

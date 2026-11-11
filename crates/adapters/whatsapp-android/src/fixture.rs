@@ -167,7 +167,8 @@ pub fn build() -> Fixture {
     fs::remove_file(&db_path).expect("only the encrypted copy remains");
     let key = Key::from_hex(KEY_HEX).expect("fixture key");
     let backup = dir.path().join("msgstore.db.crypt15");
-    fs::write(&backup, crypt15::encrypt(&sqlite, &key, [7; 16], true)).expect("fixture backup");
+    // The header names the WhatsApp version that wrote it, as WhatsApp's does (an invented one).
+    fs::write(&backup, crypt15::encrypt_as(&sqlite, &key, [7; 16], true, Some("2.99.1.1"))).expect("fixture backup");
 
     Fixture { dir, backup, media: media_dir }
 }

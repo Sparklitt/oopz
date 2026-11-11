@@ -95,6 +95,10 @@ fn every_lib_command_on_invented_exports_and_a_backup() {
     let sources = ok(lib, &["sources"]);
     assert_eq!(sources.lines().filter(|l| l.trim_start().starts_with(char::is_numeric)).count(), 4, "{sources}");
     assert!(sources.contains("telegram") && sources.contains("sms") && sources.contains("whatsapp"));
+    // The version the backup's header names, and the type the registry doesn't know, with where to add it.
+    assert!(sources.contains("format: crypt15, WhatsApp 2.99.1.1"), "{sources}");
+    assert!(sources.contains("unknown type 9999 in whatsapp_android 2.99.1.1"), "{sources}");
+    assert!(sources.contains(msgkinds::HOW_TO_ADD), "{sources}");
 
     let convs = ok(lib, &["convs", "--app", "telegram"]);
     let first_conv = convs.lines().nth(1).unwrap().split_whitespace().next().unwrap().to_owned();

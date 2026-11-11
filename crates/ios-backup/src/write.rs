@@ -201,6 +201,15 @@ pub fn write(dir: &Path, device: &str, files: &[File<'_>], encryption: Option<&E
         ),
     );
     m.insert("Lockdown".into(), Value::Dictionary(lockdown));
+    // The apps backed up and their versions, as Finder writes them (invented versions).
+    let mut apps = Dictionary::new();
+    for (id, version) in [("net.whatsapp.WhatsApp", "2.99.1.1"), ("net.whatsapp.WhatsAppSMB", "2.99.1.2")] {
+        let mut app = Dictionary::new();
+        app.insert("CFBundleIdentifier".into(), Value::String(id.into()));
+        app.insert("CFBundleVersion".into(), Value::String(version.into()));
+        apps.insert(id.into(), Value::Dictionary(app));
+    }
+    m.insert("Applications".into(), Value::Dictionary(apps));
     if encryption.is_some() {
         m.insert("BackupKeyBag".into(), Value::Data(keybag));
         let mut key = CLASS.to_le_bytes().to_vec();

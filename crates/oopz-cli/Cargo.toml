@@ -34,6 +34,7 @@ zeroize.workspace = true
 [dev-dependencies]
 oopz = { workspace = true, features = ["fixtures"] }
 oopz-gen = { path = "../oopz-gen" }
+msgkinds.workspace = true
 tempfile.workspace = true
 
 [lints]

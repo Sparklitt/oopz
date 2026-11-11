@@ -106,6 +106,66 @@ fn split(file: &[u8]) -> Result<Parts<'_>, Error> {
     Ok((&file[..file.len() - body.len()], body, iv))
 }
 
+/// The WhatsApp version that wrote the backup (`2.24.10.80`), from its header, when the header says. Read from the
+/// unencrypted header only, so before any key. The header's metadata isn't documented: this takes the first nested
+/// message whose field 1 is a version (digits and dots), and reads nothing else in it (the metadata also holds the
+/// end of the owner's number, which stays unread).
+pub fn app_version(head: &[u8]) -> Option<String> {
+    let (prefix, _, _) = split(head).ok()?;
+    let header = &prefix[prefix.len() - usize::from(head[0])..];
+    fields(header).into_iter().filter(|(tag, _)| *tag != 3).find_map(|(_, inner)| {
+        let (tag, value) = fields(inner).into_iter().next()?;
+        let v = std::str::from_utf8(value).ok().filter(|_| tag == 1)?;
+        let looks =
+            v.split('.').count() >= 3 && v.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()));
+        looks.then(|| v.to_owned())
+    })
+}
+
+/// The length-delimited fields of a protobuf message, in order (tag, bytes); other wire types are skipped. Stops at
+/// anything malformed.
+fn fields(mut b: &[u8]) -> Vec<(u64, &[u8])> {
+    fn varint(b: &mut &[u8]) -> Option<u64> {
+        let mut v = 0u64;
+        for i in 0..10 {
+            let (&byte, rest) = b.split_first()?;
+            *b = rest;
+            v |= u64::from(byte & 0x7f) << (7 * i);
+            if byte & 0x80 == 0 {
+                return Some(v);
+            }
+        }
+        None
+    }
+    let mut out = Vec::new();
+    while let Some(key) = varint(&mut b) {
+        let (tag, wire) = (key >> 3, key & 7);
+        match wire {
+            0 => {
+                if varint(&mut b).is_none() {
+                    break;
+                }
+            }
+            1 | 5 => {
+                let n = if wire == 1 { 8 } else { 4 };
+                if b.len() < n {
+                    break;
+                }
+                b = &b[n..];
+            }
+            2 => {
+                let Some(n) = varint(&mut b).and_then(|n| usize::try_from(n).ok()).filter(|&n| n <= b.len()) else {
+                    break;
+                };
+                out.push((tag, &b[..n]));
+                b = &b[n..];
+            }
+            _ => break,
+        }
+    }
+    out
+}
+
 /// Decrypts and decompresses a crypt15 file into the bytes of its SQLite database.
 pub fn decrypt(file: &[u8], key: &Key) -> Result<Vec<u8>, Error> {
     let mut sqlite = Vec::new();
@@ -212,13 +272,26 @@ pub fn reseal(original: &[u8], sqlite: &[u8], key: &Key) -> Result<Vec<u8>, Erro
 /// check it (see `decrypt`).
 #[cfg(any(test, feature = "fixtures"))]
 pub fn encrypt(sqlite: &[u8], key: &Key, iv: [u8; 16], with_checksum: bool) -> Vec<u8> {
+    encrypt_as(sqlite, key, iv, with_checksum, None)
+}
+
+/// [`encrypt`], with the WhatsApp version the header names (field 5, field 1, as wa-crypt-tools reads it), for
+/// synthetic test fixtures only.
+#[cfg(any(test, feature = "fixtures"))]
+pub fn encrypt_as(sqlite: &[u8], key: &Key, iv: [u8; 16], with_checksum: bool, version: Option<&str>) -> Vec<u8> {
     use std::io::Write;
 
     let mut zlib = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
     zlib.write_all(sqlite).expect("writing to memory");
     let compressed = zlib.finish().expect("writing to memory");
     let ciphertext = key.cipher().encrypt(&iv.into(), compressed.as_slice()).expect("encrypting in memory");
-    let header = BackupPrefix { c15_iv: Some(C15Iv { iv: iv.to_vec() }) }.encode_to_vec();
+    let mut header = BackupPrefix { c15_iv: Some(C15Iv { iv: iv.to_vec() }) }.encode_to_vec();
+    if let Some(v) = version {
+        // field 5 { field 1: the version, field 2: a number's end (invented) }
+        let inner = [&[0x0a, v.len() as u8][..], v.as_bytes(), &[0x12, 2], b"99"].concat();
+        header.extend_from_slice(&[0x2a, inner.len() as u8]);
+        header.extend_from_slice(&inner);
+    }
 
     let mut out = vec![u8::try_from(header.len()).expect("a short header"), 1];
     out.extend_from_slice(&header);

@@ -39,6 +39,17 @@ fn crypt15_rejects_wrong_keys_and_damage_without_leaking_the_key() {
 }
 
 #[test]
+fn the_whatsapp_version_is_read_from_the_header_before_any_key() {
+    let with = crypt15::encrypt_as(b"SQLite format 3\0synthetic", &key(), [3; 16], true, Some("2.24.10.80"));
+    assert_eq!(crypt15::app_version(&with).as_deref(), Some("2.24.10.80"));
+    assert_eq!(crypt15::decrypt(&with, &key()).unwrap(), b"SQLite format 3\0synthetic");
+    let without = crypt15::encrypt(b"SQLite format 3\0synthetic", &key(), [3; 16], true);
+    assert_eq!(crypt15::app_version(&without), None);
+    assert_eq!(crypt15::app_version(&[]), None);
+    assert_eq!(crypt15::app_version(&with[..5]), None);
+}
+
+#[test]
 fn keys_are_64_hex_digits_spaces_allowed() {
     let spaced = KEY_HEX.as_bytes().chunks(4).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join(" ");
     assert!(Key::from_hex(&spaced).is_ok());

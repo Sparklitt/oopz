@@ -65,6 +65,10 @@ pub struct WhatsAppSource {
     jids: HashMap<i64, String>,
     /// Chat rows to the other person's id, in one-to-one chats.
     direct: HashMap<i64, String>,
+    /// Every lookup, at the WhatsApp version the backup's header names; its report joins the notes.
+    reading: msgkinds::Reading,
+    /// The notes known at opening; [`WhatsAppSource::info`]'s notes are these plus the reading's report.
+    notes: Vec<String>,
     // Last: dropped after the session closed its files.
     _tmp: tempfile::TempDir,
 }
@@ -93,6 +97,13 @@ impl WhatsAppSource {
             .prefix("oopz-wa-")
             .tempdir()
             .map_err(|e| Error::io("making a private folder", e))?;
+        // The WhatsApp version that wrote it, from the unencrypted header (decision 0020).
+        let version = {
+            use std::io::Read as _;
+            let mut head = Vec::new();
+            std::fs::File::open(path).and_then(|f| f.take(4096).read_to_end(&mut head)).ok();
+            oopz::crypt15::app_version(&head)
+        };
         let mut session = Session::default();
         let summary = session.check(path, key, tmp.path()).map_err(model_error)?;
         session.build_index(summary.id, tmp.path()).map_err(model_error)?;
@@ -141,13 +152,18 @@ impl WhatsAppSource {
         let info = m::SourceInfo {
             app: App::WhatsApp,
             adapter: "whatsapp-android".into(),
-            format: Some("crypt15".into()),
+            format: Some(match &version {
+                Some(v) => format!("crypt15, WhatsApp {v}"),
+                None => "crypt15".into(),
+            }),
             owner: Some(people[0].clone()),
             wall_clock: false,
             media_root: path.parent().and_then(Path::parent).map(|p| p.join("Media")).filter(|p| p.is_dir()),
             notes: if summary.sound { Vec::new() } else { vec![format!("SQLite's check found: {}", summary.problems)] },
         };
-        Ok(Self { session, id: summary.id, info, people, conversations, jids, direct, _tmp: tmp })
+        let notes = info.notes.clone();
+        let reading = msgkinds::Reading::new(version.as_deref());
+        Ok(Self { session, id: summary.id, info, people, conversations, jids, direct, reading, notes, _tmp: tmp })
     }
 }
 
@@ -176,11 +192,13 @@ impl Source for WhatsAppSource {
                 } else {
                     line.sender_row.and_then(|r| self.jids.get(&r).cloned()).or_else(|| self.direct.get(&chat).cloned())
                 };
-                if !each(message(conversation, line, sender)) {
+                if !each(message(conversation, line, sender, &mut self.reading)) {
                     return Err(Error::Cancelled);
                 }
             }
             if n < PAGE as u64 {
+                // What the registry couldn't answer so far (the library reads the notes again at the end).
+                self.info.notes = [self.notes.clone(), self.reading.report().lines()].concat();
                 return Ok(());
             }
             from += n;
@@ -211,10 +229,10 @@ fn links(text: &str) -> Vec<m::Part> {
 
 /// One index line as the model's message. What WhatsApp's `message_type` (and a system message's `action_type`)
 /// means comes from msgkinds' registry (decision 0020); a code it doesn't name stays an unknown part with the code.
-/// The app's version isn't read from the backup yet: the registry takes its newest row for each code.
-fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message {
+/// Looked up at the backup's WhatsApp version through `reading`, which counts what it couldn't answer.
+fn message(conversation: &str, line: Line, sender: Option<String>, reading: &mut msgkinds::Reading) -> m::Message {
     let text = line.text.clone().filter(|t| !t.is_empty());
-    let resolved = msgkinds::lookup(Registry::WhatsAppAndroid, Code::Int(line.kind), None);
+    let resolved = reading.lookup(Registry::WhatsAppAndroid, Code::Int(line.kind));
     let mut parts = Vec::new();
     let mut deleted = false;
     let Some(entry) = resolved.entry() else {
@@ -294,7 +312,7 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
         // A row may say what happened itself; type 7 leaves it to `action_type`.
         m::Kind::System => parts.push(match entry.event {
             Some(event) => m::Part::System { event: event.into(), text: text.clone() },
-            None => system(line.action, text.clone()),
+            None => system(line.action, text.clone(), reading),
         }),
         m::Kind::Album
         | m::Kind::StickerPack
@@ -323,9 +341,9 @@ fn message(conversation: &str, line: Line, sender: Option<String>) -> m::Message
 
 /// A system message: what happened, from its `action_type` when the registry names it, else a notice that keeps
 /// WhatsApp's wording.
-fn system(action: Option<i64>, text: Option<String>) -> m::Part {
+fn system(action: Option<i64>, text: Option<String>, reading: &mut msgkinds::Reading) -> m::Part {
     let event = action
-        .and_then(|a| msgkinds::lookup(Registry::WhatsAppAndroidSystem, Code::Int(a), None).entry())
+        .and_then(|a| reading.lookup(Registry::WhatsAppAndroidSystem, Code::Int(a)).entry())
         .and_then(|e| e.event)
         .map_or(m::Event::Other, m::Event::from);
     m::Part::System { event, text }
@@ -395,7 +413,7 @@ mod tests {
     fn every_registry_row_maps() {
         for entry in Registry::WhatsAppAndroid.entries() {
             let Code::Int(code) = entry.code else { panic!("{:?}", entry.code) };
-            let msg = message("1", line(code), None);
+            let msg = message("1", line(code), None, &mut msgkinds::Reading::new(None));
             let kind = msg.kind();
             assert_ne!(kind, m::Kind::Unknown, "message_type {code}");
             // Type 2 is refined to a voice note or an audio file; a link row whose text has no address (a group
@@ -412,7 +430,7 @@ mod tests {
         }
         for entry in Registry::WhatsAppAndroidSystem.entries() {
             let Code::Int(code) = entry.code else { panic!("{:?}", entry.code) };
-            let msg = message("1", Line { action: Some(code), ..line(7) }, None);
+            let msg = message("1", Line { action: Some(code), ..line(7) }, None, &mut msgkinds::Reading::new(None));
             let [m::Part::System { event, .. }] = msg.parts.as_slice() else { panic!("action_type {code}") };
             assert_eq!(Some(msgkinds::Event::from(*event)), entry.event, "action_type {code}");
         }
@@ -421,11 +439,11 @@ mod tests {
     /// 3: a code no row names is an unknown part with its code, never an error and never dropped.
     #[test]
     fn an_unknown_code_is_kept_with_its_code() {
-        let msg = message("1", line(9999), None);
+        let msg = message("1", line(9999), None, &mut msgkinds::Reading::new(None));
         assert_eq!(msg.kind(), m::Kind::Unknown);
         assert_eq!(msg.parts, [m::Part::Unknown { code: "9999".into(), text: Some("x".into()) }]);
         // A system line whose action the registry doesn't name keeps WhatsApp's wording.
-        let msg = message("1", Line { action: Some(9999), ..line(7) }, None);
+        let msg = message("1", Line { action: Some(9999), ..line(7) }, None, &mut msgkinds::Reading::new(None));
         assert_eq!(msg.parts, [m::Part::System { event: m::Event::Other, text: Some("x".into()) }]);
     }
 
@@ -438,7 +456,7 @@ mod tests {
             file: Some("Media/WhatsApp Stickers/STK-9999.webp".into()),
             ..Default::default()
         };
-        let msg = message("1", Line { media: Some(media), ..line(20) }, None);
+        let msg = message("1", Line { media: Some(media), ..line(20) }, None, &mut msgkinds::Reading::new(None));
         let [m::Part::Media(sticker), ..] = msg.parts.as_slice() else { panic!("{:?}", msg.parts) };
         assert_eq!((sticker.kind, sticker.secs), (m::MediaKind::Sticker, None));
         assert_eq!(sticker.file.as_deref(), Some("WhatsApp Stickers/STK-9999.webp"));

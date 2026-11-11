@@ -74,7 +74,17 @@ fn check(dir: &std::path::Path, password: Option<&str>, manifest: &oopz_gen::ios
         s.conversations().iter().any(|c| c.kind == ConversationKind::Broadcast && c.name.as_deref() == Some("Status"))
     );
     let notes = s.info().notes.join("\n");
-    assert!(notes.contains("1 media files aren't in the backup") && notes.contains("message type 999"), "{notes}");
+    assert!(
+        notes.contains("1 media files aren't in the backup")
+            && notes.contains("unknown type 999 in whatsapp_ios 2.99.1.1"),
+        "{notes}"
+    );
+    // The WhatsApp version the manifest names, next to the iOS version.
+    assert!(
+        s.info().format.as_deref().is_some_and(|f| f.contains(" 2.99.1.") && f.contains("(iOS 17.5)")),
+        "{:?}",
+        s.info().format
+    );
 }
 
 #[test]
