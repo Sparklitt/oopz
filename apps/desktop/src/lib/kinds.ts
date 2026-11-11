@@ -76,7 +76,10 @@ export const SHOWN_FROM_FILE: Record<MediaKind, "image" | "audio" | null> = {
   document: null,
 };
 
-/** A file's type from its first bytes, for a blob the webview shows (WebP stickers, PNG, JPEG, Ogg voice notes). */
+/** Telegram's animated sticker: Lottie JSON, gzipped. */
+export const TGS = "application/x-tgsticker";
+
+/** A file's type from its first bytes, for a blob the webview shows (WebP, WebM and Lottie stickers, PNG, JPEG, Ogg voice notes). */
 export function sniff(bytes: ArrayBuffer, fallback: string): string {
   const b = new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength));
   const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
@@ -84,5 +87,8 @@ export function sniff(bytes: ArrayBuffer, fallback: string): string {
   if (b[0] === 0x89 && ascii(1, 4) === "PNG") return "image/png";
   if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
   if (ascii(0, 4) === "OggS") return "audio/ogg";
+  // Animated stickers: Telegram's WebM video stickers (Matroska), and its Lottie stickers (`.tgs`, gzipped JSON).
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video/webm";
+  if (b[0] === 0x1f && b[1] === 0x8b) return TGS;
   return fallback;
 }
