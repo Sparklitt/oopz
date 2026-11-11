@@ -36,6 +36,9 @@ open and are sound, and can restore a lost one-to-one chat from the other person
 backup. Each adapter's page in [docs/adapters](docs/adapters/README.md) says what it reads and what a real export
 still needs to confirm.
 
+**User guide**, with pictures: [English](docs/guide/en.md) · [Español](docs/guide/es.md). Getting the backup off the
+phone, the key, every screen, exports, restoring a chat, and what to do when something fails.
+
 ## Why
 
 Phones break, chats get deleted by mistake, a restore picks the wrong backup. The messages often still exist: in an
@@ -213,10 +216,37 @@ updates" ([decision 0011](docs/decisions/0011-an-opt-in-update-check.md)).
 </details>
 
 <details>
-<summary><b>Which backups does it support?</b></summary>
+<summary><b>What can it open?</b></summary>
 
-WhatsApp's end-to-end encrypted Android backups, `msgstore.db.crypt15`, opened with the 64-digit key. Older formats
-(`crypt12`, `crypt14`) and iPhone backups are not supported.
+- WhatsApp on Android: the end-to-end encrypted backup, `msgstore.db.crypt15`, with its 64-digit key.
+- WhatsApp on iPhone: the backup Finder, Apple Devices or iTunes makes on your computer, with its password when it is
+  encrypted ([decision 0018](docs/decisions/0018-iphone-backups.md)).
+- Other apps' own exports: WhatsApp's "Export chat", Telegram Desktop's JSON, SMS Backup & Restore's XML, LINE's chat
+  history and Viber's message history. They need no key.
+
+The [user guide](docs/guide/en.md#get-the-backup-off-the-phone) says how to get each one onto your computer.
+</details>
+
+<details>
+<summary><b>What will it never open?</b></summary>
+
+Google Drive and iCloud backups (only WhatsApp can read them), the older `crypt12` and `crypt14` formats (their key
+file needs a rooted phone), and any backup without its key or password. oopz doesn't try to get around any of these.
+</details>
+
+<details>
+<summary><b>Where do I find the 64-digit key?</b></summary>
+
+WhatsApp shows it once, when you turn on end-to-end encrypted backup with a key: WhatsApp › Settings › Chats › Chat
+backup › End-to-end encrypted backup, choosing the 64-digit key instead of a password. A backup protected by a
+password can't be opened outside WhatsApp. More in the [user guide](docs/guide/en.md#your-64-digit-key).
+</details>
+
+<details>
+<summary><b>Does it work on a phone?</b></summary>
+
+Yes: the Android app (Android 7.0 and newer) opens the backup on the phone itself, with no cable and no computer
+([decision 0012](docs/decisions/0012-the-android-app.md)). There is no iPhone app; open iPhone backups on the computer.
 </details>
 
 <details>
