@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "externalBin": ["binaries/oopz"],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/bash-completion/completions/oopz": "binaries/share/oopz.bash",
+          "/usr/share/zsh/vendor-completions/_oopz": "binaries/share/_oopz",
+          "/usr/share/fish/vendor_completions.d/oopz.fish": "binaries/share/oopz.fish",
+          "/usr/share/man/man1/oopz.1.gz": "binaries/share/oopz.1.gz"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/bash-completion/completions/oopz": "binaries/share/oopz.bash",
+          "/usr/share/zsh/site-functions/_oopz": "binaries/share/_oopz",
+          "/usr/share/fish/vendor_completions.d/oopz.fish": "binaries/share/oopz.fish",
+          "/usr/share/man/man1/oopz.1.gz": "binaries/share/oopz.1.gz"
+        }
+      }
+    },
+    "windows": {
+      "nsis": { "installerHooks": "installer/nsis-hooks.nsh" },
+      "wix": { "fragmentPaths": ["installer/wix-path.wxs"], "componentRefs": ["OopzOnPath"] }
+    }
+  }
+}

@@ -11,6 +11,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "check:commands": "node scripts/check-commands.mjs",
     "check:notes": "node scripts/check-notes.mjs",
+    "sidecar": "node scripts/cli-sidecar.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

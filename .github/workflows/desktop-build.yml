@@ -52,10 +52,15 @@ jobs:
           targets: ${{ matrix.name == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: |
+            .
+            apps/desktop/src-tauri
       - run: pnpm install --frozen-lockfile
+      # The `oopz` CLI the app carries (`oopz` in a terminal), with the Linux packages' completions and man page:
+      # src-tauri/binaries, which tauri.cli.conf.json adds to every bundle with the installers' PATH changes.
+      - run: pnpm sidecar ${{ matrix.args }}
       # `tauri build` runs `pnpm build` first (beforeBuildCommand), then cargo with the shell's Cargo.lock.
-      - run: pnpm tauri build ${{ matrix.args }} -- --locked
+      - run: pnpm tauri build --config src-tauri/tauri.cli.conf.json ${{ matrix.args }} -- --locked
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -82,7 +87,8 @@ jobs:
           path: out/
           if-no-files-found: error
 
-  # The `oopz` command-line tool, for the same systems: one archive per system with the binary, LICENSE and README.
+  # The `oopz` command-line tool, for the same systems and for Termux on 64-bit ARM Android phones: one archive per
+  # system with the binary, LICENSE and README.
   cli:
     strategy:
       fail-fast: false
@@ -92,6 +98,7 @@ jobs:
           - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
           - { os: macos-latest, target: universal-apple-darwin }
+          - { os: ubuntu-22.04, target: aarch64-linux-android }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +106,13 @@ jobs:
         with:
           targets: ${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
       - uses: Swatinem/rust-cache@v2
+      # Termux: the NDK's clang links (and compiles SQLite) for Android 7 (API 24) and newer, as Termux needs.
+      - if: matrix.target == 'aarch64-linux-android'
+        run: |
+          clang="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$clang/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+          echo "CC_aarch64_linux_android=$clang/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$clang/llvm-ar" >> "$GITHUB_ENV"
       - name: Build
         shell: bash
         run: |
@@ -119,7 +133,8 @@ jobs:
           exe=oopz; [ "${{ runner.os }}" = Windows ] && exe=oopz.exe
           mkdir -p "$name" out
           cp "target/${{ matrix.target }}/release/$exe" LICENSE README.md "$name/"
-          "$name/$exe" --version
+          # An Android binary doesn't run on this runner.
+          [ "${{ matrix.target }}" = aarch64-linux-android ] || "$name/$exe" --version
           if [ "${{ runner.os }}" = Windows ]; then 7z a "out/$name.zip" "$name" >/dev/null; else tar czf "out/$name.tar.gz" "$name"; fi
           cd out
           if command -v sha256sum >/dev/null; then sha256sum * > "SHA256SUMS-cli-${{ matrix.target }}.txt"; else shasum -a 256 * > "SHA256SUMS-cli-${{ matrix.target }}.txt"; fi

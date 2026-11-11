@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The MSI (per machine) puts its folder, where oopz.exe (the CLI) sits beside the app, at the end of the system PATH,
+     and takes exactly that entry out again when oopz is uninstalled. Added by tauri.cli.conf.json (componentRefs). -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <DirectoryRef Id="INSTALLDIR">
+            <Component Id="OopzOnPath" Guid="5B0F1C2E-7D3A-4E89-9C61-2F4A8B7D0E13" KeyPath="yes">
+                <CreateFolder/>
+                <Environment Id="OopzPathEntry" Name="PATH" Value="[INSTALLDIR]" Part="last" Action="set" System="yes" Permanent="no"/>
+            </Component>
+        </DirectoryRef>
+    </Fragment>
+</Wix>
