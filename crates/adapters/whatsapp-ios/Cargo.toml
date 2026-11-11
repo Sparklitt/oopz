@@ -8,6 +8,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+msgkinds.workspace = true
 oopz-model.workspace = true
 oopz-ios-backup.workspace = true
 rusqlite.workspace = true

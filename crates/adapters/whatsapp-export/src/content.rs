@@ -361,9 +361,10 @@ pub fn is_notice(parts: &[Part]) -> bool {
     parts.iter().all(|p| matches!(p, Part::Text { .. } | Part::Link { .. }))
 }
 
-/// TODO(msgkinds): the text export has no codes; its placeholders and notices move to msgkinds' registry
-/// (`Source::WhatsAppTxt`) once it lists them.
 /// The kind of notice, from its wording (English and Spanish).
+///
+/// TODO(msgkinds): msgkinds now lists this export's lines by name (`Source::WhatsAppExport`: `sticker_omitted`,
+/// `admin_added`, …): classify into those names and look them up, instead of this match and `media_kind`'s.
 pub fn event(text: &str) -> Event {
     let t = text.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| t.contains(w));

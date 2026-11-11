@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use msgkinds::{Code, Flag, Source as Registry};
 use oopz_ios_backup::{Backup, Entry};
 use oopz_model::{
     self as m, Adapter, App, Conversation, ConversationKind, Event, Media, MediaKind, Message, Part, Person, Secret,
@@ -448,7 +449,7 @@ impl Source for IosSource {
             starred,
             member,
             (path, title, size, secs),
-            (lat, lng, vname, vcard, _event),
+            (lat, lng, vname, vcard, event_type),
         ) in rows
         {
             let from_me = from_me.unwrap_or(false);
@@ -465,51 +466,94 @@ impl Source for IosSource {
                 ..Default::default()
             };
             let mut parts = Vec::new();
-            // TODO(msgkinds): `ZMESSAGETYPE` moves to msgkinds' registry (`Source::WhatsAppIos`) once it has the iPhone's
-            // ChatStorage.sqlite; until then this match is the mapping, and an unlisted type is an unknown part.
-            match kind {
-                0 => parts.push(Part::text(text.unwrap_or_default())),
-                7 => {
-                    let url = text.clone().unwrap_or_default();
-                    match url.split_whitespace().find(|w| w.starts_with("http://") || w.starts_with("https://")) {
-                        Some(u) => {
-                            parts.push(Part::text(url.clone()));
-                            parts.push(Part::Link { url: u.to_owned(), title: None });
+            // What `ZMESSAGETYPE` (and a notice's `ZGROUPEVENTTYPE`) means comes from msgkinds' registry
+            // (decision 0020); a type it doesn't name stays an unknown part with its code.
+            let opus = path.as_deref().is_some_and(|p| p.ends_with(".opus"));
+            let Some((kind_of, row, detail)) = resolve(kind, event_type, opus) else {
+                *self.unknown.entry(kind).or_default() += 1;
+                parts.push(Part::Unknown { code: kind.to_string(), text });
+                msg.parts = parts;
+                if !each(msg) {
+                    return Err(m::Error::Cancelled);
+                }
+                continue;
+            };
+            if let Some(mk) = MediaKind::from_kind(kind_of) {
+                let view_once = row.has(Flag::ViewOnce);
+                let caption = if kind_of == m::Kind::Document || view_once { None } else { text };
+                let secs = secs.map(|s| s as i64).filter(|_| kind_of.has_duration());
+                let mut part = if view_once {
+                    Part::Media(Media { kind: mk, ..Default::default() })
+                } else {
+                    self.media(mk, path, title, size, secs, caption)
+                };
+                if let Part::Media(media) = &mut part {
+                    media.view_once = view_once;
+                }
+                parts.push(part);
+            } else {
+                match kind_of {
+                    m::Kind::Text => parts.push(Part::text(text.unwrap_or_default())),
+                    m::Kind::Link => {
+                        let url = text.clone().unwrap_or_default();
+                        match url.split_whitespace().find(|w| w.starts_with("http://") || w.starts_with("https://")) {
+                            Some(u) => {
+                                parts.push(Part::text(url.clone()));
+                                parts.push(Part::Link { url: u.to_owned(), title: None });
+                            }
+                            None => parts.push(Part::text(url)),
                         }
-                        None => parts.push(Part::text(url)),
                     }
-                }
-                1 | 2 | 3 | 8 | 11 | 15 => {
-                    let mk = match kind {
-                        1 => MediaKind::Photo,
-                        2 => MediaKind::Video,
-                        3 if path.as_deref().is_some_and(|p| p.ends_with(".opus")) => MediaKind::Voice,
-                        3 => MediaKind::Audio,
-                        8 => MediaKind::Document,
-                        11 => MediaKind::Gif,
-                        _ => MediaKind::Sticker,
-                    };
-                    let caption = if kind == 8 { None } else { text };
-                    let part = self.media(mk, path, title, size, secs.map(|s| s as i64), caption);
-                    parts.push(part);
-                }
-                4 => {
-                    let card = vcard.unwrap_or_default();
-                    let phones = card
-                        .lines()
-                        .filter(|l| {
-                            l.to_ascii_uppercase().starts_with("TEL") || l.to_ascii_uppercase().contains(".TEL")
-                        })
-                        .filter_map(|l| l.split_once(':').map(|(_, v)| v.trim().to_owned()))
-                        .collect();
-                    parts.push(Part::Contact { name: vname, phones, vcard: Some(card).filter(|c| !c.is_empty()) });
-                }
-                5 => parts.push(Part::Location { lat, lng, name: text, live: false }),
-                6 => parts.push(Part::System { event: Event::Other, text }),
-                14 => msg.deleted = true,
-                other => {
-                    *self.unknown.entry(other).or_default() += 1;
-                    parts.push(Part::Unknown { code: other.to_string(), text });
+                    m::Kind::Contact => {
+                        let card = vcard.unwrap_or_default();
+                        let phones = card
+                            .lines()
+                            .filter(|l| {
+                                l.to_ascii_uppercase().starts_with("TEL") || l.to_ascii_uppercase().contains(".TEL")
+                            })
+                            .filter_map(|l| l.split_once(':').map(|(_, v)| v.trim().to_owned()))
+                            .collect();
+                        parts.push(Part::Contact { name: vname, phones, vcard: Some(card).filter(|c| !c.is_empty()) });
+                    }
+                    m::Kind::Location => parts.push(Part::Location { lat, lng, name: text, live: row.has(Flag::Live) }),
+                    m::Kind::System => {
+                        let event = row.event.map_or(Event::Other, Event::from);
+                        parts.push(Part::System { event, text });
+                    }
+                    m::Kind::Deleted => msg.deleted = true,
+                    m::Kind::Poll => parts.push(Part::Poll {
+                        question: text.unwrap_or_default(),
+                        options: Vec::new(),
+                        multiple: false,
+                    }),
+                    m::Kind::Call => {
+                        // A missed call's notice; a logged call's details live in CallHistory.sqlite (not read yet).
+                        let outcome = if detail { m::CallOutcome::Missed } else { m::CallOutcome::Unknown };
+                        parts.push(Part::Call { video: row.has(Flag::Video), outcome, secs: None });
+                    }
+                    m::Kind::Album
+                    | m::Kind::StickerPack
+                    | m::Kind::Event
+                    | m::Kind::Payment
+                    | m::Kind::Game
+                    | m::Kind::Business
+                    | m::Kind::Story => {
+                        let card = m::CardKind::from_kind(kind_of).expect("a card kind");
+                        parts.push(Part::Card { kind: card, title, text });
+                    }
+                    // Media handled above; never a registry row's kind.
+                    m::Kind::Photo
+                    | m::Kind::Video
+                    | m::Kind::VideoNote
+                    | m::Kind::Gif
+                    | m::Kind::Voice
+                    | m::Kind::Audio
+                    | m::Kind::Sticker
+                    | m::Kind::Document
+                    | m::Kind::Unknown => {
+                        *self.unknown.entry(kind).or_default() += 1;
+                        parts.push(Part::Unknown { code: kind.to_string(), text });
+                    }
                 }
             }
             msg.parts = parts;
@@ -520,6 +564,27 @@ impl Source for IosSource {
         self.write_notes();
         Ok(())
     }
+}
+
+/// What a message's `ZMESSAGETYPE` means, from msgkinds' registry: its kind, the row that settled it, and whether that
+/// row is a group event's or notice's (`ZGROUPEVENTTYPE`). `None` for a type no row names.
+fn resolve(kind: i64, event_type: Option<i64>, opus: bool) -> Option<(m::Kind, &'static msgkinds::Entry, bool)> {
+    let entry = msgkinds::lookup(Registry::WhatsAppIos, Code::Int(kind), None).entry()?;
+    // A group event (6) or a chat notice (10) says what happened in `ZGROUPEVENTTYPE` (a channel event, 55, keeps
+    // its words: its codes are its own).
+    let detail = match kind {
+        6 => Some(Registry::WhatsAppIosSystem),
+        10 => Some(Registry::WhatsAppIosNotice),
+        _ => None,
+    }
+    .and_then(|src| msgkinds::lookup(src, Code::Int(event_type?), None).entry());
+    let row = detail.unwrap_or(entry);
+    let mut kind = m::Kind::from(row.kind);
+    // Type 3 is a voice note when its file is Opus.
+    if kind == m::Kind::Audio && row.has(Flag::Refined) && opus {
+        kind = m::Kind::Voice;
+    }
+    Some((kind, row, detail.is_some()))
 }
 
 impl IosSource {
@@ -544,5 +609,38 @@ impl IosSource {
                 MAX_MEDIA >> 20
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// msgkinds' registry.md, "What readers test on their side", 1: every row of the sources this adapter reads
+    /// (`ZMESSAGETYPE`, and `ZGROUPEVENTTYPE` of a group event, a notice and a channel event) maps without falling
+    /// to unknown.
+    #[test]
+    fn every_registry_row_maps() {
+        let int = |e: &msgkinds::Entry| match e.code {
+            Code::Int(n) => n,
+            Code::Name(n) => panic!("{n}"),
+        };
+        for entry in Registry::WhatsAppIos.entries() {
+            let (kind, row, _) = resolve(int(entry), None, false).expect("a row");
+            assert_ne!(kind, m::Kind::Unknown, "ZMESSAGETYPE {}", int(entry));
+            assert_eq!(kind, m::Kind::from(row.kind));
+        }
+        assert_eq!(resolve(3, None, true).unwrap().0, m::Kind::Voice);
+        for (source, kind) in [(Registry::WhatsAppIosSystem, 6), (Registry::WhatsAppIosNotice, 10)] {
+            for entry in source.entries() {
+                let (got, row, detail) = resolve(kind, Some(int(entry)), false).expect("a row");
+                assert!(detail && std::ptr::eq(row, entry), "{source} {}", int(entry));
+                assert_ne!(got, m::Kind::Unknown, "{source} {}", int(entry));
+            }
+        }
+        // A type or an event no row names: unknown, or a notice that keeps its words.
+        assert!(resolve(9999, None, false).is_none());
+        let (kind, _, detail) = resolve(6, Some(9999), false).unwrap();
+        assert_eq!((kind, detail), (m::Kind::System, false));
     }
 }
