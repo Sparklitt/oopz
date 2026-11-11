@@ -44,7 +44,7 @@ fn chats_types_tables_print_structure_only() {
     assert!(text(&chats).contains("contact ••••001"));
 
     let types = oopz(&["types", "--backup", backup, "--chat", &chat], Some(KEY_HEX));
-    assert!(text(&types).contains("type 11: 1 messages, 0 with text"), "{}", text(&types));
+    assert!(text(&types).contains("type 9999: 1 messages, 0 with text"), "{}", text(&types));
     assert!(text(&types).contains("linked message_media: 2"));
 
     let tables = oopz(&["tables", "--backup", backup], Some(KEY_HEX));

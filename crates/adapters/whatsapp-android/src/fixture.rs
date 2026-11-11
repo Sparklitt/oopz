@@ -29,7 +29,7 @@ pub struct Fixture {
 
 /// Ben's chat has 18 messages: 4 text (one starred, one reply), 2 photos with the same bytes, a voice note, a video
 /// whose file is missing, a document whose path tries to leave `Media/`, an album header (99), and after the group's
-/// message, an unknown type (11), a video call of 125 s (90), a view-once photo (42), a sticker pack (105), a
+/// message, an unknown type (9999), a video call of 125 s (90), a view-once photo (42), a sticker pack (105), a
 /// video note (81), a place (5), a live location (16) with its last position, a contact card (4) and a poll (46) with
 /// two options. Also: both photos are in the album, K1 was edited, K2 forwarded, K7 has a link preview; Ben
 /// reacted ❤️ to K1, and Ana reacted 😂 to K3 then took it back; in the poll Ana chose the first option, and Ben the
@@ -90,7 +90,7 @@ pub fn build() -> Fixture {
         (1, 0, "K8", 99, None, 0),
         (1, 1, "K9", 9, None, 0),
         (2, 0, "G1", 0, Some("en el grupo"), 0),
-        (1, 0, "K10", 11, None, 0),
+        (1, 0, "K10", 9999, None, 0),
         (1, 1, "K11", 90, None, 0),
         (1, 0, "K12", 42, None, 0),
         (1, 0, "K13", 105, None, 0),
