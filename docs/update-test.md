@@ -103,7 +103,42 @@ afterwards found nothing newer. Before publishing: every updater file's `.sig` v
 checksums matched, `latest.json` had all 11 platform keys with each file's own signature, and the APK carried the oopz
 release certificate. Then uninstalled.
 
-### Part B, Linux, macOS, MSI
+### Part B, Linux (AppImage, .deb, .rpm), 2026-11-11
 
-Not run yet: the AppImage/.deb/.rpm on a desktop Linux, the MSI, and macOS (needs a Mac).
+The published 0.1.0 packages from GitHub (checksums matched `SHA256SUMS.txt`), each updated by the app itself against
+the real `latest.json`. Driven through WebDriver (`tauri-driver`): language set to Spanish and the auto-check switch on,
+an invented backup opened (so there is a decrypted copy), then "Buscar actualizaciones" and "Instalar y reiniciar"
+clicked. The decrypted folder was listed every second around the restart.
+
+| Install | Where | Result |
+|---|---|---|
+| AppImage | WSLg, Ubuntu 24.04 | pass: the file replaced in place by 0.1.1 (its hash is the published one), relaunched as 0.1.1, the decrypted copy gone, settings kept (Spanish, the switch), "newest" afterwards |
+| .deb | Ubuntu 24.04 container on WSLg, a normal user with sudo | pass: the updater asked for the password, `dpkg -i` ran, `dpkg-query` says 0.1.1, relaunched as 0.1.1, the decrypted copy gone at the restart, settings kept, menu entry kept, "newest" afterwards |
+| .rpm | Fedora 42 container on WSLg, a normal user in `wheel` | pass: as the .deb, `rpm -q` says `oopz-0.1.1-1` |
+
+Notes:
+- The .deb and .rpm updates install as root: the updater tries `pkexec` first, then a zenity/kdialog password prompt
+  piped to `sudo -S`, then plain `sudo`. The containers had no polkit agent, so the zenity prompt was the one tested; a
+  desktop with polkit shows its own dialog first. Without a GPU in the container the zenity window drew blank, though
+  it took the typed password.
+- AppImage: the relaunched 0.1.1 inherits 0.1.0's AppImage environment (`LD_LIBRARY_PATH`, `XDG_DATA_DIRS` with the
+  old mount after its own), so the old runtime and its mount (the old file, already deleted) stay until 0.1.1 closes.
+  0.1.1's own paths come first; nothing seen goes wrong. Upstream behaviour of the updater's restart.
+
+### Part B, Windows 11 (MSI, en-US), 2026-11-11
+
+The published 0.1.0 MSI installed with `/passive` (UAC), driven over WebView2's DevTools port: Spanish and the switch
+on, a backup opened, "Instalar y reiniciar" clicked, UAC accepted. The window closed in 3 s, msiexec registered 0.1.1
+9 s later and relaunched the app (the exe's version 0.1.1); the decrypted copy in
+`%LOCALAPPDATA%\com.sparklitt.oopz\decrypted` gone; settings kept (Spanish, the switch); Start-menu entry kept;
+"newest" afterwards. Then uninstalled with `msiexec /x` (exe and entry gone).
+
+Found: the MSI, which installs for all users, went into `%LOCALAPPDATA%\oopz` rather than Program Files. An earlier
+NSIS install leaves `HKCU\Software\sparklitt\oopz` (with `InstallDir`) after its uninstall, and Tauri's MSI reuses a
+directory found there. So an MSI after an NSIS install-and-uninstall lives in one user's folder; the key also outlives
+the MSI's uninstall.
+
+### Part B, macOS
+
+Not run: needs a Mac.
 
