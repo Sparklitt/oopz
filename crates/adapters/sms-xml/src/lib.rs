@@ -358,10 +358,10 @@ impl Book {
         let name = value(a, "contact_name");
         self.person(&other, name);
         let conversation = self.conversation(std::slice::from_ref(&other), name);
-        let from_me = match value(a, "type") {
-            Some("1") => false,
-            Some("2" | "3" | "4" | "5" | "6") => true,
-            _ => {
+        // A type msgkinds lists: received (1) or the owner's (sent, draft, outbox, failed, queued).
+        let from_me = match known(msgkinds::Source::SmsXmlSms, value(a, "type")) {
+            Some(code) => code != 1,
+            None => {
                 self.unknown_types += 1;
                 false
             }
@@ -386,13 +386,11 @@ impl Book {
         });
     }
 
-    /// TODO(msgkinds): msgkinds' main now lists SMS Backup & Restore's XML (`Source::SmsXmlSms`, `SmsXmlMmsBox`,
-    /// `SmsXmlMmsType`, `SmsXmlCall`): look the boxes, types and calls up there instead of these matches.
+    /// An MMS: its box looked up in msgkinds (`Source::SmsXmlMmsBox`); its parts settle what it holds.
     fn mms(&mut self, n: usize, a: &Attrs, parts: &[Attrs], addrs: &[Attrs]) {
-        let from_me = match value(a, "msg_box") {
-            Some("1") => false,
-            Some("2" | "3" | "4" | "5" | "6") => true,
-            _ => {
+        let from_me = match known(msgkinds::Source::SmsXmlMmsBox, value(a, "msg_box")) {
+            Some(code) => code != 1,
+            None => {
                 self.unknown_types += 1;
                 false
             }
@@ -524,12 +522,16 @@ impl Book {
         self.person(&other, name);
         let conversation = self.conversation(std::slice::from_ref(&other), name);
         let secs = value(a, "duration").and_then(|d| d.parse::<u64>().ok());
-        let (from_me, outcome) = match value(a, "type") {
-            Some("1") => (false, CallOutcome::Answered),
-            Some("2") if secs.is_some_and(|s| s > 0) => (true, CallOutcome::Answered),
-            Some("2") => (true, CallOutcome::Cancelled),
-            Some("3" | "4") => (false, CallOutcome::Missed),
-            Some("5" | "6") => (false, CallOutcome::Declined),
+        // A type msgkinds lists (`Source::SmsXmlCall`); its direction and outcome are Android's `CallLog.Calls`.
+        let (from_me, outcome) = match known(msgkinds::Source::SmsXmlCall, value(a, "type")) {
+            Some(2) if secs.is_some_and(|s| s > 0) => (true, CallOutcome::Answered),
+            Some(2) => (true, CallOutcome::Cancelled),
+            // Incoming, or answered on another device.
+            Some(1 | 7) => (false, CallOutcome::Answered),
+            // Missed, or left as a voicemail.
+            Some(3 | 4) => (false, CallOutcome::Missed),
+            // Rejected, or blocked.
+            Some(5 | 6) => (false, CallOutcome::Declined),
             _ => {
                 self.unknown_types += 1;
                 (false, CallOutcome::Unknown)
@@ -563,6 +565,12 @@ fn vcard(card: &str) -> (Option<String>, Vec<String>) {
         }
     }
     (name, phones)
+}
+
+/// The code `v` when msgkinds' `source` lists it; `None` for a missing, unreadable or unlisted one.
+fn known(source: msgkinds::Source, v: Option<&str>) -> Option<i64> {
+    let code = v?.trim().parse::<i64>().ok()?;
+    msgkinds::lookup(source, msgkinds::Code::Int(code), None).entry().map(|_| code)
 }
 
 #[cfg(test)]
