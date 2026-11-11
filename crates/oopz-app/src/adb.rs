@@ -1,5 +1,6 @@
 //! Copying WhatsApp's backup off a phone with adb, for people who use USB or wireless debugging. oopz doesn't bundle
-//! adb: it runs the one on `PATH` or in Android's platform-tools (`$ANDROID_HOME`). It only reads the phone: it lists
+//! adb: it runs the one on `PATH`, in Android's platform-tools (`$ANDROID_HOME`), or the copy the desktop app
+//! downloaded from Google when asked (decision 0019, [`downloaded_dir`]). It only reads the phone: it lists
 //! a folder (`find`, `stat`) and copies it (`adb pull`) into a new `oopz-pulled-N` folder here, checks every file's
 //! size, and leaves no half-copied file behind. The pairing code for wireless debugging goes to adb and nowhere else.
 
@@ -25,15 +26,35 @@ const ADB: &str = if cfg!(windows) { "adb.exe" } else { "adb" };
 /// How long pairing or connecting may take: adb keeps waiting for an address that doesn't answer.
 const WIRELESS: Duration = Duration::from_secs(30);
 
-/// adb on `PATH`, else in `$ANDROID_HOME/platform-tools` (or `$ANDROID_SDK_ROOT`'s).
+/// adb on `PATH`, else in `$ANDROID_HOME/platform-tools` (or `$ANDROID_SDK_ROOT`'s), else the copy the desktop app
+/// downloaded. A system adb comes first: two adb servers of different versions fight over the same port.
 pub fn find() -> Option<PathBuf> {
-    find_in(std::env::var_os("PATH"), [std::env::var_os("ANDROID_HOME"), std::env::var_os("ANDROID_SDK_ROOT")])
+    find_in(
+        std::env::var_os("PATH"),
+        [std::env::var_os("ANDROID_HOME"), std::env::var_os("ANDROID_SDK_ROOT")],
+        downloaded_dir(),
+    )
 }
 
-fn find_in(path: Option<OsString>, sdks: [Option<OsString>; 2]) -> Option<PathBuf> {
+fn find_in(path: Option<OsString>, sdks: [Option<OsString>; 2], downloaded: Option<PathBuf>) -> Option<PathBuf> {
     let on_path = path.iter().flat_map(std::env::split_paths).collect::<Vec<_>>();
     let in_sdks = sdks.into_iter().flatten().map(|sdk| PathBuf::from(sdk).join("platform-tools"));
-    on_path.into_iter().chain(in_sdks).map(|dir| dir.join(ADB)).find(|adb| adb.is_file())
+    on_path.into_iter().chain(in_sdks).chain(downloaded).map(|dir| dir.join(ADB)).find(|adb| adb.is_file())
+}
+
+/// Where the desktop app keeps the platform-tools it downloaded: its local data folder (Tauri's
+/// `app_local_data_dir`, named after the app's identifier) plus `platform-tools`. None without a home folder.
+pub fn downloaded_dir() -> Option<PathBuf> {
+    const APP: &str = "com.sparklitt.oopz";
+    let env = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty()).map(PathBuf::from);
+    let data = if cfg!(windows) {
+        env("LOCALAPPDATA")?
+    } else if cfg!(target_os = "macos") {
+        env("HOME")?.join("Library/Application Support")
+    } else {
+        env("XDG_DATA_HOME").filter(|p| p.is_absolute()).or_else(|| env("HOME").map(|h| h.join(".local/share")))?
+    };
+    Some(data.join(APP).join("platform-tools"))
 }
 
 /// A phone adb sees.
@@ -132,7 +153,7 @@ impl Adb {
             AppError::new(
                 "no_adb",
                 format!(
-                    "adb isn't on this computer: get Android's platform-tools from {PLATFORM_TOOLS} and put its folder on PATH (or set ANDROID_HOME)"
+                    "adb isn't on this computer: the desktop app can download it (Add a backup › With USB or wireless debugging), or get Android's platform-tools from {PLATFORM_TOOLS} and put its folder on PATH (or set ANDROID_HOME)"
                 ),
             )
         })
@@ -771,20 +792,24 @@ mod tests {
     }
 
     #[test]
-    fn adb_is_found_on_path_or_in_the_sdk() {
+    fn adb_is_found_on_path_or_in_the_sdk_or_downloaded() {
         let dir = tempfile::tempdir().unwrap();
-        let (bin, sdk) = (dir.path().join("bin"), dir.path().join("sdk"));
+        let (bin, sdk, got) = (dir.path().join("bin"), dir.path().join("sdk"), dir.path().join("downloaded"));
         fs::create_dir_all(sdk.join("platform-tools")).unwrap();
         fs::create_dir_all(&bin).unwrap();
-        assert_eq!(find_in(Some(bin.clone().into()), [None, None]), None);
-        fs::write(sdk.join("platform-tools").join(ADB), b"").unwrap();
+        fs::create_dir_all(&got).unwrap();
+        assert_eq!(find_in(Some(bin.clone().into()), [None, None], Some(got.clone())), None);
+        fs::write(got.join(ADB), b"").unwrap();
         let path = std::env::join_paths([&bin]).unwrap();
+        assert_eq!(find_in(Some(path.clone()), [None, None], Some(got.clone())), Some(got.join(ADB)));
+        // A system adb comes before the downloaded one.
+        fs::write(sdk.join("platform-tools").join(ADB), b"").unwrap();
         assert_eq!(
-            find_in(Some(path.clone()), [Some(sdk.clone().into()), None]),
+            find_in(Some(path.clone()), [Some(sdk.clone().into()), None], Some(got.clone())),
             Some(sdk.join("platform-tools").join(ADB))
         );
         fs::write(bin.join(ADB), b"").unwrap();
-        assert_eq!(find_in(Some(path), [Some(sdk.into()), None]), Some(bin.join(ADB)));
+        assert_eq!(find_in(Some(path), [Some(sdk.into()), None], Some(got)), Some(bin.join(ADB)));
         assert!(host_port("192.168.1.20:37099").is_ok());
         for bad in ["-s", "192.168.1.20", "a b:1", ""] {
             assert!(host_port(bad).is_err(), "{bad}");
