@@ -468,9 +468,17 @@ fn unsent(text: &str) -> Option<&str> {
         .filter(|w| !w.is_empty())
 }
 
-/// TODO(msgkinds): msgkinds' main now lists LINE's text export by its words (`Source::LineTxt`): classify into its
-/// names ("[Sticker]", "[Photo]", notices) and look them up instead of this match.
+/// What a notice says happened: msgkinds' LINE rows first (`Source::LineTxt`: a notice's code is the end of its
+/// line, "joined the group."), then the words oopz met that msgkinds doesn't list yet (no public export shows them).
 fn event(text: &str) -> Event {
+    let line = text.trim();
+    let listed = msgkinds::Source::LineTxt
+        .entries()
+        .iter()
+        .find(|e| e.kind == msgkinds::Kind::System && matches!(e.code, msgkinds::Code::Name(w) if line.ends_with(w)));
+    if let Some(e) = listed {
+        return e.event.map_or(Event::Other, Event::from);
+    }
     let t = text.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| t.contains(w));
     if has(&["joined", "参加"]) {

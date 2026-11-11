@@ -363,44 +363,12 @@ pub fn is_notice(parts: &[Part]) -> bool {
 
 /// The kind of notice, from its wording (English and Spanish).
 ///
-/// TODO(msgkinds): msgkinds now lists this export's lines by name (`Source::WhatsAppExport`: `sticker_omitted`,
-/// `admin_added`, …): classify into those names and look them up, instead of this match and `media_kind`'s.
+/// The kind of notice, from its wording: msgkinds names it (`media_type::sources::whatsapp_export::notice`, English
+/// and Spanish, Android and iPhone) and its registry row (`Source::WhatsAppExport`) says what happened.
 pub fn event(text: &str) -> Event {
-    let t = text.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| t.contains(w));
-    if has(&["end-to-end encrypted", "cifrados de extremo a extremo"]) {
-        Event::Encryption
-    } else if has(&["security code", "código de seguridad"]) {
-        Event::SecurityCodeChanged
-    } else if has(&["changed their phone number", "changed to +", "cambió su número", "cambió a +"]) {
-        Event::NumberChanged
-    } else if has(&["created group", "created this group", "creó el grupo", "creaste el grupo"]) {
-        Event::GroupCreated
-    } else if has(&["changed the subject", "changed the group name", "cambió el asunto", "cambió el nombre"]) {
-        Event::Renamed
-    } else if has(&["description", "descripción"]) {
-        Event::DescriptionChanged
-    } else if has(&["icon", "ícono", "icono", "foto del grupo"]) {
-        Event::PictureChanged
-    } else if has(&["disappearing", "temporales"]) {
-        Event::Disappearing
-    } else if has(&["admin"]) {
-        Event::AdminChanged
-    } else if has(&["joined using", "se unió"]) {
-        Event::MemberJoined
-    } else if has(&[" added ", " added you", "añadió", "te añadió"]) || t.starts_with("you added") {
-        Event::MemberAdded
-    } else if has(&[" removed ", "eliminó a"]) {
-        Event::MemberRemoved
-    } else if t.ends_with(" left") || has(&["salió del grupo", " salió"]) {
-        Event::MemberLeft
-    } else if has(&["pinned a message", "fijó un mensaje"]) {
-        Event::Pinned
-    } else if has(&["blocked this contact", "bloqueaste"]) {
-        Event::Blocked
-    } else {
-        Event::Other
-    }
+    let code = msgkinds::media_type::sources::whatsapp_export::notice(text);
+    let row = msgkinds::lookup_name(msgkinds::Source::WhatsAppExport, code, None).entry();
+    row.and_then(|e| e.event).map_or(Event::Other, Event::from)
 }
 
 #[cfg(test)]
