@@ -22,12 +22,16 @@ it's known.
    `topic_changed`, and `admin_changed` (an export that doesn't say which way) maps to `admin_added`. `App` converts
    too. Kinds without a part of their own (album, sticker pack, event, payment, game, business, story, a
    reaction kept as its own message) are a `Part::Card`.
-4. **Adapters look codes up** with `msgkinds::lookup` where msgkinds has the source: WhatsApp Android
-   (`message_type`, and `message_system.action_type` for a system line) and WhatsApp iPhone (`ZMESSAGETYPE`, and
-   `ZGROUPEVENTTYPE` of a group event or a notice). The others keep their own mapping for now, each with a `TODO(msgkinds)`
-   naming the msgkinds source to switch to (Telegram, SMS and LINE are listed on msgkinds' main; Viber's CSV and
-   the WhatsApp chat export's words are next). The app's version isn't read from a backup yet: the
-   registry takes its newest row for each code.
+4. **Adapters look codes up through one `msgkinds::Reading` per source**, made with the version the source says
+   wrote it: WhatsApp Android's from the crypt15 header (before any key), WhatsApp iPhone's from the manifest's
+   `Applications`, SMS Backup & Restore's from the file's comment; Telegram's, LINE's, Viber's and the WhatsApp chat
+   export's don't say, so the newest meaning of each code is taken and the report says "version not recorded". The
+   version shows in the source's format (`crypt15, WhatsApp 2.24.10.80`). Every adapter reads its codes from
+   msgkinds: WhatsApp (`message_type`, `action_type`, `ZMESSAGETYPE`, `ZGROUPEVENTTYPE`, the export's words),
+   Telegram (`media_type`, actions), SMS, LINE, Viber's CSV. At the end, the reading's report joins the source's
+   notes: unknown types with their source and version and a count, codes known only for other versions, and lines
+   whose wording no table has (another language), with where to add them (msgkinds' `adding-a-source.md`). Codes and
+   counts only, never a message's words.
 5. **A code no row names is never an error and never dropped**: an unknown part with the app's own code, shown as a
    labelled card ("WhatsApp: 9999, not shown yet", in the app's language), counted and exported.
 6. **The readers' tests** msgkinds asks for live here: every row of each source an adapter reads maps without
@@ -52,5 +56,4 @@ it's known.
 
 ## Revisit when
 
-msgkinds is published (the path becomes a git dependency), or msgkinds gains Telegram, SMS, LINE, Viber or the
-WhatsApp chat export's words as sources the adapters can switch to.
+msgkinds is published (the path becomes a git dependency), or a format starts saying which version wrote it.
