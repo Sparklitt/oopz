@@ -3106,6 +3106,7 @@ version = "0.1.1"
 dependencies = [
  "msgkinds",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
@@ -3134,6 +3135,7 @@ name = "oopz-viber-export"
 version = "0.1.1"
 dependencies = [
  "csv",
+ "msgkinds",
  "oopz-model",
  "zip",
 ]

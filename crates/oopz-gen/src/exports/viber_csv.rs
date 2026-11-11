@@ -54,7 +54,14 @@ pub fn generate(seed: u64) -> Export {
                 (format!("{mo}/{d}/{:02}", y % 100), format!("{h12}:{mi:02} {}", if h >= 12 { "PM" } else { "AM" }))
             };
             file.push_str(&format!("{date},{time},{},{},{}\n", field(name), field(phone), field(&text)));
-            let kind = if text.contains("https://") { Kind::Link } else { Kind::Text };
+            // Viber's sentences for a file it didn't attach are that kind of media (msgkinds' `viber_csv`).
+            let kind = match text.as_str() {
+                "Photo message" => Kind::Photo,
+                "Sticker message" => Kind::Sticker,
+                "Video message" => Kind::Video,
+                t if t.contains("https://") => Kind::Link,
+                _ => Kind::Text,
+            };
             manifest.count(kind, name == "Me");
         }
     }

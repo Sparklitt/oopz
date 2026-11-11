@@ -1,6 +1,6 @@
 //! Viber's "Export message history" (decision 0015): a zip of CSV files, one per chat, or one CSV. Each row is a
 //! message: date, time, sender, phone, text; the header (when there is one) names the columns in any order and case,
-//! and with none they're read in that order. Media are the app's own words ("Photo message") and kept as text.
+//! and with none they're read in that order. Media are the app's own sentences ("Photo message"): msgkinds' `viber_csv` rows read them as a file not attached.
 //!
 //! Times are the phone's wall clock, read as UTC (`wall_clock`); the day/month order is decided from each file (a
 //! first number over 12: day first; a second: month first; else day first, noted). The sender "Me" is the owner. A
@@ -11,8 +11,8 @@ use std::io::{Cursor, Read};
 use std::path::Path;
 
 use oopz_model::{
-    Adapter, App, Conversation, ConversationKind, Error, Loaded, Message, Part, Person, Result, Secret, Source,
-    SourceInfo, civil_to_ms, normalize_phone,
+    Adapter, App, Conversation, ConversationKind, Error, Loaded, Media, MediaKind, Message, Part, Person, Result,
+    Secret, Source, SourceInfo, civil_to_ms, normalize_phone,
 };
 
 pub const ID: &str = "viber-csv";
@@ -118,6 +118,8 @@ struct Book {
     notes: Vec<String>,
     unsafe_names: usize,
     me_seen: bool,
+    /// msgkinds' `viber_csv` rows; its report joins the notes. The CSV doesn't say which Viber wrote it.
+    reading: msgkinds::Reading,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -218,9 +220,8 @@ fn time(s: &str) -> Option<(u32, u32, u32)> {
 }
 
 impl Book {
-    /// One CSV file: one conversation.
-    /// TODO(msgkinds): msgkinds lists Viber Desktop's database (`Source::ViberDesktop`), not this CSV export yet:
-    /// switch once it has a `viber_csv` source; a row neither reads stays an unknown part.
+    /// One CSV file: one conversation. What a message column holds comes from msgkinds (`viber_csv`): text, a link,
+    /// or one of Viber's sentences for a file it didn't attach ("Photo message").
     fn csv(&mut self, name: &str, text: &str) -> Result<()> {
         let first_line = text.lines().next().unwrap_or("");
         let delimiter =
@@ -343,6 +344,15 @@ impl Book {
                     text.push_str(extra);
                 }
             }
+            let code = msgkinds::media_type::sources::viber_csv::content(&text);
+            let row = self.reading.lookup_name(msgkinds::Source::ViberCsv, code).entry();
+            if let Some(e) = row.filter(|e| e.has(msgkinds::Flag::Omitted))
+                && let Some(kind) = MediaKind::from_kind(e.kind.into())
+            {
+                m.parts.push(Part::Media(Media { kind, omitted: true, ..Default::default() }));
+                self.messages.push(m);
+                continue;
+            }
             m.parts.push(Part::text(text.clone()));
             for word in text.split(char::is_whitespace) {
                 if let Some(at) = word.find("https://").or_else(|| word.find("http://")) {
@@ -382,6 +392,7 @@ impl Book {
         if self.unsafe_names > 0 {
             notes.push(format!("{} zip entries with unsafe paths ignored", self.unsafe_names));
         }
+        notes.extend(self.reading.report().lines());
         let owner =
             self.me_seen.then(|| Person { id: ME.into(), name: Some("Me".into()), me: true, ..Default::default() });
         match &owner {

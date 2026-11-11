@@ -1058,6 +1058,7 @@ dependencies = [
  "clap_complete",
  "clap_mangen",
  "jiff",
+ "msgkinds",
  "oopz",
  "oopz-app",
  "oopz-core",
@@ -1203,6 +1204,7 @@ name = "oopz-viber-export"
 version = "0.1.1"
 dependencies = [
  "csv",
+ "msgkinds",
  "oopz-gen",
  "oopz-model",
  "tempfile",
