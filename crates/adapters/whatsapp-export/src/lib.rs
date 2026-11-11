@@ -303,7 +303,8 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
             content::Read::Parts { parts, edited }
                 if raw.sender.is_some() && !(raw.marked && content::is_notice(&parts)) =>
             {
-                if raw.sender.as_deref().is_some_and(|s| matches!(s, "You" | "Tú" | "Tu" | "Você")) {
+                let owner = |s: &str| msgkinds::media_type::sources::whatsapp_export::is_owner(stats.language, s);
+                if raw.sender.as_deref().is_some_and(owner) {
                     owner_hints.extend(raw.sender.clone());
                 }
                 m.sender = raw.sender;
