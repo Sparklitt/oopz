@@ -267,7 +267,9 @@ fn run(cli: Cli) -> Result<()> {
     }
     let mut open = Open::new()?;
     match cli.command {
-        Command::Lib(_) | Command::Completions { .. } | Command::Man | Command::Pull(_) => unreachable!("handled above"),
+        Command::Lib(_) | Command::Completions { .. } | Command::Man | Command::Pull(_) => {
+            unreachable!("handled above")
+        }
         Command::Backups { dir } => {
             let files = session::find_backups(&dir)?;
             let openable = files.iter().filter(|f| f.kind == "crypt15").count();
