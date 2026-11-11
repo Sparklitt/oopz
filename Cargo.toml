@@ -50,6 +50,9 @@ plist = { version = "1", default-features = false }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+# `oopz completions <shell>` and the man page the Linux packages install.
+clap_complete = "4"
+clap_mangen = "0.2"
 jiff = "0.2"
 # SQLite built from source (FTS3/FTS5 included, as WhatsApp's tables need). oopz never needs SQLCipher: the backup is
 # decrypted by crypt15.rs, not by SQLite.

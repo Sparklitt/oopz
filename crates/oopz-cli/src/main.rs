@@ -10,7 +10,7 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use oopz_app::export::Labels;
 use oopz_app::session::{self, MergeRequest, Session, Summary};
 use zeroize::Zeroizing;
@@ -187,6 +187,12 @@ enum Command {
     /// The library: every app's exports and backups together, to search, link contacts, select and export
     /// (`oopz lib --help`).
     Lib(Box<library::Lib>),
+    /// Prints a completion script for a shell (bash, zsh, fish, elvish, powershell), for example
+    /// `oopz completions bash > ~/.local/share/bash-completion/completions/oopz`.
+    Completions { shell: clap_complete::Shell },
+    /// Prints the manual page (roff); the Linux packages install it as `man oopz`.
+    #[command(hide = true)]
+    Man,
 }
 
 fn main() -> ExitCode {
@@ -238,12 +244,20 @@ impl Drop for Open {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    if let Command::Lib(lib) = cli.command {
-        return library::run(*lib);
+    match cli.command {
+        Command::Lib(lib) => return library::run(*lib),
+        Command::Completions { shell } => {
+            // Into memory first: clap_complete panics on a closed pipe (`| head`); this fails like the other commands.
+            let mut script = Vec::new();
+            clap_complete::generate(shell, &mut Cli::command(), "oopz", &mut script);
+            return Ok(io::stdout().write_all(&script)?);
+        }
+        Command::Man => return Ok(clap_mangen::Man::new(Cli::command()).render(&mut io::stdout())?),
+        _ => {}
     }
     let mut open = Open::new()?;
     match cli.command {
-        Command::Lib(_) => unreachable!("handled above"),
+        Command::Lib(_) | Command::Completions { .. } | Command::Man => unreachable!("handled above"),
         Command::Backups { dir } => {
             let files = session::find_backups(&dir)?;
             let openable = files.iter().filter(|f| f.kind == "crypt15").count();

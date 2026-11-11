@@ -24,6 +24,16 @@ fn text(out: &Output) -> String {
 }
 
 #[test]
+fn completions_and_the_man_page() {
+    for (shell, mark) in [("bash", "_oopz()"), ("zsh", "#compdef oopz"), ("fish", "complete -c oopz")] {
+        let out = oopz(&["completions", shell], None);
+        assert!(out.status.success() && text(&out).contains(mark), "{shell}: {}", text(&out));
+    }
+    let man = oopz(&["man"], None);
+    assert!(man.status.success() && text(&man).contains(".TH oopz 1"), "{}", text(&man));
+}
+
+#[test]
 fn chats_types_tables_print_structure_only() {
     let fx = fixture::build();
     let backup = fx.backup.to_str().unwrap();
