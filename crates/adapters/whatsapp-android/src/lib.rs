@@ -204,84 +204,85 @@ impl Backup {
 
     /// How WhatsApp keeps a chat's messages: ordering ids, senders, statuses, the chat row's pointers. Counts, ranges
     /// and column names only (never text, ids or numbers), to merge one backup's chat into another's safely. A fact
-    /// whose table or column this backup lacks reads "n/a".
-    pub fn chat_facts(&self, chat_row_id: i64) -> Result<Vec<(&'static str, String)>> {
-        const FACTS: &[(&str, &str)] = &[
-            ("messages", "SELECT count(*) FROM message WHERE chat_row_id = ?1"),
-            ("from_me 0 / 1", "SELECT sum(from_me = 0) || ' / ' || sum(from_me = 1) FROM message WHERE chat_row_id = ?1"),
-            ("_id range", "SELECT min(_id) || ' .. ' || max(_id) FROM message WHERE chat_row_id = ?1"),
-            ("sort_id range", "SELECT min(sort_id) || ' .. ' || max(sort_id) FROM message WHERE chat_row_id = ?1"),
-            ("sort_id = _id", "SELECT sum(sort_id = _id) FROM message WHERE chat_row_id = ?1"),
-            ("sort_id null", "SELECT sum(sort_id IS NULL) FROM message WHERE chat_row_id = ?1"),
+    /// whose table or column this backup lacks is `None`; one SQL gives no value for reads `-`. Each fact's label is a
+    /// developer's message (a column diagnostic).
+    pub fn chat_facts(&self, chat_row_id: i64) -> Result<Vec<(Msg, Option<String>)>> {
+        const FACTS: &[(Msg, &str)] = &[
+            (Msg::FactMessages, "SELECT count(*) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactFromMe, "SELECT sum(from_me = 0) || ' / ' || sum(from_me = 1) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactIdRange, "SELECT min(_id) || ' .. ' || max(_id) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactSortIdRange, "SELECT min(sort_id) || ' .. ' || max(sort_id) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactSortIdEqual, "SELECT sum(sort_id = _id) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactSortIdNull, "SELECT sum(sort_id IS NULL) FROM message WHERE chat_row_id = ?1"),
             (
-                "sort_id order breaks time order",
+                Msg::FactSortIdBreaksTime,
                 "SELECT count(*) FROM (SELECT timestamp, lag(timestamp) OVER (ORDER BY sort_id) AS prev
                  FROM message WHERE chat_row_id = ?1) WHERE timestamp < prev",
             ),
             (
-                "_id order breaks time order",
+                Msg::FactIdBreaksTime,
                 "SELECT count(*) FROM (SELECT timestamp, lag(timestamp) OVER (ORDER BY _id) AS prev
                  FROM message WHERE chat_row_id = ?1) WHERE timestamp < prev",
             ),
-            ("all messages: _id max / sort_id max", "SELECT max(_id) || ' / ' || max(sort_id) FROM message"),
+            (Msg::FactAllMaxima, "SELECT max(_id) || ' / ' || max(sort_id) FROM message"),
             (
-                "sender_jid_row_id by from_me (0: null|0|other, 1: null|0|other)",
+                Msg::FactSenderByFromMe,
                 "SELECT sum(from_me = 0 AND sender_jid_row_id IS NULL) || '|' || sum(from_me = 0 AND sender_jid_row_id = 0)
                  || '|' || sum(from_me = 0 AND sender_jid_row_id > 0) || ', ' || sum(from_me = 1 AND sender_jid_row_id IS NULL)
                  || '|' || sum(from_me = 1 AND sender_jid_row_id = 0) || '|' || sum(from_me = 1 AND sender_jid_row_id > 0)
                  FROM message WHERE chat_row_id = ?1",
             ),
             (
-                "status by from_me (status:count)",
+                Msg::FactStatusByFromMe,
                 "SELECT group_concat(f || ':' || status || ':' || n, ' ') FROM (SELECT from_me AS f, status, count(*) AS n
                  FROM message WHERE chat_row_id = ?1 GROUP BY 1, 2)",
             ),
             (
-                "origin, broadcast, recipient_count values",
+                Msg::FactOriginBroadcast,
                 "SELECT group_concat(DISTINCT origin) || ' | ' || group_concat(DISTINCT broadcast) || ' | '
                  || group_concat(DISTINCT recipient_count) FROM message WHERE chat_row_id = ?1",
             ),
             (
-                "received_timestamp / receipt_server_timestamp set",
+                Msg::FactReceivedReceipt,
                 "SELECT sum(received_timestamp > 0) || ' / ' || sum(receipt_server_timestamp > 0) FROM message
                  WHERE chat_row_id = ?1",
             ),
             (
-                "key_id lengths (length:count)",
+                Msg::FactKeyIdLengths,
                 "SELECT group_concat(l || ':' || n, ' ') FROM (SELECT length(key_id) AS l, count(*) AS n FROM message
                  WHERE chat_row_id = ?1 GROUP BY 1)",
             ),
-            ("lookup_tables values", "SELECT group_concat(DISTINCT lookup_tables) FROM message WHERE chat_row_id = ?1"),
+            (Msg::FactLookupTables, "SELECT group_concat(DISTINCT lookup_tables) FROM message WHERE chat_row_id = ?1"),
             (
-                "message_details author_device_jid by from_me (0: null|set, 1: null|set)",
+                Msg::FactAuthorDevice,
                 "SELECT sum(m.from_me = 0 AND d.author_device_jid IS NULL) || '|' || sum(m.from_me = 0 AND d.author_device_jid IS NOT NULL)
                  || ', ' || sum(m.from_me = 1 AND d.author_device_jid IS NULL) || '|' || sum(m.from_me = 1 AND d.author_device_jid IS NOT NULL)
                  FROM message m JOIN message_details d ON d.message_row_id = m._id WHERE m.chat_row_id = ?1",
             ),
             (
-                "message_secret rows",
+                Msg::FactSecretRows,
                 "SELECT count(*) FROM message_secret s JOIN message m ON m._id = s.message_row_id WHERE m.chat_row_id = ?1",
             ),
             (
-                "media: has file_path / transferred / has media_key / has direct_path",
+                Msg::FactMediaColumns,
                 "SELECT sum(mm.file_path IS NOT NULL) || ' / ' || sum(mm.transferred = 1) || ' / ' || sum(mm.media_key IS NOT NULL)
                  || ' / ' || sum(mm.direct_path IS NOT NULL) FROM message_media mm JOIN message m ON m._id = mm.message_row_id
                  WHERE m.chat_row_id = ?1",
             ),
             (
-                "media file_path roots (first folder:count)",
+                Msg::FactMediaRoots,
                 "SELECT group_concat(r || ':' || n, ' ') FROM (SELECT substr(mm.file_path, 1, instr(mm.file_path || '/', '/') - 1) AS r,
                  count(*) AS n FROM message_media mm JOIN message m ON m._id = mm.message_row_id WHERE m.chat_row_id = ?1
                  GROUP BY 1)",
             ),
-            ("chat jid server", "SELECT j.server FROM chat c JOIN jid j ON j._id = c.jid_row_id WHERE c._id = ?1"),
+            (Msg::FactJidServer, "SELECT j.server FROM chat c JOIN jid j ON j._id = c.jid_row_id WHERE c._id = ?1"),
             (
-                "chat jid in jid_map (as lid / as phone)",
+                Msg::FactJidInMap,
                 "SELECT (SELECT count(*) FROM jid_map WHERE lid_row_id = c.jid_row_id) || ' / '
                  || (SELECT count(*) FROM jid_map WHERE jid_row_id = c.jid_row_id) FROM chat c WHERE c._id = ?1",
             ),
             (
-                "chat columns pointing at this chat's messages",
+                Msg::FactChatPointers,
                 "SELECT group_concat(name, ' ') FROM pragma_table_info('chat') p WHERE p.name LIKE '%message_row_id'
                  AND (SELECT count(*) FROM chat c JOIN message m ON m._id = (SELECT CASE p.name
                    WHEN 'display_message_row_id' THEN c.display_message_row_id WHEN 'last_message_row_id' THEN c.last_message_row_id
@@ -291,21 +292,21 @@ impl Backup {
                  WHERE c._id = ?1) > 0",
             ),
             (
-                "chat sort ids vs max sort_id (display/last/last_read)",
+                Msg::FactChatSortIds,
                 "SELECT (c.display_message_sort_id = mx) || '/' || (c.last_message_sort_id = mx) || '/'
                  || (c.last_read_message_sort_id = mx) FROM chat c, (SELECT max(sort_id) AS mx FROM message WHERE chat_row_id = ?1)
                  WHERE c._id = ?1",
             ),
-            ("chat created_timestamp vs first message", "SELECT (c.created_timestamp <= (SELECT min(timestamp) FROM message WHERE chat_row_id = ?1)) FROM chat c WHERE c._id = ?1"),
-            ("reactions (add-ons) on this chat", "SELECT count(*) FROM message_add_on WHERE chat_row_id = ?1"),
+            (Msg::FactCreatedVsFirst, "SELECT (c.created_timestamp <= (SELECT min(timestamp) FROM message WHERE chat_row_id = ?1)) FROM chat c WHERE c._id = ?1"),
+            (Msg::FactAddOns, "SELECT count(*) FROM message_add_on WHERE chat_row_id = ?1"),
             (
                 // IN builds the chat's key_id set once; a correlated lookup per reply took hours on a million messages.
-                "quoted rows / with parent in chat",
+                Msg::FactQuoted,
                 "SELECT count(*) || ' / ' || sum(q.key_id IN (SELECT key_id FROM message WHERE chat_row_id = ?1))
                  FROM message_quoted q JOIN message m ON m._id = q.message_row_id WHERE m.chat_row_id = ?1",
             ),
-            ("receipt_user rows", "SELECT count(*) FROM receipt_user r JOIN message m ON m._id = r.message_row_id WHERE m.chat_row_id = ?1"),
-            ("props keys", "SELECT group_concat(key, ' ') FROM props"),
+            (Msg::FactReceiptUser, "SELECT count(*) FROM receipt_user r JOIN message m ON m._id = r.message_row_id WHERE m.chat_row_id = ?1"),
+            (Msg::FactPropsKeys, "SELECT group_concat(key, ' ') FROM props"),
         ];
         let mut out = Vec::new();
         for (label, sql) in FACTS {
@@ -319,8 +320,7 @@ impl Backup {
             } else {
                 self.db.query_row(sql, [], read)
             };
-            let value = value.map(|v| v.unwrap_or_else(|| "-".into())).unwrap_or_else(|_| "n/a".into());
-            out.push((*label, value));
+            out.push((*label, value.ok().map(|v| v.unwrap_or_else(|| "-".into()))));
         }
         Ok(out)
     }

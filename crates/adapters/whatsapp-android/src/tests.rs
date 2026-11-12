@@ -127,12 +127,12 @@ fn tables_list_structure_and_counts() {
 fn chat_facts_are_counts_and_survive_missing_columns() {
     let fx = fixture::build();
     let facts = Backup::open(&fx.backup, &key()).unwrap().chat_facts(BEN_CHAT).unwrap();
-    let get = |label: &str| facts.iter().find(|(l, _)| *l == label).unwrap().1.clone();
-    assert_eq!(get("messages"), "18");
-    assert_eq!(get("from_me 0 / 1"), "10 / 8");
-    assert_eq!(get("sort_id range"), "n/a"); // the fixture's schema has no sort_id
-    assert_eq!(get("_id order breaks time order"), "0");
-    let all: String = facts.iter().map(|(_, v)| v.as_str()).collect();
+    let get = |label: Msg| facts.iter().find(|(l, _)| *l == label).unwrap().1.clone();
+    assert_eq!(get(Msg::FactMessages).as_deref(), Some("18"));
+    assert_eq!(get(Msg::FactFromMe).as_deref(), Some("10 / 8"));
+    assert_eq!(get(Msg::FactSortIdRange), None); // the fixture's schema has no sort_id
+    assert_eq!(get(Msg::FactIdBreaksTime).as_deref(), Some("0"));
+    let all: String = facts.iter().filter_map(|(_, v)| v.as_deref()).collect();
     for text in ["Hola", "playa", "respuesta", fixture::BEN_JID] {
         assert!(!all.contains(text), "printed {text:?}");
     }

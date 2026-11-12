@@ -280,8 +280,10 @@ pub struct TypeInfo {
 }
 
 #[derive(Debug, Clone, Serialize)]
+/// A chat's fact, as the desktop's wire and the CLI show it: a developer's diagnostic, English in every language
+/// (docs/messages.md, errors row 8).
 pub struct Fact {
-    pub label: &'static str,
+    pub label: String,
     pub value: String,
 }
 
@@ -491,7 +493,12 @@ impl Session {
     /// How WhatsApp keeps one chat: ordering ids, senders, statuses, pointers. Counts and ranges only.
     pub fn chat_facts(&self, id: u32, chat: i64) -> Result<Vec<Fact>> {
         let facts = self.get(id)?.backup.chat_facts(chat)?;
-        Ok(facts.into_iter().map(|(label, value)| Fact { label, value }).collect())
+        let not_available = || Note::of(ModelMsg::FactNotAvailable, []).to_string();
+        let fact = |(label, value): (ModelMsg, Option<String>)| Fact {
+            label: Note::of(label, []).to_string(),
+            value: value.unwrap_or_else(not_available),
+        };
+        Ok(facts.into_iter().map(fact).collect())
     }
 
     fn index(&self, id: u32) -> Result<&Index> {

@@ -1953,6 +1953,184 @@ es_one = "tablas: número de filas como se esperaba; {identical} tabla sin tocar
 es_many = "tablas: número de filas como se esperaba; {identical} tablas sin tocar idénticas"
 es_other = "tablas: número de filas como se esperaba; {identical} tablas sin tocar idénticas"
 
+# A chat's facts (whatsapp-android `lib.rs` `chat_facts`; the CLI's `chat-facts`, the desktop's diagnostics): how
+# WhatsApp keeps a chat, read to merge backups safely. Column diagnostics a person can only report: a developer's,
+# English in every language (docs/messages.md, errors row 8).
+
+[[message]]
+name = "fact_messages"
+for = "developer"
+params = []
+en = "messages"
+
+[[message]]
+name = "fact_from_me"
+for = "developer"
+params = []
+en = "from_me 0 / 1"
+
+[[message]]
+name = "fact_id_range"
+for = "developer"
+params = []
+en = "_id range"
+
+[[message]]
+name = "fact_sort_id_range"
+for = "developer"
+params = []
+en = "sort_id range"
+
+[[message]]
+name = "fact_sort_id_equal"
+for = "developer"
+params = []
+en = "sort_id = _id"
+
+[[message]]
+name = "fact_sort_id_null"
+for = "developer"
+params = []
+en = "sort_id null"
+
+[[message]]
+name = "fact_sort_id_breaks_time"
+for = "developer"
+params = []
+en = "sort_id order breaks time order"
+
+[[message]]
+name = "fact_id_breaks_time"
+for = "developer"
+params = []
+en = "_id order breaks time order"
+
+[[message]]
+name = "fact_all_maxima"
+for = "developer"
+params = []
+en = "all messages: _id max / sort_id max"
+
+[[message]]
+name = "fact_sender_by_from_me"
+for = "developer"
+params = []
+en = "sender_jid_row_id by from_me (0: null|0|other, 1: null|0|other)"
+
+[[message]]
+name = "fact_status_by_from_me"
+for = "developer"
+params = []
+en = "status by from_me (status:count)"
+
+[[message]]
+name = "fact_origin_broadcast"
+for = "developer"
+params = []
+en = "origin, broadcast, recipient_count values"
+
+[[message]]
+name = "fact_received_receipt"
+for = "developer"
+params = []
+en = "received_timestamp / receipt_server_timestamp set"
+
+[[message]]
+name = "fact_key_id_lengths"
+for = "developer"
+params = []
+en = "key_id lengths (length:count)"
+
+[[message]]
+name = "fact_lookup_tables"
+for = "developer"
+params = []
+en = "lookup_tables values"
+
+[[message]]
+name = "fact_author_device"
+for = "developer"
+params = []
+en = "message_details author_device_jid by from_me (0: null|set, 1: null|set)"
+
+[[message]]
+name = "fact_secret_rows"
+for = "developer"
+params = []
+en = "message_secret rows"
+
+[[message]]
+name = "fact_media_columns"
+for = "developer"
+params = []
+en = "media: has file_path / transferred / has media_key / has direct_path"
+
+[[message]]
+name = "fact_media_roots"
+for = "developer"
+params = []
+en = "media file_path roots (first folder:count)"
+
+[[message]]
+name = "fact_jid_server"
+for = "developer"
+params = []
+en = "chat jid server"
+
+[[message]]
+name = "fact_jid_in_map"
+for = "developer"
+params = []
+en = "chat jid in jid_map (as lid / as phone)"
+
+[[message]]
+name = "fact_chat_pointers"
+for = "developer"
+params = []
+en = "chat columns pointing at this chat's messages"
+
+[[message]]
+name = "fact_chat_sort_ids"
+for = "developer"
+params = []
+en = "chat sort ids vs max sort_id (display/last/last_read)"
+
+[[message]]
+name = "fact_created_vs_first"
+for = "developer"
+params = []
+en = "chat created_timestamp vs first message"
+
+[[message]]
+name = "fact_add_ons"
+for = "developer"
+params = []
+en = "reactions (add-ons) on this chat"
+
+[[message]]
+name = "fact_quoted"
+for = "developer"
+params = []
+en = "quoted rows / with parent in chat"
+
+[[message]]
+name = "fact_receipt_user"
+for = "developer"
+params = []
+en = "receipt_user rows"
+
+[[message]]
+name = "fact_props_keys"
+for = "developer"
+params = []
+en = "props keys"
+
+[[message]]
+name = "fact_not_available"
+for = "developer"
+params = []
+en = "n/a"
+
 # iPhone backups (crate `oopz-ios-backup`): a damaged backup's diagnostics are a developer's (the keybag, a file
 # record), inside a user message; what was being done is a user's.
 
