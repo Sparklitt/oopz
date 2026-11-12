@@ -3,13 +3,14 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
 use oopz::fixture::{self, BEN_JID, KEY_HEX};
 
+mod common;
+
 fn oopz(lib: &Path, args: &[&str], stdin: Option<&str>) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_oopz"))
-        .env("LC_ALL", "C")
+    let mut child = common::oopz_in("C")
         .arg("lib")
         .args(args)
         .arg("--library")
@@ -204,7 +205,7 @@ fn set_me_on_a_text_export_and_flags_are_checked() {
         ok(lib, &["export", "--format", oopz_export::Format::Csv.code(), "--all", "--out-dir", out.to_str().unwrap()])
             .contains("saved: ")
     );
-    let no_lib = Command::new(env!("CARGO_BIN_EXE_oopz")).env("LC_ALL", "C").args(["lib", "sources"]).output().unwrap();
+    let no_lib = common::oopz_in("C").args(["lib", "sources"]).output().unwrap();
     assert!(String::from_utf8_lossy(&no_lib.stderr).contains("--library"));
 }
 

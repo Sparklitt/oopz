@@ -30,6 +30,10 @@ use say::{Message, count, say};
     about = "Your own chat history: WhatsApp backups (inspect, restore a lost chat) and every app's exports (oopz lib)"
 )]
 struct Cli {
+    /// The language to print in (en, es). Without it: OOPZ_LANG, then LANGUAGE, LC_ALL, LC_MESSAGES, LANG, then the
+    /// system's setting.
+    #[arg(long, global = true, value_name = "LANGUAGE")]
+    lang: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -209,7 +213,12 @@ enum Command {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    let cli = Cli::parse();
+    if let Err(e) = say::choose(cli.lang.as_deref()) {
+        eprintln!("{}", say!(ErrorLine, e));
+        return ExitCode::from(2);
+    }
+    match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{}", say!(ErrorLine, format!("{e:#}")));
@@ -394,7 +403,7 @@ fn run(cli: Cli) -> Result<()> {
             println!("{:>5}  {:<10}  {:<8}  {:>9}", head[0], head[1], head[2], head[3]);
             for h in &hits {
                 let position =
-                    open.session.position(id, h.id)?.map_or_else(|| "-".into(), |(_, n)| (n + 1).to_string());
+                    open.session.position(id, h.id)?.map_or_else(|| say::MISSING.into(), |(_, n)| (n + 1).to_string());
                 let side = if h.from_me { say!(Sent) } else { say!(Received) };
                 println!("{:>5}  {:<10}  {:<8}  {:>9}", h.chat, date(Some(h.ts)), side, position);
             }
@@ -497,7 +506,7 @@ fn run(cli: Cli) -> Result<()> {
                 }
                 shown = status.files.len();
                 if let Some(p) = &status.current {
-                    let speed = format!("{:.1}", p.bytes_per_sec as f64 / 1e6);
+                    let speed = say::decimal(p.bytes_per_sec as f64 / 1e6);
                     let line = say!(Receiving, p.name, p.done / 1_000_000, p.total / 1_000_000, speed);
                     eprint!("\r{line}{}   ", time_left(p.secs_left));
                     let _ = io::stderr().flush();
@@ -580,7 +589,22 @@ fn day_ms(day: jiff::civil::Date) -> Result<i64> {
     Ok(day.to_zoned(jiff::tz::TimeZone::UTC)?.timestamp().as_millisecond())
 }
 
+/// A day as ISO 8601 (`2026-11-12`) in every language, [`say::MISSING`] without one.
 fn date(ms: Option<i64>) -> String {
     ms.and_then(|ms| jiff::Timestamp::from_millisecond(ms).ok())
-        .map_or_else(|| "-".into(), |t| t.to_zoned(jiff::tz::TimeZone::UTC).date().to_string())
+        .map_or_else(|| say::MISSING.into(), |t| t.to_zoned(jiff::tz::TimeZone::UTC).date().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// docs/messages.md, numbers and dates, row 2: a day is ISO 8601 and a missing one `-`, whatever the language
+    /// (`date` takes none).
+    #[test]
+    fn numbers_2_dates_are_iso_and_a_missing_one_is_a_dash() {
+        assert_eq!(date(Some(0)), "1970-01-01");
+        assert_eq!(date(Some(1_762_905_600_000)), "2025-11-12");
+        assert_eq!(date(None), "-");
+    }
 }

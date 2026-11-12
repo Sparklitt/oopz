@@ -13,7 +13,7 @@ use oopz_core::{Filter, Library, Order, Selection};
 use oopz_model::{App, Kind, Secret};
 
 use crate::say::Message::*;
-use crate::say::{Message, count, say};
+use crate::say::{MISSING, Message, count, say};
 use crate::{date, day_ms, days, read_secret};
 
 #[derive(Args)]
@@ -353,7 +353,7 @@ fn name_or_dash(name: Option<&str>, show: bool) -> String {
     if !show {
         return String::new();
     }
-    let Some(name) = name else { return "-".into() };
+    let Some(name) = name else { return MISSING.into() };
     let digits = name.chars().filter(char::is_ascii_digit).count();
     let number_like = digits >= 5 && name.chars().all(|c| c.is_ascii_digit() || " +-().".contains(c));
     if number_like || name.contains('@') {
@@ -484,7 +484,7 @@ pub fn run(lib_args: Lib) -> Result<()> {
             let h = [HeadConv, HeadDate, HeadApp, HeadSide, HeadPosition].map(head);
             println!("{:>6}  {:<10}  {:<10} {:<8}  {:>9}", h[0], h[1], h[2], h[3], h[4]);
             for h in &hits {
-                let position = lib.position(h.id)?.map_or_else(|| "-".into(), |(_, n)| (n + 1).to_string());
+                let position = lib.position(h.id)?.map_or_else(|| MISSING.into(), |(_, n)| (n + 1).to_string());
                 println!(
                     "{:>6}  {:<10}  {:<10} {:<8}  {:>9}",
                     h.conversation,
@@ -551,7 +551,7 @@ pub fn run(lib_args: Lib) -> Result<()> {
             }
             println!("{}", say!(WhoWritesMost));
             for (person, name, n) in &s.by_person {
-                let who = person.map_or_else(|| "-".into(), |p| say!(PersonN, p));
+                let who = person.map_or_else(|| MISSING.into(), |p| say!(PersonN, p));
                 println!("    {who}: {n}  {}", name_or_dash(name.as_deref(), names));
             }
         }
@@ -565,7 +565,7 @@ pub fn run(lib_args: Lib) -> Result<()> {
                     p.source,
                     p.app.code(),
                     p.messages,
-                    p.contact.map_or_else(|| "-".into(), |c| c.to_string()),
+                    p.contact.map_or_else(|| MISSING.into(), |c| c.to_string()),
                     if p.me { format!("  {}", say!(You)) } else { String::new() },
                     name_or_dash(p.name.as_deref(), names)
                 );

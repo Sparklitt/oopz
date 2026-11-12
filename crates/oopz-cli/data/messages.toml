@@ -1359,3 +1359,19 @@ en_other = "{count} conversations"
 es_one = "{count} conversación"
 es_many = "{count} conversaciones"
 es_other = "{count} conversaciones"
+
+# The language asked for with --lang or OOPZ_LANG.
+
+[[message]]
+name = "language_unknown"
+for = "user"
+params = ["given", "languages"]
+en = "oopz has no language {given}; it has: {languages}"
+es = "oopz no tiene el idioma {given}; tiene: {languages}"
+
+[[message]]
+name = "language_empty"
+for = "user"
+params = ["languages"]
+en = "--lang is empty; give one of: {languages}"
+es = "--lang está vacío; da uno de: {languages}"

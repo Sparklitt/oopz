@@ -29,6 +29,7 @@ clap_complete.workspace = true
 clap_mangen.workspace = true
 jiff.workspace = true
 rpassword.workspace = true
+sys-locale.workspace = true
 tempfile.workspace = true
 zeroize.workspace = true
 

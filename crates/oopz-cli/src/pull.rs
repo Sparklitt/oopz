@@ -79,7 +79,7 @@ pub fn run(args: Pull) -> Result<()> {
             break status;
         }
         if let Some(folder) = status.folder {
-            let speed = format!("{:.1}", status.bytes_per_sec as f64 / 1e6);
+            let speed = crate::say::decimal(status.bytes_per_sec as f64 / 1e6);
             let line = say!(Copying, folder, status.done / 1_000_000, status.total.div_ceil(1_000_000), speed);
             eprint!("\r{line}{}   ", crate::time_left(status.secs_left));
             let _ = io::stderr().flush();

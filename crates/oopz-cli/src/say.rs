@@ -1,19 +1,59 @@
-//! What the command prints, worded in the terminal's language: `data/messages.toml` (catalog `oopz_cli`), and
+//! What the command prints, worded in the person's language ([`choose`]): `data/messages.toml` (catalog `oopz_cli`), and
 //! oopz's and msgkinds' notes in the same language.
 
 use std::sync::OnceLock;
 
-use msgkinds::note::LOCALE_VARIABLES;
+use msgkinds::language::{LANGUAGE_LIST_VARIABLE, LOCALE_VARIABLES, LanguageError, Sources};
 
 include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 
-/// The terminal's language (msgkinds' `Catalog::locale_language`), read once.
+/// The variable that names oopz's language, after `--lang` and before the locale.
+pub const LANGUAGE_VARIABLE: &str = "OOPZ_LANG";
+
+static LANGUAGE: OnceLock<&'static str> = OnceLock::new();
+
+/// Decides the language once, before any output (docs/messages.md): `--lang`, [`LANGUAGE_VARIABLE`], `LANGUAGE`,
+/// `LC_ALL`, `LC_MESSAGES`, `LANG`, the system's setting (Windows, macOS), English. An empty variable is unset; a
+/// language oopz lacks, asked for by name, is an error, worded in the language the rest would give.
+pub fn choose(flag: Option<&str>) -> Result<&'static str, String> {
+    let var = |name| std::env::var(name).ok().filter(|v| !v.is_empty());
+    let (own, list) = (var(LANGUAGE_VARIABLE), var(LANGUAGE_LIST_VARIABLE));
+    let locale = LOCALE_VARIABLES.map(|v| std::env::var(v).ok());
+    let system = sys_locale::get_locale();
+    let asked = [flag, own.as_deref()];
+    let mut sources = Sources {
+        asked: &asked,
+        list: list.as_deref(),
+        locale: locale.each_ref().map(Option::as_deref),
+        system: system.as_deref(),
+    };
+    let chosen = CATALOG.language(&sources);
+    sources.asked = &[];
+    let fallback = CATALOG.language(&sources).unwrap_or(LANGUAGES[0]);
+    let language = *LANGUAGE.get_or_init(|| chosen.clone().unwrap_or(fallback));
+    let all = LANGUAGES.join(", ");
+    match chosen {
+        Ok(_) => Ok(language),
+        Err(LanguageError::Empty) => Err(msgkinds::Note::of(Message::LanguageEmpty, [all]).text(language)),
+        Err(LanguageError::Unknown(given)) => {
+            Err(msgkinds::Note::of(Message::LanguageUnknown, [given, all]).text(language))
+        }
+    }
+}
+
+/// The language [`choose`] decided (English before it, as in unit tests): read once per run, so no line is worded in
+/// another.
 pub fn language() -> &'static str {
-    static LANGUAGE: OnceLock<&'static str> = OnceLock::new();
-    LANGUAGE.get_or_init(|| {
-        let settings = LOCALE_VARIABLES.map(|v| std::env::var(v).ok());
-        CATALOG.locale_language(&settings.each_ref().map(Option::as_deref))
-    })
+    LANGUAGE.get().copied().unwrap_or(LANGUAGES[0])
+}
+
+/// What a missing value (a date, a position, a name) shows, in every language.
+pub const MISSING: &str = "-";
+
+/// A number with one decimal (`1.5`, a speed in MB/s): `.` in every language, as numbers and dates are plain in the
+/// command's output (ISO dates, no grouping) so scripts read them the same whatever the language.
+pub fn decimal(x: f64) -> String {
+    format!("{x:.1}")
 }
 
 /// A count and its noun (`count_chats`, `count_messages`…), worded in [`language`] in the count's form: a value of a
@@ -73,5 +113,23 @@ mod tests {
         );
         assert_eq!(spanish(Message::LinkedInto, &["7"]), "personas unidas en el contacto 7");
         assert_eq!(spanish(Message::SelectionSaved, &["4", "1"]), "selección 4 guardada: 1 mensaje");
+    }
+
+    /// docs/messages.md, the command's language, row 11: decided once; a later choice doesn't change it.
+    #[test]
+    fn the_language_is_decided_once_per_run() {
+        let first = choose(Some("es")).unwrap();
+        assert_eq!(first, "es");
+        assert_eq!(choose(Some("en")), Ok("es"));
+        assert_eq!(language(), "es");
+    }
+
+    /// docs/messages.md, numbers and dates, row 1: a decimal is `1.5` in Spanish too.
+    #[test]
+    fn numbers_1_a_decimal_is_the_same_in_every_language() {
+        assert_eq!(decimal(1.5), "1.5");
+        assert_eq!(decimal(12.34), "12.3");
+        let line = msgkinds::Note::of(Message::Copying, ["Media".into(), "1".into(), "2".into(), decimal(1.5)]);
+        assert_eq!(line.text("es"), "copiando Media: 1 / 2 MB, 1.5 MB/s");
     }
 }

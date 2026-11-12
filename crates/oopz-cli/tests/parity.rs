@@ -2,7 +2,8 @@
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::Command;
+
+mod common;
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR")).parent().and_then(Path::parent).expect("the repo root")
@@ -37,7 +38,7 @@ fn cli_commands() -> BTreeSet<String> {
 
 /// The subcommands `oopz <prefix> --help` lists.
 fn subcommands(prefix: &[&str]) -> BTreeSet<String> {
-    let help = Command::new(env!("CARGO_BIN_EXE_oopz")).args(prefix).arg("--help").output().expect("oopz --help");
+    let help = common::oopz_in("C").args(prefix).arg("--help").output().expect("oopz --help");
     let help = String::from_utf8(help.stdout).expect("utf-8 help");
     let commands = help.split_once("Commands:").expect("a commands list").1;
     let commands = commands.split_once("Options:").map_or(commands, |(c, _)| c);

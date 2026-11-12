@@ -1,9 +1,11 @@
 //! End to end through the binary, on the synthetic fixture only.
 
 use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
 use oopz::fixture::{self, BEN_CHAT, BEN_JID, KEY_HEX};
+
+mod common;
 
 /// The terminal's locale every test but the language one runs in: what they read is English.
 const LOCALE: &str = "C";
@@ -13,9 +15,8 @@ fn oopz(args: &[&str], key: Option<&str>) -> Output {
 }
 
 fn oopz_in(locale: &str, args: &[&str], key: Option<&str>) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_oopz"))
+    let mut child = common::oopz_in(locale)
         .args(args)
-        .env("LC_ALL", locale)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -220,6 +221,60 @@ fn the_terminals_language_words_the_output() {
     }
 }
 
+/// `oopz check` on the fixture with these extra variables and arguments: its output, and whether it succeeded.
+fn check_with(vars: &[(&str, &str)], extra: &[&str]) -> (String, bool) {
+    let fx = fixture::build();
+    let mut command = common::oopz_in(LOCALE);
+    command.args(["check", "--backup", fx.backup.to_str().unwrap()]).args(extra).envs(vars.iter().copied());
+    let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    writeln!(child.stdin.take().unwrap(), "{KEY_HEX}").unwrap();
+    let out = child.wait_with_output().unwrap();
+    (text(&out), out.status.success())
+}
+
+const SPANISH: &str = "base de datos: en buen estado";
+const ENGLISH: &str = "database: sound";
+
+/// docs/messages.md, the command's language: rows 1-8, through the binary.
+#[test]
+fn the_language_asked_for_and_the_language_list() {
+    let (es, ok) = check_with(&[], &["--lang", "es"]);
+    assert!(ok && es.contains(SPANISH), "--lang beats LC_ALL=C: {es}");
+    let (es, _) = check_with(&[("OOPZ_LANG", "es")], &[]);
+    assert!(es.contains(SPANISH), "OOPZ_LANG: {es}");
+    let (en, _) = check_with(&[("OOPZ_LANG", "es")], &["--lang", "en"]);
+    assert!(en.contains(ENGLISH), "--lang beats OOPZ_LANG: {en}");
+    let (en, _) = check_with(&[("OOPZ_LANG", "")], &[]);
+    assert!(en.contains(ENGLISH), "an empty OOPZ_LANG is unset: {en}");
+    let (es, _) = check_with(&[("LC_ALL", "en_US.UTF-8"), ("LANGUAGE", "fr:es:en")], &[]);
+    assert!(es.contains(SPANISH), "LANGUAGE's first oopz has: {es}");
+    let (en, _) = check_with(&[("LANGUAGE", "es")], &[]);
+    assert!(en.contains(ENGLISH), "LANGUAGE is ignored in the C locale: {en}");
+    let (es, _) = check_with(&[("LC_ALL", "ES_es")], &[]);
+    assert!(es.contains(SPANISH), "case is ignored: {es}");
+}
+
+#[test]
+fn asking_for_a_language_oopz_lacks_is_an_error_listing_its_languages() {
+    for (vars, extra) in [(&[][..], &["--lang", "fr"][..]), (&[("OOPZ_LANG", "fr")][..], &[][..])] {
+        let (out, ok) = check_with(vars, extra);
+        assert!(!ok && out.contains("oopz has no language fr; it has: en, es"), "{out}");
+    }
+    let (out, ok) = check_with(&[("LC_ALL", "es_ES.UTF-8")], &["--lang", ""]);
+    assert!(!ok && out.contains("--lang está vacío; da uno de: en, es"), "in the locale's language: {out}");
+}
+
+/// Row 12: the tests' command pins the language, whatever the developer's environment says.
+#[test]
+fn tests_pin_the_language() {
+    let command = common::oopz_in(LOCALE);
+    let envs: Vec<_> = command.get_envs().collect();
+    assert!(envs.contains(&("LC_ALL".as_ref(), Some(LOCALE.as_ref()))));
+    for variable in common::LANGUAGE_VARIABLES {
+        assert!(envs.contains(&(variable.as_ref(), None)), "{variable} isn't cleared");
+    }
+}
+
 #[test]
 fn search_filters_and_jump_to_a_date() {
     let fx = fixture::two_phones();
@@ -258,9 +313,8 @@ fn pull_refuses_without_adb_a_phone_or_a_clear_choice() {
     .unwrap();
     std::fs::set_permissions(&adb, std::fs::Permissions::from_mode(0o755)).unwrap();
     let pull = |path: &std::path::Path, devices: &str| {
-        Command::new(env!("CARGO_BIN_EXE_oopz"))
+        common::oopz_in(LOCALE)
             .args(["pull", "--out-dir", out.path().to_str().unwrap()])
-            .env("LC_ALL", LOCALE)
             .env("PATH", path)
             .env_remove("ANDROID_HOME")
             .env_remove("ANDROID_SDK_ROOT")
