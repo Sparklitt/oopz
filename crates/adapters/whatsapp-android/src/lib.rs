@@ -7,6 +7,9 @@ use std::fs;
 use std::io::Write;
 use std::path::{Component, Path};
 
+use msgkinds::Note;
+use msgkinds::note::Value;
+use oopz_model::messages::Message as Msg;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
 pub mod contacts;
@@ -19,21 +22,74 @@ pub mod schema;
 pub use crypt15::Key;
 pub use merge::{ChatMerge, MediaFile, MediaReport, MergeReport, Merged, copy_media};
 
-#[derive(Debug, thiserror::Error)]
+/// Why a backup didn't open, read or merge, worded by [`Error::note`] in the person's language (the `oopz` catalog);
+/// `Display` is the English. Never holds the key or message text.
+#[derive(Debug)]
 pub enum Error {
-    #[error(transparent)]
-    Crypt15(#[from] crypt15::Error),
-    #[error("unsupported WhatsApp database: {0}")]
-    Unsupported(String),
-    #[error("reading the WhatsApp database: {0}")]
-    Sqlite(#[from] rusqlite::Error),
-    #[error("the merged backup failed a check, nothing was written: {0}")]
-    MergeCheck(String),
-    #[error("{context}: {source}")]
-    Io { context: String, source: std::io::Error },
+    Crypt15(crypt15::Error),
+    /// What the database lacks or holds that oopz can't read or merge.
+    Unsupported(Note),
+    Sqlite(rusqlite::Error),
+    /// Which check the merged backup failed (nothing was written).
+    MergeCheck(Note),
+    /// What was being done, and the system's refusal.
+    Io(Note, std::io::Error),
     /// A progress callback said to stop; what was written so far is removed.
-    #[error("stopped before the end, as asked")]
     Cancelled,
+}
+
+impl Error {
+    /// The error's words, to show in the person's language (`note().text(language)`).
+    pub fn note(&self) -> Note {
+        let inner = |n: &Note| vec![Value::Note(Box::new(n.clone()))];
+        match self {
+            Error::Crypt15(e) => e.note(),
+            Error::Unsupported(why) => Note::new(Msg::ErrorWhatsappUnsupported, inner(why)),
+            Error::Sqlite(e) => Note::of(Msg::ErrorWhatsappDatabase, [e.to_string()]),
+            Error::MergeCheck(check) => Note::new(Msg::ErrorMergeCheck, inner(check)),
+            Error::Io(doing, e) => io_note(doing.clone(), e),
+            Error::Cancelled => Note::of(Msg::ErrorCancelled, []),
+        }
+    }
+
+    fn unsupported(why: Msg, values: impl IntoIterator<Item = String>) -> Self {
+        Error::Unsupported(Note::of(why, values))
+    }
+
+    fn check(which: Msg, values: impl IntoIterator<Item = String>) -> Self {
+        Error::MergeCheck(Note::of(which, values))
+    }
+
+    /// An [`Error::Io`] doing `doing` (a message without values).
+    fn io(doing: Msg) -> impl Fn(std::io::Error) -> Self + Copy {
+        move |e| Error::Io(Note::of(doing, []), e)
+    }
+}
+
+/// What was being done and the system's reason, as the system wrote it.
+pub(crate) fn io_note(doing: Note, e: &std::io::Error) -> Note {
+    Note::new(Msg::ErrorIo, vec![Value::Note(Box::new(doing)), Value::Text(e.to_string())])
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.note().fmt(f)
+    }
+}
+
+/// No `source()`: the note already holds the inner error's words, so a chain doesn't say them twice.
+impl std::error::Error for Error {}
+
+impl From<crypt15::Error> for Error {
+    fn from(e: crypt15::Error) -> Self {
+        Error::Crypt15(e)
+    }
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(e: rusqlite::Error) -> Self {
+        Error::Sqlite(e)
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -65,7 +121,7 @@ impl Backup {
         dir: &Path,
         progress: &mut dyn FnMut(u64, u64) -> bool,
     ) -> Result<Self> {
-        let io = |source| Error::Io { context: format!("reading {}", path.display()), source };
+        let io = |e| Error::Io(Note::of(Msg::DoingReading, [path.display().to_string()]), e);
         // Reading, decompressing and indexing weigh about the same; each a third of the bar.
         let len = fs::metadata(path).map_err(io)?.len().max(1);
         let total = 3 * len;
@@ -84,7 +140,7 @@ impl Backup {
                 }
             }
         }
-        let io = |source| Error::Io { context: "writing the decrypted database to a temporary file".into(), source };
+        let io = Error::io(Msg::DoingWritingDecryptedTemp);
         let mut plain = tempfile::NamedTempFile::new_in(dir).map_err(io)?;
         {
             let mut out = std::io::BufWriter::with_capacity(1 << 20, plain.as_file_mut());
@@ -366,7 +422,7 @@ impl Backup {
                 },
             )
             .optional()?
-            .ok_or_else(|| Error::Unsupported(format!("no chat number {row_id} in this backup")))
+            .ok_or_else(|| Error::unsupported(Msg::NoChatNumber, [row_id.to_string()]))
     }
 
     /// The decrypted database, read-only, for an importer that translates it (decision 0007).

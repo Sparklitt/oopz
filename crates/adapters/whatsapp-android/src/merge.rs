@@ -8,6 +8,8 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
+use msgkinds::Note;
+use oopz_model::messages::Message as Msg;
 use rusqlite::types::{Value, ValueRef};
 use rusqlite::{Connection, OpenFlags, params};
 use sha2::{Digest, Sha256};
@@ -148,7 +150,7 @@ impl ChatMerge<'_> {
     pub fn run(&self) -> Result<Merged> {
         let source_chat = self.source.chat(self.source_chat)?;
         if !source_chat.is_one_to_one() {
-            return Err(Error::Unsupported("only one-to-one chats can be merged".into()));
+            return Err(Error::unsupported(Msg::MergeOneToOne, []));
         }
         let original = crypt15::decrypt(self.target, self.target_key)?;
         let work = temp_copy(&original)?;
@@ -166,8 +168,7 @@ impl ChatMerge<'_> {
             db.execute("DETACH DATABASE src", [])?;
             done
         };
-        let merged = std::fs::read(work.path())
-            .map_err(|source| Error::Io { context: "reading the merged database back".into(), source })?;
+        let merged = std::fs::read(work.path()).map_err(Error::io(Msg::DoingReadingMerged))?;
         let sealed = crypt15::reseal(self.target, &merged, self.target_key)?;
         report.checks = verify(&original, &sealed, self.target_key, self.target_chat, last_added, &report)?;
         Ok(Merged { backup: sealed, report, media })
@@ -193,8 +194,7 @@ impl fmt::Display for MediaReport {
 /// target's `Media/` folder, keeping each file's modification time (galleries sort by it). `to_dir` must not exist;
 /// nothing is overwritten.
 pub fn copy_media(files: &[MediaFile], from_dir: &Path, to_dir: &Path) -> Result<MediaReport> {
-    let err = |context: String| move |source| Error::Io { context, source };
-    fs::create_dir(to_dir).map_err(err(format!("creating {}", to_dir.display())))?;
+    fs::create_dir(to_dir).map_err(|e| Error::Io(Note::of(Msg::DoingMaking, [to_dir.display().to_string()]), e))?;
     let mut report = MediaReport::default();
     for file in files {
         let (Some(from), Some(to)) = (media_relative(&file.from), media_relative(&file.to)) else {
@@ -207,15 +207,12 @@ pub fn copy_media(files: &[MediaFile], from_dir: &Path, to_dir: &Path) -> Result
             continue;
         };
         let to = to_dir.join(to);
-        fs::create_dir_all(to.parent().unwrap_or(to_dir)).map_err(err("creating a media folder".into()))?;
-        let mut target = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&to)
-            .map_err(err("creating a media file in the pack".into()))?;
-        report.bytes += io::copy(&mut source, &mut target).map_err(err("copying a media file".into()))?;
-        let modified = source.metadata().and_then(|m| m.modified()).map_err(err("reading a file's time".into()))?;
-        target.set_modified(modified).map_err(err("setting a file's time".into()))?;
+        fs::create_dir_all(to.parent().unwrap_or(to_dir)).map_err(Error::io(Msg::DoingMediaFolder))?;
+        let mut target =
+            fs::OpenOptions::new().write(true).create_new(true).open(&to).map_err(Error::io(Msg::DoingMediaFile))?;
+        report.bytes += io::copy(&mut source, &mut target).map_err(Error::io(Msg::DoingCopyingMedia))?;
+        let modified = source.metadata().and_then(|m| m.modified()).map_err(Error::io(Msg::DoingReadingTime))?;
+        target.set_modified(modified).map_err(Error::io(Msg::DoingSettingTime))?;
         report.copied += 1;
     }
     Ok(report)
@@ -253,10 +250,10 @@ impl<'c, 'r> Merger<'c, 'r> {
                 [chat],
                 |r| r.get(0),
             )
-            .map_err(|_| Error::Unsupported(format!("no one-to-one chat number {chat} in the target backup")))?;
+            .map_err(|_| Error::unsupported(Msg::MergeNoTargetChat, [chat.to_string()]))?;
         for (table,) in tables(db, "main")? {
             if table.starts_with("message_fts") {
-                return Err(Error::Unsupported(format!("the target has `{table}`; its search index isn't rebuilt")));
+                return Err(Error::unsupported(Msg::MergeTargetFts, [table]));
             }
         }
         let mut devices = [None, None];
@@ -331,7 +328,7 @@ impl<'c, 'r> Merger<'c, 'r> {
             [self.chat],
         )?;
         if target.iter().any(|(id, sort, ..)| *sort != Some(*id)) {
-            return Err(Error::Unsupported("the target chat has a sort_id unequal to its _id".into()));
+            return Err(Error::unsupported(Msg::MergeSortId, []));
         }
         self.report.target_before = target.len() as u64;
         let target_keys: HashSet<&str> = target.iter().filter_map(|t| t.2.as_deref()).collect();
@@ -513,10 +510,7 @@ impl<'c, 'r> Merger<'c, 'r> {
         if let Some(column) = needs.first() {
             let n: u64 = db.query_row(&format!("SELECT count(*) FROM src.{t} WHERE {filter}"), [], |r| r.get(0))?;
             if n > 0 {
-                return Err(Error::MergeCheck(format!(
-                    "the target's `{table}.{column}` needs a value the source backup doesn't have (the target's \
-                     WhatsApp is newer); update WhatsApp on the source phone and make a new backup"
-                )));
+                return Err(Error::check(Msg::MergeNeedsNewerSource, [table.to_string(), column.to_string()]));
             }
         }
         let read: Vec<String> = source.into_iter().filter(|c| target.contains(c) || c == "_id").collect();
@@ -613,7 +607,7 @@ impl<'c, 'r> Merger<'c, 'r> {
                     }
                 }
                 c if (c.ends_with("_row_id") || c.contains("jid")) && n.is_some_and(|n| n != 0) => {
-                    return Err(Error::Unsupported(format!("`{table}.{c}` holds an id the merge can't mirror")));
+                    return Err(Error::unsupported(Msg::MergeUnmirrorable, [table.to_string(), c.to_string()]));
                 }
                 _ => {}
             }
@@ -625,14 +619,13 @@ impl<'c, 'r> Merger<'c, 'r> {
         source_id
             .and_then(|id| self.messages.get(&id))
             .map(|m| m.0)
-            .ok_or_else(|| Error::Unsupported("a source message without a new row".into()))
+            .ok_or_else(|| Error::unsupported(Msg::MergeNoNewRow, []))
     }
 
     fn device(&self, from_me: Option<i64>) -> Result<i64> {
         let sent = from_me == Some(1);
         self.devices[usize::from(sent)].ok_or_else(|| {
-            let which = if sent { "sent" } else { "received" };
-            Error::Unsupported(format!("the target chat has no author_device_jid for its {which} messages to copy"))
+            Error::unsupported(if sent { Msg::MergeNoDeviceSent } else { Msg::MergeNoDeviceReceived }, [])
         })
     }
 
@@ -653,7 +646,7 @@ impl<'c, 'r> Merger<'c, 'r> {
             return Ok(None);
         };
         if self.target_paths.contains(&mirrored) {
-            return Err(Error::Unsupported("a mirrored media path already exists in the target".into()));
+            return Err(Error::unsupported(Msg::MergeMediaExists, []));
         }
         if counted {
             let n = self.new_paths.entry(mirrored.clone()).or_default();
@@ -857,8 +850,10 @@ fn verify(
     last_added: i64,
     report: &MergeReport,
 ) -> Result<Vec<(&'static str, String)>> {
-    let fail = |what: String| Err(Error::MergeCheck(what));
-    let merged = crypt15::decrypt(sealed, key).map_err(|e| Error::MergeCheck(format!("doesn't decrypt: {e}")))?;
+    let fail = |which: Msg, values: Vec<String>| Err(Error::check(which, values));
+    let merged = crypt15::decrypt(sealed, key).map_err(|e| {
+        Error::MergeCheck(Note::new(Msg::CheckDecrypt, vec![msgkinds::note::Value::Note(Box::new(e.note()))]))
+    })?;
     let merged_file = temp_copy(&merged)?;
     let original_file = temp_copy(original)?;
     let db = Connection::open_with_flags(
@@ -870,26 +865,29 @@ fn verify(
 
     let integrity: String = db.query_row("PRAGMA main.integrity_check", [], |r| r.get(0))?;
     if integrity != "ok" {
-        return fail("integrity_check".into());
+        return fail(Msg::CheckIntegrity, vec![]);
     }
     checks.push(("integrity_check", integrity));
 
     let version = |schema: &str| db.query_row(&format!("PRAGMA {schema}.user_version"), [], |r| r.get::<_, i64>(0));
     if version("main")? != version("orig")? {
-        return fail("user_version changed".into());
+        return fail(Msg::CheckUserVersion, vec![]);
     }
     let schema_sql = |schema: &str| -> Result<Vec<(String, String, Option<String>)>> {
         query_all(&db, &format!("SELECT type, name, sql FROM {schema}.sqlite_master ORDER BY type, name"), [])
     };
     if schema_sql("main")? != schema_sql("orig")? {
-        return fail("the schema (tables, indexes, triggers) changed".into());
+        return fail(Msg::CheckSchema, vec![]);
     }
     checks.push(("schema and user_version", "unchanged".into()));
 
     let count = |sql: &str| db.query_row(sql, [chat], |r| r.get::<_, u64>(0));
     let after = count("SELECT count(*) FROM main.message WHERE chat_row_id = ?1")?;
     if after != report.target_before + report.added {
-        return fail(format!("the chat has {after} messages, not {} + {}", report.target_before, report.added));
+        return fail(
+            Msg::CheckCount,
+            vec![after.to_string(), report.target_before.to_string(), report.added.to_string()],
+        );
     }
     checks.push(("chat messages", format!("{} + {} = {after}", report.target_before, report.added)));
 
@@ -900,7 +898,7 @@ fn verify(
     };
     let (now, before) = (unsorted("main")?, unsorted("orig")?);
     if now != before {
-        return fail(format!("{now} messages have sort_id unequal to _id (before: {before})"));
+        return fail(Msg::CheckSortId, vec![now.to_string(), before.to_string()]);
     }
     checks.push(("sort_id = _id", format!("every message (exceptions: {now}, as before)")));
 
@@ -920,7 +918,10 @@ fn verify(
         };
         let (now, before) = (missing("main")?, missing("orig")?);
         if now != before {
-            return fail(format!("`{table}.{column}` refers to {now} missing messages (before: {before})"));
+            return fail(
+                Msg::CheckRefersMissing,
+                vec![table.to_string(), column.to_string(), now.to_string(), before.to_string()],
+            );
         }
         dangling += now;
     }
@@ -930,7 +931,7 @@ fn verify(
     if digest(&db, &others.replace("{s}", "main"), &[&chat], true)?
         != digest(&db, &others.replace("{s}", "orig"), &[&chat], true)?
     {
-        return fail("another chat's messages changed".into());
+        return fail(Msg::CheckOtherChats, vec![]);
     }
     let content: Vec<String> = columns(&db, "main", "message")?
         .into_iter()
@@ -942,7 +943,7 @@ fn verify(
         format!("SELECT {content} FROM main.message WHERE chat_row_id = ?1 AND _id > {last_added} ORDER BY _id");
     let theirs_before = format!("SELECT {content} FROM orig.message WHERE chat_row_id = ?1 ORDER BY _id");
     if digest(&db, &theirs_now, &[&chat], true)? != digest(&db, &theirs_before, &[&chat], true)? {
-        return fail("the target chat's own messages changed or lost their order".into());
+        return fail(Msg::CheckOwnOrder, vec![]);
     }
     checks.push(("other chats and the chat's own messages", "identical, in order".into()));
 
@@ -963,9 +964,7 @@ fn verify(
                 [],
             )?;
             if lowered > 0 || new.iter().any(|(name,)| !report.copied.contains_key(name)) {
-                return fail(
-                    "`sqlite_sequence` lost or lowered a counter, or gained one for an untouched table".into(),
-                );
+                return fail(Msg::CheckSequence, vec![]);
             }
             continue;
         }
@@ -974,7 +973,7 @@ fn verify(
             |schema: &str| db.query_row(&format!("SELECT count(*) FROM {schema}.{t}"), [], |r| r.get::<_, u64>(0));
         let expected = rows("orig")? + report.copied.get(&table).copied().unwrap_or(0);
         if rows("main")? != expected {
-            return fail(format!("`{table}` has an unexpected number of rows"));
+            return fail(Msg::CheckRowCount, vec![table.to_string()]);
         }
         let written = report.copied.contains_key(&table)
             || ["message", "chat", "sqlite_sequence", "media_refs"].contains(&table.as_str());
@@ -983,7 +982,7 @@ fn verify(
             if digest(&db, &all.replace("{s}", "main"), &[], false)?
                 != digest(&db, &all.replace("{s}", "orig"), &[], false)?
             {
-                return fail(format!("`{table}` changed"));
+                return fail(Msg::CheckTableChanged, vec![table.to_string()]);
             }
             identical += 1;
         }
@@ -996,7 +995,7 @@ fn verify(
             |r| r.get(0),
         )?;
         if late > 0 {
-            return fail("the chat was created after its first message".into());
+            return fail(Msg::CheckCreatedAfter, vec![]);
         }
         checks.push(("chat created_timestamp", "not after its first message".into()));
     }
@@ -1121,7 +1120,7 @@ fn integer(v: &Value) -> Option<i64> {
 
 fn mapped(map: &HashMap<i64, i64>, n: Option<i64>, table: &str, column: &str) -> Result<i64> {
     n.and_then(|n| map.get(&n).copied())
-        .ok_or_else(|| Error::Unsupported(format!("`{table}.{column}` points at a row that wasn't merged")))
+        .ok_or_else(|| Error::unsupported(Msg::MergeUnmapped, [table.to_owned(), column.to_owned()]))
 }
 
 fn quote(name: &str) -> String {
@@ -1130,7 +1129,7 @@ fn quote(name: &str) -> String {
 
 /// A private temporary file holding `bytes`, removed on drop.
 fn temp_copy(bytes: &[u8]) -> Result<tempfile::NamedTempFile> {
-    let io = |source| Error::Io { context: "writing a database to a temporary file".into(), source };
+    let io = Error::io(Msg::DoingWritingTempDatabase);
     let mut file = tempfile::NamedTempFile::new().map_err(io)?;
     file.write_all(bytes).map_err(io)?;
     file.flush().map_err(io)?;

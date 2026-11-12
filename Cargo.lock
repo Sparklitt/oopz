@@ -1012,11 +1012,11 @@ dependencies = [
  "hkdf",
  "md-5",
  "msgkinds",
+ "oopz-model",
  "prost",
  "rusqlite",
  "sha2",
  "tempfile",
- "thiserror",
  "zeroize",
  "zip",
 ]
@@ -1045,7 +1045,6 @@ dependencies = [
  "serde",
  "sha2",
  "tempfile",
- "thiserror",
  "tiny_http",
  "zeroize",
 ]
@@ -1149,14 +1148,15 @@ dependencies = [
  "aes-kw",
  "cbc",
  "getrandom",
+ "msgkinds",
  "oopz-ios-backup",
+ "oopz-model",
  "pbkdf2",
  "plist",
  "rusqlite",
  "sha1",
  "sha2",
  "tempfile",
- "thiserror",
  "zeroize",
 ]
 

@@ -15,32 +15,64 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use aes::cipher::{BlockModeDecrypt, KeyInit, KeyIvInit};
+use msgkinds::Note;
+use msgkinds::note::Value;
+use oopz_model::messages::Message as Msg;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use zeroize::Zeroizing;
 
 #[cfg(feature = "write")]
 pub mod write;
 
-#[derive(Debug, thiserror::Error)]
+/// Why a backup didn't open or read, worded by [`Error::note`] in the person's language (the `oopz` catalog);
+/// `Display` is the English. Never holds the password.
+#[derive(Debug)]
 pub enum Error {
-    #[error("not an iPhone backup folder (it needs Manifest.plist and Manifest.db)")]
     NotABackup,
-    #[error("this backup is from iOS 9 or older (Manifest.mbdb), which oopz doesn't read")]
     TooOld,
-    #[error("this backup is encrypted: it opens with the backup password chosen on the computer that made it")]
     NeedsPassword,
-    #[error("that isn't this backup's password")]
     WrongPassword,
-    #[error("the backup is damaged: {0}")]
-    Damaged(String),
-    #[error("{0}: {1}")]
-    Io(String, io::Error),
+    /// What is damaged (`ios_…`, a developer's diagnostic: the keybag, a file record).
+    Damaged(Note),
+    /// What was being done (`ios_doing_…`), and the system's refusal.
+    Io(Note, io::Error),
 }
+
+impl Error {
+    /// The error's words, to show in the person's language (`note().text(language)`).
+    pub fn note(&self) -> Note {
+        let inner = |m: Msg, n: Note| Note::new(m, vec![Value::Note(Box::new(n))]);
+        match self {
+            Error::NotABackup => inner(Msg::ErrorNotThisFormat, Note::of(Msg::FormatIphoneBackup, [])),
+            Error::TooOld => inner(Msg::ErrorUnsupportedVersion, Note::of(Msg::VersionIos9, [])),
+            Error::NeedsPassword => Note::of(Msg::ErrorNeedsSecret, []),
+            Error::WrongPassword => Note::of(Msg::ErrorWrongSecret, []),
+            Error::Damaged(what) => inner(Msg::ErrorDamaged, inner(Msg::DamagedIphoneBackup, what.clone())),
+            Error::Io(doing, e) => {
+                let doing = Value::Note(Box::new(inner(Msg::DoingIphoneBackup, doing.clone())));
+                Note::new(Msg::ErrorIo, vec![doing, Value::Text(e.to_string())])
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.note().fmt(f)
+    }
+}
+
+/// No `source()`: the note already holds the system's reason, so a chain doesn't say it twice.
+impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn damaged(what: impl Into<String>) -> Error {
-    Error::Damaged(what.into())
+fn damaged(what: Msg, values: impl IntoIterator<Item = String>) -> Error {
+    Error::Damaged(Note::of(what, values))
+}
+
+fn io_error(doing: Msg) -> impl Fn(io::Error) -> Error + Copy {
+    move |e| Error::Io(Note::of(doing, []), e)
 }
 
 /// What `Manifest.plist` says about the backup.
@@ -90,15 +122,19 @@ pub fn backup_dir(path: &Path) -> Option<PathBuf> {
 }
 
 fn read_plist(path: &Path) -> Result<plist::Value> {
-    plist::Value::from_file(path)
-        .map_err(|e| damaged(format!("{}: {e}", path.file_name().unwrap_or_default().to_string_lossy())))
+    plist::Value::from_file(path).map_err(|e| {
+        damaged(
+            Msg::IosUnreadablePlist,
+            [path.file_name().unwrap_or_default().to_string_lossy().into_owned(), e.to_string()],
+        )
+    })
 }
 
 /// `Manifest.plist`'s facts, without a password.
 pub fn info(dir: &Path) -> Result<Info> {
     let dir = backup_dir(dir).ok_or(Error::NotABackup)?;
     let manifest = read_plist(&dir.join("Manifest.plist"))?;
-    let m = manifest.as_dictionary().ok_or_else(|| damaged("Manifest.plist isn't a dictionary"))?;
+    let m = manifest.as_dictionary().ok_or_else(|| damaged(Msg::IosManifestNotDictionary, []))?;
     let lockdown = m.get("Lockdown").and_then(|l| l.as_dictionary());
     let text = |key: &str| lockdown.and_then(|l| l.get(key)).and_then(|v| v.as_string()).map(str::to_owned);
     let date_ms = m.get("Date").and_then(|d| d.as_date()).map(|d| {
@@ -134,10 +170,10 @@ fn tlv(data: &[u8]) -> Result<Vec<([u8; 4], &[u8])>> {
     let mut out = Vec::new();
     let mut at = 0;
     while at < data.len() {
-        let head = data.get(at..at + 8).ok_or_else(|| damaged("the keybag ends inside a record"))?;
+        let head = data.get(at..at + 8).ok_or_else(|| damaged(Msg::IosKeybagEnds, []))?;
         let tag: [u8; 4] = head[..4].try_into().expect("4 bytes");
         let len = u32::from_be_bytes(head[4..8].try_into().expect("4 bytes")) as usize;
-        let value = data.get(at + 8..at + 8 + len).ok_or_else(|| damaged("a keybag record runs past its end"))?;
+        let value = data.get(at + 8..at + 8 + len).ok_or_else(|| damaged(Msg::IosKeybagRecordPastEnd, []))?;
         out.push((tag, value));
         at += 8 + len;
     }
@@ -166,8 +202,8 @@ fn unlock(keybag: &[u8], password: &str) -> Result<HashMap<u32, Zeroizing<Vec<u8
             b"CLAS" | b"WRAP" | b"WPKY" | b"KTYP" | b"PBKY" if !classes.is_empty() => {
                 let c = classes.last_mut().expect("a class");
                 match &tag {
-                    b"CLAS" => c.class = be_u32(value).ok_or_else(|| damaged("a class number"))?,
-                    b"WRAP" => c.wrap = be_u32(value).ok_or_else(|| damaged("a wrap type"))?,
+                    b"CLAS" => c.class = be_u32(value).ok_or_else(|| damaged(Msg::IosClassNumber, []))?,
+                    b"WRAP" => c.wrap = be_u32(value).ok_or_else(|| damaged(Msg::IosWrapType, []))?,
                     b"WPKY" => c.key = value.to_vec(),
                     _ => {}
                 }
@@ -177,8 +213,8 @@ fn unlock(keybag: &[u8], password: &str) -> Result<HashMap<u32, Zeroizing<Vec<u8
             }
         }
     }
-    let salt = attrs.get(b"SALT").ok_or_else(|| damaged("the keybag has no salt"))?;
-    let iterations = attrs.get(b"ITER").and_then(|v| be_u32(v)).ok_or_else(|| damaged("the keybag has no count"))?;
+    let salt = attrs.get(b"SALT").ok_or_else(|| damaged(Msg::IosKeybagNoSalt, []))?;
+    let iterations = attrs.get(b"ITER").and_then(|v| be_u32(v)).ok_or_else(|| damaged(Msg::IosKeybagNoCount, []))?;
     let mut key = Zeroizing::new([0u8; 32]);
     match (attrs.get(b"DPSL"), attrs.get(b"DPIC").and_then(|v| be_u32(v))) {
         // iOS 10.2 and later: a slow SHA-256 round first.
@@ -198,7 +234,7 @@ fn unlock(keybag: &[u8], password: &str) -> Result<HashMap<u32, Zeroizing<Vec<u8
         out.insert(c.class, Zeroizing::new(plain.to_vec()));
     }
     if out.is_empty() {
-        return Err(damaged("the keybag holds no keys the password opens"));
+        return Err(damaged(Msg::IosKeybagNoKeys, []));
     }
     Ok(out)
 }
@@ -208,10 +244,10 @@ fn unwrap_with(
     class: u32,
     wrapped: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>> {
-    let kek = class_keys.get(&class).ok_or_else(|| damaged(format!("no key for protection class {class}")))?;
-    let kw = aes_kw::KwAes256::new_from_slice(kek).map_err(|_| damaged("a class key isn't 32 bytes"))?;
+    let kek = class_keys.get(&class).ok_or_else(|| damaged(Msg::IosNoClassKey, [class.to_string()]))?;
+    let kw = aes_kw::KwAes256::new_from_slice(kek).map_err(|_| damaged(Msg::IosClassKeyLength, []))?;
     let mut buf = Zeroizing::new(vec![0u8; wrapped.len()]);
-    let plain = kw.unwrap_key(wrapped, &mut buf).map_err(|_| damaged("a file key doesn't unwrap"))?;
+    let plain = kw.unwrap_key(wrapped, &mut buf).map_err(|_| damaged(Msg::IosFileKeyUnwrap, []))?;
     Ok(Zeroizing::new(plain.to_vec()))
 }
 
@@ -219,12 +255,12 @@ type Cbc = cbc::Decryptor<aes::Aes256>;
 
 /// Decrypts AES-256-CBC (zero IV) from `input` into `out`: `size` bytes when known, else the PKCS#7 padding removed.
 fn decrypt_stream(key: &[u8], input: &mut dyn Read, size: Option<u64>, out: &mut dyn Write) -> Result<u64> {
-    let mut dec = Cbc::new_from_slices(key, &[0u8; 16]).map_err(|_| damaged("a file key isn't 32 bytes"))?;
+    let mut dec = Cbc::new_from_slices(key, &[0u8; 16]).map_err(|_| damaged(Msg::IosFileKeyLength, []))?;
     let mut buf = vec![0u8; 1 << 16];
     let mut held: Option<[u8; 16]> = None;
     let mut written = 0u64;
     let limit = size.unwrap_or(u64::MAX);
-    let io = |e| Error::Io("reading the backup".into(), e);
+    let io = io_error(Msg::IosDoingReading);
     loop {
         let mut filled = 0;
         while filled < buf.len() {
@@ -235,7 +271,7 @@ fn decrypt_stream(key: &[u8], input: &mut dyn Read, size: Option<u64>, out: &mut
             filled += n;
         }
         if filled % 16 != 0 {
-            return Err(damaged("an encrypted file's length isn't whole blocks"));
+            return Err(damaged(Msg::IosNotWholeBlocks, []));
         }
         if filled == 0 {
             break;
@@ -246,7 +282,7 @@ fn decrypt_stream(key: &[u8], input: &mut dyn Read, size: Option<u64>, out: &mut
             dec.decrypt_block(block);
             if let Some(prev) = held.replace(block.as_slice().try_into().expect("16 bytes")) {
                 let take = (limit - written).min(16) as usize;
-                out.write_all(&prev[..take]).map_err(|e| Error::Io("writing".into(), e))?;
+                out.write_all(&prev[..take]).map_err(io_error(Msg::IosDoingWriting))?;
                 written += take as u64;
             }
         }
@@ -257,12 +293,12 @@ fn decrypt_stream(key: &[u8], input: &mut dyn Read, size: Option<u64>, out: &mut
             None => {
                 let pad = last[15] as usize;
                 if pad == 0 || pad > 16 || last[16 - pad..].iter().any(|&b| b as usize != pad) {
-                    return Err(damaged("an encrypted file's padding is wrong"));
+                    return Err(damaged(Msg::IosPadding, []));
                 }
                 16 - pad
             }
         };
-        out.write_all(&last[..keep]).map_err(|e| Error::Io("writing".into(), e))?;
+        out.write_all(&last[..keep]).map_err(io_error(Msg::IosDoingWriting))?;
         written += keep as u64;
     }
     Ok(written)
@@ -274,12 +310,13 @@ type FileFacts = (Option<u64>, Option<u32>, Option<Vec<u8>>);
 /// The facts an `MBFile` archive (NSKeyedArchiver) in `Manifest.db`'s `file` column holds: size, protection class,
 /// wrapped key.
 fn mbfile(blob: &[u8]) -> Result<FileFacts> {
-    let v = plist::Value::from_reader(io::Cursor::new(blob)).map_err(|e| damaged(format!("a file record: {e}")))?;
+    let v =
+        plist::Value::from_reader(io::Cursor::new(blob)).map_err(|e| damaged(Msg::IosFileRecord, [e.to_string()]))?;
     let objects = v
         .as_dictionary()
         .and_then(|d| d.get("$objects"))
         .and_then(|o| o.as_array())
-        .ok_or_else(|| damaged("a file record without objects"))?;
+        .ok_or_else(|| damaged(Msg::IosRecordNoObjects, []))?;
     let top = v
         .as_dictionary()
         .and_then(|d| d.get("$top"))
@@ -287,8 +324,7 @@ fn mbfile(blob: &[u8]) -> Result<FileFacts> {
         .and_then(|t| t.get("root"))
         .and_then(|r| r.as_uid())
         .map_or(1, |u| u.get() as usize);
-    let root =
-        objects.get(top).and_then(|o| o.as_dictionary()).ok_or_else(|| damaged("a file record without a root"))?;
+    let root = objects.get(top).and_then(|o| o.as_dictionary()).ok_or_else(|| damaged(Msg::IosRecordNoRoot, []))?;
     let size = root.get("Size").and_then(|s| s.as_unsigned_integer());
     let class = root.get("ProtectionClass").and_then(|c| c.as_unsigned_integer()).map(|c| c as u32);
     let key = root.get("EncryptionKey").and_then(|k| match k {
@@ -317,22 +353,23 @@ impl Backup {
         let (db_path, class_keys, tmp) = if info.encrypted {
             let password = password.filter(|p| !p.is_empty()).ok_or(Error::NeedsPassword)?;
             let manifest = read_plist(&dir.join("Manifest.plist"))?;
-            let m = manifest.as_dictionary().ok_or_else(|| damaged("Manifest.plist isn't a dictionary"))?;
-            let keybag = m.get("BackupKeyBag").and_then(|k| k.as_data()).ok_or_else(|| damaged("no keybag"))?;
+            let m = manifest.as_dictionary().ok_or_else(|| damaged(Msg::IosManifestNotDictionary, []))?;
+            let keybag =
+                m.get("BackupKeyBag").and_then(|k| k.as_data()).ok_or_else(|| damaged(Msg::IosNoKeybag, []))?;
             let class_keys = unlock(keybag, password)?;
-            let wrapped = m.get("ManifestKey").and_then(|k| k.as_data()).ok_or_else(|| damaged("no manifest key"))?;
+            let wrapped =
+                m.get("ManifestKey").and_then(|k| k.as_data()).ok_or_else(|| damaged(Msg::IosNoManifestKey, []))?;
             if wrapped.len() < 8 {
-                return Err(damaged("the manifest key is too short"));
+                return Err(damaged(Msg::IosManifestKeyShort, []));
             }
             let class = u32::from_le_bytes(wrapped[..4].try_into().expect("4 bytes"));
             let key = unwrap_with(&class_keys, class, &wrapped[4..])?;
-            let tmp = tempfile::Builder::new()
-                .prefix("oopz-ios-")
-                .tempdir()
-                .map_err(|e| Error::Io("a private temporary folder".into(), e))?;
+            let tmp =
+                tempfile::Builder::new().prefix("oopz-ios-").tempdir().map_err(io_error(Msg::DoingTemporaryFolder))?;
             let plain = tmp.path().join("Manifest.db");
-            let mut input = File::open(dir.join("Manifest.db")).map_err(|e| Error::Io("Manifest.db".into(), e))?;
-            let mut out = File::create(&plain).map_err(|e| Error::Io("a decrypted copy".into(), e))?;
+            let mut input = File::open(dir.join("Manifest.db"))
+                .map_err(|e| Error::Io(Note::of(Msg::DoingReading, ["Manifest.db".to_owned()]), e))?;
+            let mut out = File::create(&plain).map_err(io_error(Msg::IosDoingDecryptedCopy))?;
             decrypt_stream(&key, &mut input, None, &mut out)?;
             (plain, class_keys, Some(tmp))
         } else {
@@ -340,9 +377,9 @@ impl Backup {
         };
         let db =
             Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
-                .map_err(|e| damaged(format!("Manifest.db: {e}")))?;
+                .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
         db.query_row("SELECT count(*) FROM Files", [], |r| r.get::<_, i64>(0))
-            .map_err(|e| damaged(format!("Manifest.db: {e}")))?;
+            .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
         Ok(Backup { dir, info, db, class_keys, _tmp: tmp })
     }
 
@@ -368,7 +405,7 @@ impl Backup {
                 |r| self.entry(r),
             )
             .optional()
-            .map_err(|e| damaged(format!("Manifest.db: {e}")))
+            .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))
     }
 
     /// Every file in `domain` whose path starts with `prefix`.
@@ -380,9 +417,11 @@ impl Backup {
                 "SELECT fileID, domain, relativePath, file FROM Files
                  WHERE domain = ?1 AND relativePath LIKE ?2 ESCAPE '\\' AND flags = 1 ORDER BY relativePath",
             )
-            .map_err(|e| damaged(format!("Manifest.db: {e}")))?;
-        let rows = stmt.query_map([domain, like.as_str()], |r| self.entry(r)).map_err(|e| damaged(e.to_string()))?;
-        rows.collect::<rusqlite::Result<_>>().map_err(|e| damaged(e.to_string()))
+            .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
+        let rows = stmt
+            .query_map([domain, like.as_str()], |r| self.entry(r))
+            .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
+        rows.collect::<rusqlite::Result<_>>().map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))
     }
 
     /// The domains whose name starts with `prefix` (an app's group container is named by its group id).
@@ -390,9 +429,9 @@ impl Backup {
         let mut stmt = self
             .db
             .prepare("SELECT DISTINCT domain FROM Files WHERE substr(domain, 1, length(?1)) = ?1 ORDER BY domain")
-            .map_err(|e| damaged(e.to_string()))?;
-        let rows = stmt.query_map([prefix], |r| r.get(0)).map_err(|e| damaged(e.to_string()))?;
-        rows.collect::<rusqlite::Result<_>>().map_err(|e| damaged(e.to_string()))
+            .map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
+        let rows = stmt.query_map([prefix], |r| r.get(0)).map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))?;
+        rows.collect::<rusqlite::Result<_>>().map_err(|e| damaged(Msg::IosManifestDb, [e.to_string()]))
     }
 
     /// Where the file's (encrypted or plain) bytes are in the backup folder.
@@ -411,13 +450,13 @@ impl Backup {
     /// Writes the file's plain bytes to `out`; returns how many.
     pub fn copy(&self, entry: &Entry, out: &mut dyn Write) -> Result<u64> {
         let path = self.stored(entry);
-        let mut input =
-            File::open(&path).map_err(|e| Error::Io(format!("{} in the backup", entry.relative_path), e))?;
+        let mut input = File::open(&path)
+            .map_err(|e| Error::Io(Note::of(Msg::IosDoingInBackup, [entry.relative_path.clone()]), e))?;
         if !self.info.encrypted {
-            return io::copy(&mut input, out).map_err(|e| Error::Io("copying".into(), e));
+            return io::copy(&mut input, out).map_err(io_error(Msg::IosDoingCopying));
         }
         let (Some(class), Some(wrapped)) = (entry.protection, entry.wrapped_key.as_deref()) else {
-            return Err(damaged(format!("{} has no key", entry.relative_path)));
+            return Err(damaged(Msg::IosFileNoKey, [entry.relative_path.clone()]));
         };
         let key = unwrap_with(&self.class_keys, class, wrapped)?;
         decrypt_stream(&key, &mut input, entry.size, out)
@@ -426,7 +465,7 @@ impl Backup {
     /// The file's plain bytes, refused past `max` bytes.
     pub fn read(&self, entry: &Entry, max: u64) -> Result<Vec<u8>> {
         if entry.size.is_some_and(|s| s > max) {
-            return Err(damaged(format!("{} is larger than {max} bytes", entry.relative_path)));
+            return Err(damaged(Msg::IosFileTooLarge, [entry.relative_path.clone(), max.to_string()]));
         }
         let mut out = Vec::new();
         self.copy(entry, &mut out)?;
@@ -438,9 +477,9 @@ impl Backup {
         let name =
             Path::new(&entry.relative_path).file_name().map_or_else(|| entry.file_id.clone().into(), |n| n.to_owned());
         let path = dir.join(name);
-        let mut out = File::create(&path).map_err(|e| Error::Io("a decrypted copy".into(), e))?;
+        let mut out = File::create(&path).map_err(io_error(Msg::IosDoingDecryptedCopy))?;
         self.copy(entry, &mut out)?;
-        out.sync_all().map_err(|e| Error::Io("a decrypted copy".into(), e))?;
+        out.sync_all().map_err(io_error(Msg::IosDoingDecryptedCopy))?;
         Ok(path)
     }
 }

@@ -10,6 +10,9 @@ use aes_gcm::aes::Aes256;
 use aes_gcm::{AesGcm, KeyInit};
 use flate2::read::ZlibDecoder;
 use hkdf::Hkdf;
+use msgkinds::Note;
+use msgkinds::note::Value;
+use oopz_model::messages::Message as Msg;
 use prost::Message as _;
 use sha2::Sha256;
 use zeroize::Zeroizing;
@@ -20,23 +23,45 @@ const TAG_LEN: usize = 16;
 const CHECKSUM_LEN: usize = 16;
 const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
 
-#[derive(Debug, thiserror::Error)]
+/// Why a backup didn't open or write, worded by [`Error::note`] in the person's language (the `oopz` catalog);
+/// `Display` is the English. Never holds the key.
+#[derive(Debug)]
 pub enum Error {
-    #[error("the key must be 64 hexadecimal characters (0-9, a-f), as WhatsApp showed it")]
     BadKeyFormat,
-    #[error("not a crypt15 backup: {0}")]
-    NotCrypt15(&'static str),
-    #[error("this key doesn't open this backup (a different key, or the file is damaged or incomplete)")]
+    /// Which part of the header isn't crypt15's (`not_crypt15_…`); [`Msg::NotCrypt15NoIv`] is a crypt14 backup's.
+    NotCrypt15(Msg),
     WrongKeyOrDamaged,
-    #[error("the backup opened but doesn't contain a SQLite database ({0})")]
-    BadContents(&'static str),
-    #[error("this computer gave no randomness for a fresh IV")]
+    /// Why the decrypted bytes aren't a SQLite database (`bad_contents_…`).
+    BadContents(Msg),
     NoRandomness,
-    #[error("writing the decrypted database: {0}")]
     Write(std::io::Error),
-    #[error("stopped before the end, as asked")]
     Cancelled,
 }
+
+impl Error {
+    /// The error's words, to show in the person's language (`note().text(language)`).
+    pub fn note(&self) -> Note {
+        let why = |m: &Msg| vec![Value::Note(Box::new(Note::of(*m, [])))];
+        match self {
+            Error::BadKeyFormat => Note::of(Msg::ErrorKeyFormat, []),
+            Error::NotCrypt15(m) => Note::new(Msg::ErrorNotCrypt15, why(m)),
+            Error::WrongKeyOrDamaged => Note::of(Msg::ErrorWrongKey, []),
+            Error::BadContents(m) => Note::new(Msg::ErrorBadContents, why(m)),
+            Error::NoRandomness => Note::of(Msg::ErrorNoRandomnessIv, []),
+            Error::Write(e) => crate::io_note(Note::of(Msg::DoingWritingDecrypted, []), e),
+            Error::Cancelled => Note::of(Msg::ErrorCancelled, []),
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.note().fmt(f)
+    }
+}
+
+/// No `source()`: the note already holds the system's reason, so a chain doesn't say it twice.
+impl std::error::Error for Error {}
 
 /// The 64-digit key, wiped from memory when dropped. Its `Debug` never shows it.
 pub struct Key(Zeroizing<[u8; 32]>);
@@ -93,16 +118,16 @@ pub fn looks_like(head: &[u8]) -> bool {
 /// Splits a crypt15 file into everything before the ciphertext (length byte, optional 0x01, protobuf header), the
 /// rest, and the header's IV.
 fn split(file: &[u8]) -> Result<Parts<'_>, Error> {
-    let (&header_len, rest) = file.split_first().ok_or(Error::NotCrypt15("empty file"))?;
+    let (&header_len, rest) = file.split_first().ok_or(Error::NotCrypt15(Msg::NotCrypt15Empty))?;
     // A 0x01 after the length marks a feature table. It can't start a protobuf (field 0 doesn't exist).
     let rest = rest.strip_prefix(&[1]).unwrap_or(rest);
     if rest.len() < header_len as usize {
-        return Err(Error::NotCrypt15("truncated header"));
+        return Err(Error::NotCrypt15(Msg::NotCrypt15Truncated));
     }
     let (header, body) = rest.split_at(header_len as usize);
-    let prefix = BackupPrefix::decode(header).map_err(|_| Error::NotCrypt15("unreadable header"))?;
-    let iv = prefix.c15_iv.ok_or(Error::NotCrypt15("no crypt15 IV in the header (a crypt14 backup?)"))?.iv;
-    let iv = iv.as_slice().try_into().map_err(|_| Error::NotCrypt15("the IV isn't 16 bytes"))?;
+    let prefix = BackupPrefix::decode(header).map_err(|_| Error::NotCrypt15(Msg::NotCrypt15Unreadable))?;
+    let iv = prefix.c15_iv.ok_or(Error::NotCrypt15(Msg::NotCrypt15NoIv))?.iv;
+    let iv = iv.as_slice().try_into().map_err(|_| Error::NotCrypt15(Msg::NotCrypt15IvLength))?;
     Ok((&file[..file.len() - body.len()], body, iv))
 }
 
@@ -210,12 +235,14 @@ pub fn decrypt_to_with(
     let total = compressed.len() as u64;
 
     let mut zlib = ZlibDecoder::new(compressed);
-    let not_zlib = |_| Error::BadContents("not zlib-compressed");
+    let not_zlib = |_| Error::BadContents(Msg::BadContentsNotZlib);
     let mut head = [0u8; SQLITE_MAGIC.len()];
     match zlib.read_exact(&mut head) {
         Ok(()) if head == SQLITE_MAGIC => {}
-        Ok(()) => return Err(Error::BadContents("no SQLite header")),
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Err(Error::BadContents("no SQLite header")),
+        Ok(()) => return Err(Error::BadContents(Msg::BadContentsNoSqlite)),
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+            return Err(Error::BadContents(Msg::BadContentsNoSqlite));
+        }
         Err(e) => return Err(not_zlib(e)),
     }
     out.write_all(&head).map_err(Error::Write)?;
@@ -245,9 +272,9 @@ pub fn reseal(original: &[u8], sqlite: &[u8], key: &Key) -> Result<Vec<u8>, Erro
     use std::io::Write;
 
     let (prefix, _, old_iv) = split(original)?;
-    let at = prefix.windows(16).position(|w| w == old_iv).ok_or(Error::NotCrypt15("the IV isn't in the header"))?;
+    let at = prefix.windows(16).position(|w| w == old_iv).ok_or(Error::NotCrypt15(Msg::NotCrypt15IvMissing))?;
     if prefix[at + 1..].windows(16).any(|w| w == old_iv) {
-        return Err(Error::NotCrypt15("the IV appears twice in the header"));
+        return Err(Error::NotCrypt15(Msg::NotCrypt15IvTwice));
     }
     let mut iv = [0u8; 16];
     getrandom::fill(&mut iv).map_err(|_| Error::NoRandomness)?;

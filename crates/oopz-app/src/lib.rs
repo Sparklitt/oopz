@@ -109,15 +109,15 @@ impl From<oopz::Error> for AppError {
         let code = match &e {
             oopz::Error::Crypt15(C::BadKeyFormat) => "key_format",
             oopz::Error::Crypt15(C::WrongKeyOrDamaged) => "wrong_key",
-            oopz::Error::Crypt15(C::NotCrypt15(why)) if why.contains("crypt14") => "crypt14",
+            oopz::Error::Crypt15(C::NotCrypt15(ModelMsg::NotCrypt15NoIv)) => "crypt14",
             oopz::Error::Crypt15(C::NotCrypt15(_)) => "not_crypt15",
             oopz::Error::Crypt15(C::BadContents(_)) | oopz::Error::Sqlite(_) => "damaged",
             oopz::Error::Unsupported(_) => "unsupported",
             oopz::Error::MergeCheck(_) => "merge_check",
             oopz::Error::Cancelled | oopz::Error::Crypt15(C::Cancelled) => "cancelled",
-            _ => "io",
+            oopz::Error::Io(..) | oopz::Error::Crypt15(C::NoRandomness | C::Write(_)) => "io",
         };
-        Self::new(code, Note::of(ModelMsg::SystemReason, [e.to_string()]))
+        Self::new(code, e.note())
     }
 }
 
@@ -128,3 +128,38 @@ impl From<oopz::crypt15::Error> for AppError {
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oopz::crypt15::Error as C;
+
+    /// docs/messages.md, errors row 6: each of the `oopz` crate's errors keeps its code (stored names the UI words),
+    /// and its note.
+    #[test]
+    fn errors_6_the_backup_errors_keep_their_codes() {
+        let io = || std::io::Error::other("x");
+        let note = |m: ModelMsg| Note::of(m, []);
+        let sql = rusqlite::Connection::open_in_memory().unwrap().execute("NOT SQL", []).unwrap_err();
+        let codes: [(oopz::Error, &str); 13] = [
+            (C::BadKeyFormat.into(), "key_format"),
+            (C::WrongKeyOrDamaged.into(), "wrong_key"),
+            (C::NotCrypt15(ModelMsg::NotCrypt15NoIv).into(), "crypt14"),
+            (C::NotCrypt15(ModelMsg::NotCrypt15Empty).into(), "not_crypt15"),
+            (C::BadContents(ModelMsg::BadContentsNoSqlite).into(), "damaged"),
+            (sql.into(), "damaged"),
+            (oopz::Error::Unsupported(note(ModelMsg::MergeOneToOne)), "unsupported"),
+            (oopz::Error::MergeCheck(note(ModelMsg::CheckSchema)), "merge_check"),
+            (oopz::Error::Cancelled, "cancelled"),
+            (C::Cancelled.into(), "cancelled"),
+            (oopz::Error::Io(note(ModelMsg::DoingMediaFolder), io()), "io"),
+            (C::NoRandomness.into(), "io"),
+            (C::Write(io()).into(), "io"),
+        ];
+        for (e, code) in codes {
+            let words = e.note();
+            let app = AppError::from(e);
+            assert_eq!((app.code, app.note), (code, words));
+        }
+    }
+}

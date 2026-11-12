@@ -99,3 +99,25 @@ fn not_a_backup_too_old_damaged_or_missing_files() {
     m.to_file_binary(dir.path().join("Manifest.plist")).unwrap();
     assert!(matches!(Backup::open(dir.path(), Some("pw")), Err(Error::Damaged(_))));
 }
+
+/// docs/messages.md, errors row 9: a damaged backup's diagnostic is a developer's (English, from the catalog) inside
+/// a user's message in the person's language; what was being done is a user's.
+#[test]
+fn errors_9_a_diagnostic_is_a_developers_inside_a_users_words() {
+    let dir = tempfile::tempdir().unwrap();
+    make(dir.path(), Some("pw"));
+    let b = Backup::open(dir.path(), Some("pw")).unwrap();
+    let e = b.file(DOMAIN, "Media/a/b/photo.jpg").unwrap().unwrap();
+    let stored = dir.path().join(&e.file_id[..2]).join(&e.file_id);
+    fs::write(&stored, [1u8; 15]).unwrap();
+    let Err(Error::Damaged(why)) = b.read(&e, u64::MAX) else { panic!("a cut-off file is damaged") };
+    assert!(!why.message.for_users && why.message.catalog == "oopz", "{why:?}");
+    let damaged = Error::Damaged(why);
+    assert_eq!(damaged.note().text("es"), "dañado: la copia de iPhone: an encrypted file's length isn't whole blocks");
+
+    fs::remove_file(&stored).unwrap();
+    let Err(gone @ Error::Io(..)) = b.read(&e, u64::MAX) else { panic!("a missing file is an io error") };
+    let spanish = gone.note().text("es");
+    let doing = format!("la copia de iPhone, leyendo {} en la copia: ", e.relative_path);
+    assert!(spanish.starts_with(&doing), "{spanish}");
+}

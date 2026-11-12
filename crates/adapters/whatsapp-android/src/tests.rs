@@ -39,6 +39,22 @@ fn crypt15_rejects_wrong_keys_and_damage_without_leaking_the_key() {
     assert!(format!("{:?}", key()) == "Key(..)");
 }
 
+/// docs/messages.md, errors row 6: which header check failed is typed, so the app's codes don't read English. An
+/// empty file; a header length past the end; a zero-length header (a protobuf with no fields: no crypt15 IV, as a
+/// crypt14 backup's); a header that isn't protobuf (field 0 doesn't exist).
+#[test]
+fn errors_6_each_header_refusal_says_which() {
+    use oopz_model::messages::Message as M;
+    let refused = |file: &[u8]| match crypt15::decrypt(file, &key()) {
+        Err(CryptError::NotCrypt15(why)) => why,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(refused(&[]), M::NotCrypt15Empty);
+    assert_eq!(refused(&[9, 8]), M::NotCrypt15Truncated);
+    assert_eq!(refused(&[0, 7, 7]), M::NotCrypt15NoIv);
+    assert_eq!(refused(&[1, 0]), M::NotCrypt15Unreadable);
+}
+
 #[test]
 fn the_whatsapp_version_is_read_from_the_header_before_any_key() {
     let with = crypt15::encrypt_as(b"SQLite format 3\0synthetic", &key(), [3; 16], true, Some("2.24.10.80"));

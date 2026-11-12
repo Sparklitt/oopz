@@ -12,6 +12,9 @@ publish.workspace = true
 write = ["dep:getrandom"]
 
 [dependencies]
+# The `oopz` catalog its errors are worded from, as the adapters' (docs/messages.md, errors row 9).
+msgkinds.workspace = true
+oopz-model.workspace = true
 getrandom = { workspace = true, optional = true }
 aes.workspace = true
 aes-kw.workspace = true
@@ -22,7 +25,6 @@ rusqlite.workspace = true
 sha1.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
-thiserror.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]

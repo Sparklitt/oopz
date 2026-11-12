@@ -1520,3 +1520,551 @@ for = "user"
 params = []
 en = "that suggestion is gone"
 es = "esa sugerencia ya no está"
+
+# WhatsApp Android backups (crate `oopz`, crates/adapters/whatsapp-android): crypt15, the database, the merge. A
+# check a person can only report (a table, a header field) is a developer message: English, inside a user one.
+
+[[message]]
+name = "error_key_format"
+for = "user"
+params = []
+en = "the key must be 64 hexadecimal characters (0-9, a-f), as WhatsApp showed it"
+es = "la clave debe tener 64 caracteres (dígitos 0-9 y letras a-f), como la mostró WhatsApp"
+
+[[message]]
+name = "error_not_crypt15"
+for = "user"
+params = ["why"]
+en = "not a crypt15 backup: {why}"
+es = "no es una copia crypt15: {why}"
+
+[[message]]
+name = "not_crypt15_empty"
+for = "user"
+params = []
+en = "empty file"
+es = "archivo vacío"
+
+[[message]]
+name = "not_crypt15_truncated"
+for = "user"
+params = []
+en = "truncated header"
+es = "cabecera cortada"
+
+[[message]]
+name = "not_crypt15_unreadable"
+for = "user"
+params = []
+en = "unreadable header"
+es = "cabecera ilegible"
+
+[[message]]
+name = "not_crypt15_no_iv"
+for = "user"
+params = []
+en = "no crypt15 IV in the header (a crypt14 backup?)"
+es = "no hay IV de crypt15 en la cabecera (¿una copia crypt14?)"
+
+[[message]]
+name = "not_crypt15_iv_length"
+for = "developer"
+params = []
+en = "the IV isn't 16 bytes"
+
+[[message]]
+name = "not_crypt15_iv_missing"
+for = "developer"
+params = []
+en = "the IV isn't in the header"
+
+[[message]]
+name = "not_crypt15_iv_twice"
+for = "developer"
+params = []
+en = "the IV appears twice in the header"
+
+[[message]]
+name = "error_wrong_key"
+for = "user"
+params = []
+en = "this key doesn't open this backup (a different key, or the file is damaged or incomplete)"
+es = "esta clave no abre esta copia (es otra clave, o el archivo está dañado o incompleto)"
+
+[[message]]
+name = "error_bad_contents"
+for = "user"
+params = ["why"]
+en = "the backup opened but doesn't contain a SQLite database ({why})"
+es = "la copia se abrió pero no contiene una base de datos SQLite ({why})"
+
+[[message]]
+name = "bad_contents_not_zlib"
+for = "developer"
+params = []
+en = "not zlib-compressed"
+
+[[message]]
+name = "bad_contents_no_sqlite"
+for = "developer"
+params = []
+en = "no SQLite header"
+
+[[message]]
+name = "error_no_randomness_iv"
+for = "user"
+params = []
+en = "this computer gave no randomness for a fresh IV"
+es = "este ordenador no dio datos aleatorios para un IV nuevo"
+
+[[message]]
+name = "error_whatsapp_unsupported"
+for = "user"
+params = ["why"]
+en = "unsupported WhatsApp database: {why}"
+es = "base de datos de WhatsApp no admitida: {why}"
+
+[[message]]
+name = "error_whatsapp_database"
+for = "user"
+params = ["reason"]
+en = "reading the WhatsApp database: {reason}"
+es = "leyendo la base de datos de WhatsApp: {reason}"
+
+[[message]]
+name = "error_merge_check"
+for = "user"
+params = ["check"]
+en = "the merged backup failed a check, nothing was written: {check}"
+es = "la copia unida no pasó una comprobación, no se escribió nada: {check}"
+
+[[message]]
+name = "whatsapp_old_schema"
+for = "user"
+params = []
+en = "the old single `messages` table schema isn't supported yet"
+es = "el esquema antiguo de una sola tabla `messages` aún no se admite"
+
+[[message]]
+name = "whatsapp_no_table"
+for = "developer"
+params = ["table"]
+en = "no `{table}` table"
+
+[[message]]
+name = "whatsapp_no_column"
+for = "developer"
+params = ["table", "column"]
+en = "no `{table}.{column}` column"
+
+[[message]]
+name = "no_chat_number"
+for = "user"
+params = ["chat"]
+en = "no chat number {chat} in this backup"
+es = "no hay ningún chat número {chat} en esta copia"
+
+[[message]]
+name = "merge_one_to_one"
+for = "user"
+params = []
+en = "only one-to-one chats can be merged"
+es = "solo se pueden unir chats individuales"
+
+[[message]]
+name = "merge_no_target_chat"
+for = "user"
+params = ["chat"]
+en = "no one-to-one chat number {chat} in the target backup"
+es = "no hay ningún chat individual número {chat} en la copia de destino"
+
+[[message]]
+name = "merge_target_fts"
+for = "user"
+params = ["table"]
+en = "the target has `{table}`; its search index isn't rebuilt"
+es = "el destino tiene `{table}`; su índice de búsqueda no se reconstruye"
+
+[[message]]
+name = "merge_media_exists"
+for = "user"
+params = []
+en = "a mirrored media path already exists in the target"
+es = "una ruta multimedia reflejada ya existe en el destino"
+
+[[message]]
+name = "merge_needs_newer_source"
+for = "user"
+params = ["table", "column"]
+en = "the target's `{table}.{column}` needs a value the source backup doesn't have (the target's WhatsApp is newer); update WhatsApp on the source phone and make a new backup"
+es = "`{table}.{column}` del destino necesita un valor que la copia de origen no tiene (el WhatsApp del destino es más nuevo); actualiza WhatsApp en el teléfono de origen y haz una copia nueva"
+
+[[message]]
+name = "merge_sort_id"
+for = "developer"
+params = []
+en = "the target chat has a sort_id unequal to its _id"
+
+[[message]]
+name = "merge_unmirrorable"
+for = "developer"
+params = ["table", "column"]
+en = "`{table}.{column}` holds an id the merge can't mirror"
+
+[[message]]
+name = "merge_no_new_row"
+for = "developer"
+params = []
+en = "a source message without a new row"
+
+[[message]]
+name = "merge_no_device_sent"
+for = "developer"
+params = []
+en = "the target chat has no author_device_jid for its sent messages to copy"
+
+[[message]]
+name = "merge_no_device_received"
+for = "developer"
+params = []
+en = "the target chat has no author_device_jid for its received messages to copy"
+
+[[message]]
+name = "merge_unmapped"
+for = "developer"
+params = ["table", "column"]
+en = "`{table}.{column}` points at a row that wasn't merged"
+
+[[message]]
+name = "check_decrypt"
+for = "developer"
+params = ["reason"]
+en = "doesn't decrypt: {reason}"
+
+[[message]]
+name = "check_integrity"
+for = "developer"
+params = []
+en = "integrity_check"
+
+[[message]]
+name = "check_user_version"
+for = "developer"
+params = []
+en = "user_version changed"
+
+[[message]]
+name = "check_schema"
+for = "developer"
+params = []
+en = "the schema (tables, indexes, triggers) changed"
+
+[[message]]
+name = "check_other_chats"
+for = "developer"
+params = []
+en = "another chat's messages changed"
+
+[[message]]
+name = "check_own_order"
+for = "developer"
+params = []
+en = "the target chat's own messages changed or lost their order"
+
+[[message]]
+name = "check_sequence"
+for = "developer"
+params = []
+en = "`sqlite_sequence` lost or lowered a counter, or gained one for an untouched table"
+
+[[message]]
+name = "check_row_count"
+for = "developer"
+params = ["table"]
+en = "`{table}` has an unexpected number of rows"
+
+[[message]]
+name = "check_table_changed"
+for = "developer"
+params = ["table"]
+en = "`{table}` changed"
+
+[[message]]
+name = "check_created_after"
+for = "developer"
+params = []
+en = "the chat was created after its first message"
+
+[[message]]
+name = "doing_writing_decrypted"
+for = "user"
+params = []
+en = "writing the decrypted database"
+es = "escribiendo la base de datos descifrada"
+
+[[message]]
+name = "doing_writing_decrypted_temp"
+for = "user"
+params = []
+en = "writing the decrypted database to a temporary file"
+es = "escribiendo la base de datos descifrada en un archivo temporal"
+
+[[message]]
+name = "doing_writing_temp_database"
+for = "user"
+params = []
+en = "writing a database to a temporary file"
+es = "escribiendo una base de datos en un archivo temporal"
+
+[[message]]
+name = "doing_reading_merged"
+for = "user"
+params = []
+en = "reading the merged database back"
+es = "releyendo la base de datos unida"
+
+[[message]]
+name = "doing_media_folder"
+for = "user"
+params = []
+en = "creating a media folder"
+es = "creando una carpeta multimedia"
+
+[[message]]
+name = "doing_media_file"
+for = "user"
+params = []
+en = "creating a media file in the pack"
+es = "creando un archivo multimedia en el paquete"
+
+[[message]]
+name = "doing_copying_media"
+for = "user"
+params = []
+en = "copying a media file"
+es = "copiando un archivo multimedia"
+
+[[message]]
+name = "doing_reading_time"
+for = "user"
+params = []
+en = "reading a file's time"
+es = "leyendo la hora de un archivo"
+
+[[message]]
+name = "doing_setting_time"
+for = "user"
+params = []
+en = "setting a file's time"
+es = "poniendo la hora de un archivo"
+
+[[message]]
+name = "check_count"
+for = "developer"
+params = ["after", "before", "added"]
+plural = "after"
+en_one = "the chat has {after} message, not {before} + {added}"
+en_other = "the chat has {after} messages, not {before} + {added}"
+
+[[message]]
+name = "check_sort_id"
+for = "developer"
+params = ["now", "before"]
+plural = "now"
+en_one = "{now} message has sort_id unequal to _id (before: {before})"
+en_other = "{now} messages have sort_id unequal to _id (before: {before})"
+
+[[message]]
+name = "check_refers_missing"
+for = "developer"
+params = ["table", "column", "now", "before"]
+plural = "now"
+en_one = "`{table}.{column}` refers to {now} missing message (before: {before})"
+en_other = "`{table}.{column}` refers to {now} missing messages (before: {before})"
+
+# iPhone backups (crate `oopz-ios-backup`): a damaged backup's diagnostics are a developer's (the keybag, a file
+# record), inside a user message; what was being done is a user's.
+
+[[message]]
+name = "ios_unreadable_plist"
+for = "developer"
+params = ["file", "reason"]
+en = "{file}: {reason}"
+
+[[message]]
+name = "ios_manifest_not_dictionary"
+for = "developer"
+params = []
+en = "Manifest.plist isn't a dictionary"
+
+[[message]]
+name = "ios_keybag_ends"
+for = "developer"
+params = []
+en = "the keybag ends inside a record"
+
+[[message]]
+name = "ios_keybag_record_past_end"
+for = "developer"
+params = []
+en = "a keybag record runs past its end"
+
+[[message]]
+name = "ios_class_number"
+for = "developer"
+params = []
+en = "a class number"
+
+[[message]]
+name = "ios_wrap_type"
+for = "developer"
+params = []
+en = "a wrap type"
+
+[[message]]
+name = "ios_keybag_no_salt"
+for = "developer"
+params = []
+en = "the keybag has no salt"
+
+[[message]]
+name = "ios_keybag_no_count"
+for = "developer"
+params = []
+en = "the keybag has no count"
+
+[[message]]
+name = "ios_keybag_no_keys"
+for = "developer"
+params = []
+en = "the keybag holds no keys the password opens"
+
+[[message]]
+name = "ios_no_class_key"
+for = "developer"
+params = ["class"]
+en = "no key for protection class {class}"
+
+[[message]]
+name = "ios_class_key_length"
+for = "developer"
+params = []
+en = "a class key isn't 32 bytes"
+
+[[message]]
+name = "ios_file_key_unwrap"
+for = "developer"
+params = []
+en = "a file key doesn't unwrap"
+
+[[message]]
+name = "ios_file_key_length"
+for = "developer"
+params = []
+en = "a file key isn't 32 bytes"
+
+[[message]]
+name = "ios_not_whole_blocks"
+for = "developer"
+params = []
+en = "an encrypted file's length isn't whole blocks"
+
+[[message]]
+name = "ios_padding"
+for = "developer"
+params = []
+en = "an encrypted file's padding is wrong"
+
+[[message]]
+name = "ios_file_record"
+for = "developer"
+params = ["reason"]
+en = "a file record: {reason}"
+
+[[message]]
+name = "ios_record_no_objects"
+for = "developer"
+params = []
+en = "a file record without objects"
+
+[[message]]
+name = "ios_record_no_root"
+for = "developer"
+params = []
+en = "a file record without a root"
+
+[[message]]
+name = "ios_no_keybag"
+for = "developer"
+params = []
+en = "no keybag"
+
+[[message]]
+name = "ios_no_manifest_key"
+for = "developer"
+params = []
+en = "no manifest key"
+
+[[message]]
+name = "ios_manifest_key_short"
+for = "developer"
+params = []
+en = "the manifest key is too short"
+
+[[message]]
+name = "ios_manifest_db"
+for = "developer"
+params = ["reason"]
+en = "Manifest.db: {reason}"
+
+[[message]]
+name = "ios_file_no_key"
+for = "developer"
+params = ["path"]
+en = "{path} has no key"
+
+[[message]]
+name = "ios_file_too_large"
+for = "user"
+params = ["path", "max"]
+plural = "max"
+en_one = "{path} is larger than {max} byte"
+en_other = "{path} is larger than {max} bytes"
+es_one = "{path} ocupa más de {max} byte"
+es_many = "{path} ocupa más de {max} bytes"
+es_other = "{path} ocupa más de {max} bytes"
+
+[[message]]
+name = "ios_doing_reading"
+for = "user"
+params = []
+en = "reading the backup"
+es = "leyendo la copia"
+
+[[message]]
+name = "ios_doing_writing"
+for = "user"
+params = []
+en = "writing"
+es = "escribiendo"
+
+[[message]]
+name = "ios_doing_decrypted_copy"
+for = "user"
+params = []
+en = "making a decrypted copy"
+es = "creando una copia descifrada"
+
+[[message]]
+name = "ios_doing_in_backup"
+for = "user"
+params = ["path"]
+en = "reading {path} in the backup"
+es = "leyendo {path} en la copia"
+
+[[message]]
+name = "ios_doing_copying"
+for = "user"
+params = []
+en = "copying"
+es = "copiando"

@@ -3,6 +3,8 @@
 
 use std::collections::HashSet;
 
+use msgkinds::Note;
+use oopz_model::messages::Message as Msg;
 use rusqlite::Connection;
 
 use crate::{Error, Result};
@@ -67,15 +69,15 @@ const REQUIRED: &[(&str, &[&str])] = &[
 
 pub fn detect(db: &Connection) -> Result<Schema> {
     if columns(db, "message")?.is_empty() && !columns(db, "messages")?.is_empty() {
-        return Err(Error::Unsupported("the old single `messages` table schema isn't supported yet".into()));
+        return Err(Error::Unsupported(Note::of(Msg::WhatsappOldSchema, [])));
     }
     for (table, required) in REQUIRED {
         let present = columns(db, table)?;
         if present.is_empty() {
-            return Err(Error::Unsupported(format!("no `{table}` table")));
+            return Err(Error::Unsupported(Note::of(Msg::WhatsappNoTable, [table.to_string()])));
         }
         if let Some(missing) = required.iter().find(|c| !present.contains(**c)) {
-            return Err(Error::Unsupported(format!("no `{table}.{missing}` column")));
+            return Err(Error::Unsupported(Note::of(Msg::WhatsappNoColumn, [table.to_string(), missing.to_string()])));
         }
     }
     let mut has = HashSet::new();

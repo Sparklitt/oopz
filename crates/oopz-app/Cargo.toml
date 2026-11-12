@@ -27,7 +27,6 @@ qrcode.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 sha2.workspace = true
-thiserror.workspace = true
 tempfile.workspace = true
 tiny_http.workspace = true
 zeroize.workspace = true

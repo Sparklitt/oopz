@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use msgkinds::note::Value;
 use msgkinds::{Code, Flag, Note, Source as Registry};
 use oopz_ios_backup::{Backup, Entry};
 use oopz_model::messages::Message as Msg;
@@ -47,8 +48,8 @@ fn err(e: oopz_ios_backup::Error) -> m::Error {
         E::TooOld => m::Error::UnsupportedVersion(Note::of(Msg::VersionIos9, [])),
         E::NeedsPassword => m::Error::NeedsSecret,
         E::WrongPassword => m::Error::WrongSecret,
-        E::Damaged(d) => m::Error::Damaged(Note::of(Msg::DamagedIphoneBackup, [d])),
-        E::Io(what, e) => m::Error::Io(Note::of(Msg::DoingIphoneBackup, [what]), e),
+        E::Damaged(d) => m::Error::Damaged(Note::new(Msg::DamagedIphoneBackup, vec![Value::Note(Box::new(d))])),
+        E::Io(doing, e) => m::Error::Io(Note::new(Msg::DoingIphoneBackup, vec![Value::Note(Box::new(doing))]), e),
     }
 }
 
