@@ -19,7 +19,7 @@ import { libraryMock } from "./mockLibrary";
 import { mockSticker } from "./mockMedia";
 import { MIME, extension } from "../generated/msgkinds";
 
-const RIGHT_KEY = "0123456789abcdef".repeat(4);
+const RIGHT_KEY = "0123456789abcdef".repeat(4); // gitleaks:allow: invented, opens only the mock's invented backups
 const FOLDER = "/home/you/Phone/Databases";
 const NOW = Date.UTC(2026, 10, 9, 16, 24);
 const FIRST = Date.UTC(2019, 2, 3, 9, 0);

@@ -18,7 +18,7 @@ export const VIEWPORTS = {
 };
 
 /** The mock's key: it opens every invented backup. Not a real key. */
-const MOCK_KEY = "0123456789abcdef".repeat(4);
+const MOCK_KEY = "0123456789abcdef".repeat(4); // gitleaks:allow: the invented mock key (comment above), not a real one
 
 /** Opens the newest invented backup with the key, from the Add a backup screen. */
 async function openBackup(s, file = "msgstore.db.crypt15") {
