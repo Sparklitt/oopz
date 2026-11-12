@@ -39,8 +39,13 @@ it's known.
    TXT and PDF with no duration for a kind without one (`oopz-export`, `oopz-export-pdf`, from
    `oopz_gen::every_kind`); an unknown code is labelled, counted and exported; an unknown WhatsApp version (new
    columns, an optional table gone, an unknown type, a newer `user_version`) opens with all its messages
-   (`oopz-gen/tests/schema_changes.rs`). The desktop app's `Kind` and `EventCode` are compared with `oopz-model` by a
-   Rust test, and its tables are `Record<Kind, …>` in every language.
+   (`oopz-gen/tests/schema_changes.rs`); each export adapter reads a changed format (a column, key or line it
+   doesn't know, one moved or missing) and keeps what it can or says what's missing (`mod format_changes` in
+   `line-export`, `sms-xml`, `telegram-export` and `viber-export`'s `tests/export.rs`). The desktop app's `Kind`,
+   `EventCode` and the other codes oopz stores come from `apps/desktop/src/lib/generated/oopz.ts`, written from
+   oopz's enums (`oopz-export`'s `bindings`, its test fails when stale), and msgkinds' data from
+   `generated/msgkinds.ts`; its tables are `Record<Kind, …>` in every language. No msgkinds value is spelled in
+   oopz's Rust, TypeScript or Svelte (`oopz-model/tests/values.rs`, `msgkinds::scan`).
 7. **A library written by a newer oopz still opens.** Stored names this build doesn't know read as unknown, never
    an error: a message's kind (`kind_of`), a conversation's kind, an event (`other`), a call's outcome, and a part
    (`Part::Unknown` with its stored type: `hologram`, `card:quiz`, `media:hologram`, and any text it had). Fields
