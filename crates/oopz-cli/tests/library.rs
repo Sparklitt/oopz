@@ -238,3 +238,26 @@ fn an_encrypted_iphone_backup_with_its_password_and_its_photos() {
     let w = ok(lib, &["export", "--format", "media-zip", "--all", "--out-dir", zip.to_str().unwrap()]);
     assert!(w.contains("saved: "), "{w}");
 }
+
+/// docs/messages.md, errors row 4: an oopz error in the command's error chain is worded in the command's language,
+/// never English mixed in (the Spanish is the catalogs' wording, written by hand here).
+#[test]
+fn errors_4_a_failing_import_is_worded_in_the_commands_language() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("lib");
+    let garbage = dir.path().join("msgstore.db.crypt15");
+    std::fs::write(&garbage, b"not a backup, invented bytes").unwrap();
+    let backup = dir.path().join("iphone");
+    oopz_gen::ios::generate(&backup, Some("invented pw"), false).unwrap();
+    let cases = [
+        (garbage, "5a17c0de".repeat(8), "error: no es una copia crypt15 de WhatsApp"),
+        (backup, "not it".to_owned(), "error: la clave o contraseña no lo abre, o el archivo está dañado"),
+    ];
+    for (path, secret, error) in cases {
+        let out = oopz(&lib, &["--lang", "es", "import", path.to_str().unwrap()], Some(&secret));
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success());
+        assert_eq!(stderr.lines().last(), Some(error), "{stderr}");
+        assert!(!stderr.contains(" the ") && !stderr.contains("not "), "English mixed in: {stderr}");
+    }
+}

@@ -783,7 +783,7 @@ pub fn run() {
             update::update_install,
         ])
         .build(tauri::generate_context!())
-        .expect("oopz couldn't start its window")
+        .unwrap_or_else(|e| panic!("{}: {e:?}", msgkinds::note::say(Msg::WindowFailed, &[])))
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<AppState>().close();

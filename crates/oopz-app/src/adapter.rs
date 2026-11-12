@@ -407,6 +407,29 @@ mod tests {
         assert!(matches!(e, Error::NeedsSecret));
     }
 
+    /// docs/messages.md, errors row 2: a key-shaped secret (invented) never appears in an error, in any language, on
+    /// any refusal; the path appears as it is, a value.
+    #[test]
+    fn errors_2_a_key_never_appears_in_an_error() {
+        const SECRET: &str = "5a17c0de5a17c0de5a17c0de5a17c0de5a17c0de5a17c0de5a17c0de5a17c0de";
+        let dir = tempfile::tempdir().unwrap();
+        let garbage = dir.path().join("msgstore.db.crypt15");
+        std::fs::write(&garbage, b"not a backup, invented bytes").unwrap();
+        let empty = dir.path().join("msgstore-2024-01-01.1.db.crypt15");
+        std::fs::write(&empty, b"").unwrap();
+        let wrong_key = oopz::fixture::two_phones().source;
+        let spaced = SECRET.as_bytes().chunks(4).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join(" ");
+        for (path, secret) in [(&garbage, SECRET), (&empty, SECRET), (&wrong_key, SECRET), (&garbage, &spaced[..])] {
+            let e = WhatsAppAdapter.open(path, Some(secret)).err().expect("refused");
+            for text in [e.to_string(), e.note().text("en"), e.note().text("es")] {
+                assert!(!text.contains("5a17c0de") && !text.contains("5a17 c0de"), "{text}");
+            }
+        }
+        let missing = dir.path().join("gone.crypt15");
+        let e = WhatsAppAdapter.open(&missing, Some(SECRET)).err().expect("refused");
+        assert!(e.note().text("es").contains(&missing.display().to_string()), "{e}");
+    }
+
     fn line(kind: i64) -> Line {
         Line { id: 9999, ts: 1, kind, text: Some("x".into()), ..Default::default() }
     }

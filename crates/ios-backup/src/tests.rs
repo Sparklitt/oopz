@@ -120,4 +120,5 @@ fn errors_9_a_diagnostic_is_a_developers_inside_a_users_words() {
     let spanish = gone.note().text("es");
     let doing = format!("la copia de iPhone, leyendo {} en la copia: ", e.relative_path);
     assert!(spanish.starts_with(&doing), "{spanish}");
+    assert!(std::error::Error::source(&gone).is_none(), "the note holds the reason: a chain says it once");
 }

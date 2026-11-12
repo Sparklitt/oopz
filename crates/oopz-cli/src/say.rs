@@ -62,6 +62,20 @@ pub fn count(amount: Message, n: impl std::fmt::Display) -> String {
     msgkinds::Note::of(amount, [n.to_string()]).text(language())
 }
 
+/// An error and its causes, `: ` between them (as anyhow's `{:#}`), each of oopz's worded by its note in
+/// [`language`] and any other's as it wrote itself (an OS error, a context already worded): docs/messages.md, errors
+/// row 4.
+pub fn error(e: &anyhow::Error) -> String {
+    e.chain().map(cause).collect::<Vec<_>>().join(": ")
+}
+
+fn cause(c: &(dyn std::error::Error + 'static)) -> String {
+    let note = (c.downcast_ref::<oopz_model::Error>().map(oopz_model::Error::note))
+        .or_else(|| c.downcast_ref::<oopz_core::Error>().map(|e| e.note.clone()))
+        .or_else(|| c.downcast_ref::<oopz_app::AppError>().map(|e| e.note.clone()));
+    note.map_or_else(|| c.to_string(), |n| n.text(language()))
+}
+
 /// A message of this catalog with its values, worded in [`language`]: `say!(Saved, path.display())`.
 macro_rules! say {
     ($message:ident $(, $value:expr)* $(,)?) => {
@@ -73,6 +87,14 @@ pub(crate) use say;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// docs/messages.md, errors row 4: each cause of the chain once, `: ` between them, an oopz error by its note.
+    #[test]
+    fn errors_4_each_cause_of_the_chain_once() {
+        let reading = oopz_model::Error::reading(std::path::Path::new("/x/a.db"), std::io::Error::other("gone"));
+        let e = anyhow::Error::from(reading).context("opening the library");
+        assert_eq!(error(&e), "opening the library: reading /x/a.db: gone");
+    }
 
     /// Each count picks its own form in a line with several (`backup_ok`, `imported_source`…).
     #[test]

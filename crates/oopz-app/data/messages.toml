@@ -660,3 +660,9 @@ for = "user"
 params = []
 en = "opening the browser"
 es = "abriendo el navegador"
+
+[[message]]
+name = "window_failed"
+for = "developer"
+params = []
+en = "oopz couldn't start its window"

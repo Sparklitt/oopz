@@ -73,11 +73,15 @@ on it (roadmap item 6). Rows (owner, 2026-11-12), a test each:
 | # | Case | What happens | Test |
 |---|---|---|---|
 | 1 | An OS error's text (`io::Error`) | a value, as the system wrote it (on Windows in its own language), never translated by oopz | `oopz_model` `errors_1_a_systems_reason_is_a_value_as_given` |
-| 2 | A path; a key, password, number or message text | a path is a value, never a message; the others never appear in an error | to come |
+| 2 | A path; a key, password, number or message text | a path is a value, never a message; the others never appear in an error | `oopz_app` `errors_2_a_key_never_appears_in_an_error` (an invented 64-hex key, spaced or not, on garbage, an empty file and the wrong backup) |
 | 3 | Cancelled, needs a secret, wrong secret | no values | `oopz_model` `errors_3_a_refusal_with_no_values` |
-| 4 | The CLI's `anyhow` chain | an oopz error inside is worded by its note in the command's language, never English mixed in | to come |
+| 4 | The CLI's `anyhow` chain | each cause once, `: ` between them; one that is an `oopz_model::Error`, `oopz_core::Error` or `AppError` is worded by its note in the command's language (`say::error`), others as they wrote themselves; no error has a `source()`, so the system's reason isn't said twice | the binary's `errors_4_a_failing_import_is_worded_in_the_commands_language`; `say` `errors_4_each_cause_of_the_chain_once`; `oopz_app` `errors_4_no_error_repeats_its_cause` |
 | 5 | The desktop's wire | `{code, detail}`, English detail, codes unchanged (stored names) | `oopz_core` `errors_5_the_wire_is_code_and_english_detail`; the shell's `errors_5_the_apps_wire_is_code_and_english_detail` |
 | 6 | Conversions (SQLite, JSON, crypt15) | keep their codes; which crypt15 header check failed is typed (`not_crypt15_no_iv` is `crypt14`), never read from English | `oopz_core` `errors_6_conversions_keep_their_codes`; `oopz_app` `errors_6_the_backup_errors_keep_their_codes`; `oopz` `errors_6_each_header_refusal_says_which` |
 | 7 | An error wrapped by another crate's | keeps its note (a `Value::Note`, or the same note): one language throughout | `oopz_model` `errors_7_a_note_inside_is_worded_in_the_same_language`; the shell's `errors_7_an_app_error_keeps_the_librarys_note` |
-| 8 | Developer-only texts (a programming mistake's) | `for = "developer"`, English only | to come |
+| 8 | Developer-only texts (a programming mistake's) | `for = "developer"`, English only, when a person can see them (the shell's `window_failed`, the CLI's `handled_above`, the backup crates' diagnostics); a pure invariant's `expect` (a slice's fixed length, a match arm's card kind) stays as it is | the generator's checks (msgkinds' rows 12, 13) |
 | 9 | ios-backup's and whatsapp-android's diagnostics | both crates word their errors from the `oopz` catalog (they depend on `oopz-model`, as the adapters do); what a person can only report (a keybag field, a table name, a merge check) is a developer message inside a user one, the rest user messages | `oopz_ios_backup` `errors_9_a_diagnostic_is_a_developers_inside_a_users_words` |
+
+A stop asked for (a progress callback saying no) is code `cancelled` everywhere: oopz-core's, oopz-app's and the
+backup crates' errors (tests: `oopz_app` `errors_6_the_backup_errors_keep_their_codes`, the index's and the shell's
+stop tests). A copy's or a receive page's `stopped` is their status (why they stopped), not an error.

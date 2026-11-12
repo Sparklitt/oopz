@@ -221,7 +221,7 @@ fn main() -> ExitCode {
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("{}", say!(ErrorLine, format!("{e:#}")));
+            eprintln!("{}", say!(ErrorLine, say::error(&e)));
             ExitCode::FAILURE
         }
     }

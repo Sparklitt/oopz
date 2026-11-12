@@ -162,4 +162,17 @@ mod tests {
             assert_eq!((app.code, app.note), (code, words));
         }
     }
+
+    /// No error has a `source()`: each note already holds the inner error's words, so a chain (the CLI's) never says
+    /// the system's reason twice.
+    #[test]
+    fn errors_4_no_error_repeats_its_cause() {
+        use std::error::Error as _;
+        let io = || std::io::Error::other("x");
+        let doing = || Note::of(ModelMsg::DoingFreeSpace, []);
+        assert!(oopz_model::Error::Io(doing(), io()).source().is_none());
+        assert!(oopz::Error::Io(doing(), io()).source().is_none());
+        assert!(oopz::Error::Crypt15(C::Write(io())).source().is_none());
+        assert!(AppError::io(doing(), io()).source().is_none());
+    }
 }
