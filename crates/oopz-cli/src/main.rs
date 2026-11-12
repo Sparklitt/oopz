@@ -599,6 +599,16 @@ fn date(ms: Option<i64>) -> String {
 mod tests {
     use super::*;
 
+    /// `--lang`'s help lists the catalog's languages as they are (`say::LANGUAGES`, in order), so adding a language
+    /// can't leave it stale (clap's help stays English, docs/messages.md).
+    #[test]
+    fn the_lang_help_lists_the_catalogs_languages() {
+        let cli = Cli::command();
+        let lang = cli.get_arguments().find(|a| a.get_id() == "lang").expect("--lang");
+        let help = lang.get_help().map(ToString::to_string).unwrap_or_default();
+        assert!(help.contains(&format!("({})", say::LANGUAGES.join(", "))), "{help}");
+    }
+
     /// docs/messages.md, numbers and dates, row 2: a day is ISO 8601 and a missing one `-`, whatever the language
     /// (`date` takes none).
     #[test]
