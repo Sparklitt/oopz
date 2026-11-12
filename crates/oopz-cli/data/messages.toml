@@ -704,3 +704,517 @@ for = "user"
 params = ["dir"]
 en = "next: oopz backups --dir {dir}"
 es = "siguiente: oopz backups --dir {dir}"
+
+# oopz lib
+
+[[message]]
+name = "unknown_app"
+for = "user"
+params = ["app"]
+en = "unknown app {app} (`oopz lib adapters` lists them)"
+es = "app desconocida {app} (`oopz lib adapters` las lista)"
+
+[[message]]
+name = "unknown_kind"
+for = "user"
+params = ["kind", "all"]
+en = "unknown kind {kind} (one of: {all})"
+es = "tipo desconocido {kind} (uno de: {all})"
+
+[[message]]
+name = "from_me_or_them"
+for = "user"
+params = ["given"]
+en = "--from is `me` or `them`, not {given}"
+es = "--from es `me` o `them`, no {given}"
+
+[[message]]
+name = "no_saved_selection"
+for = "user"
+params = ["id"]
+en = "no saved selection {id}"
+es = "no hay ninguna selección guardada {id}"
+
+[[message]]
+name = "library_empty"
+for = "user"
+params = []
+en = "the library is empty"
+es = "la biblioteca está vacía"
+
+[[message]]
+name = "name_what_to_take"
+for = "user"
+params = []
+en = "name what to take: --all, --selection, or filter flags (--app, --source, --conv…)"
+es = "di qué tomar: --all, --selection o filtros (--app, --source, --conv…)"
+
+[[message]]
+name = "library_dir"
+for = "user"
+params = []
+en = "--library DIR names the library's folder"
+es = "--library DIR indica la carpeta de la biblioteca"
+
+[[message]]
+name = "creating"
+for = "user"
+params = ["path"]
+en = "creating {path}"
+es = "creando {path}"
+
+[[message]]
+name = "reading_file"
+for = "user"
+params = ["path"]
+en = "reading {path}"
+es = "leyendo {path}"
+
+[[message]]
+name = "asks_for_key"
+for = "user"
+params = []
+en = "asks for the 64-digit key"
+es = "pide la clave de 64 dígitos"
+
+[[message]]
+name = "asks_for_password"
+for = "user"
+params = []
+en = "asks for the backup password"
+es = "pide la contraseña de la copia"
+
+[[message]]
+name = "backup_password"
+for = "user"
+params = []
+en = "backup password"
+es = "contraseña de la copia"
+
+[[message]]
+name = "reading_as"
+for = "user"
+params = ["path", "adapter"]
+en = "reading {path} as {adapter}"
+es = "leyendo {path} como {adapter}"
+
+[[message]]
+name = "conversations_done"
+for = "user"
+params = ["done", "total"]
+en = "{done} of {total} conversations"
+es = "{done} de {total} conversaciones"
+
+[[message]]
+name = "imported_source"
+for = "user"
+params = ["id", "conversations", "people", "messages", "first", "last"]
+en = "source {id}: {conversations} conversations, {people} people, {messages} messages, {first} to {last}"
+es = "fuente {id}: {conversations} conversaciones, {people} personas, {messages} mensajes, del {first} al {last}"
+
+[[message]]
+name = "note_line"
+for = "user"
+params = ["note"]
+en = "note: {note}"
+es = "nota: {note}"
+
+[[message]]
+name = "next_set_me"
+for = "user"
+params = ["source"]
+en = "next: oopz lib people --source {source} --names, then oopz lib set-me --person ID"
+es = "siguiente: oopz lib people --source {source} --names, después oopz lib set-me --person ID"
+
+[[message]]
+name = "wall_clock_times"
+for = "user"
+params = []
+en = "times as the phone showed them"
+es = "horas tal como las mostraba el teléfono"
+
+[[message]]
+name = "owner_unknown"
+for = "user"
+params = []
+en = "owner unknown (set-me)"
+es = "dueño desconocido (set-me)"
+
+[[message]]
+name = "format_line"
+for = "user"
+params = ["format"]
+en = "format: {format}"
+es = "formato: {format}"
+
+[[message]]
+name = "removed_source"
+for = "user"
+params = ["source"]
+en = "removed source {source}"
+es = "fuente {source} quitada"
+
+[[message]]
+name = "person_is_you"
+for = "user"
+params = ["person"]
+en = "person {person} is you in their source"
+es = "la persona {person} eres tú en su fuente"
+
+[[message]]
+name = "conversation_empty"
+for = "user"
+params = ["conv"]
+en = "conversation {conv} has no messages"
+es = "la conversación {conv} no tiene mensajes"
+
+[[message]]
+name = "give_words"
+for = "user"
+params = []
+en = "give words to find"
+es = "da palabras que buscar"
+
+[[message]]
+name = "rows_of"
+for = "user"
+params = ["from", "to", "total"]
+en = "{from} to {to} of {total}"
+es = "{from} a {to} de {total}"
+
+[[message]]
+name = "count_messages"
+for = "user"
+params = ["count"]
+en = "{count} messages"
+es = "{count} mensajes"
+
+[[message]]
+name = "media_mb"
+for = "user"
+params = ["mb"]
+en = "media: {mb} MB"
+es = "archivos: {mb} MB"
+
+[[message]]
+name = "by_app"
+for = "user"
+params = []
+en = "by app:"
+es = "por app:"
+
+[[message]]
+name = "by_kind"
+for = "user"
+params = []
+en = "by kind:"
+es = "por tipo:"
+
+[[message]]
+name = "kind_messages_media"
+for = "user"
+params = ["kind", "messages", "mb"]
+en = "{kind}: {messages} messages, {mb} MB of media"
+es = "{kind}: {messages} mensajes, {mb} MB de archivos"
+
+[[message]]
+name = "by_hour"
+for = "user"
+params = ["hours"]
+en = "by hour: {hours}"
+es = "por hora: {hours}"
+
+[[message]]
+name = "by_day_hour"
+for = "user"
+params = []
+en = "by day and hour (rows Sunday to Saturday, columns 0 to 23 h):"
+es = "por día y hora (filas de domingo a sábado, columnas de 0 a 23 h):"
+
+[[message]]
+name = "person_n"
+for = "user"
+params = ["person"]
+en = "person {person}"
+es = "persona {person}"
+
+[[message]]
+name = "you"
+for = "user"
+params = []
+en = "(you)"
+es = "(tú)"
+
+[[message]]
+name = "a_new_contact"
+for = "user"
+params = []
+en = "a new contact"
+es = "un contacto nuevo"
+
+[[message]]
+name = "contact_n"
+for = "user"
+params = ["contact"]
+en = "contact {contact}"
+es = "contacto {contact}"
+
+[[message]]
+name = "same_phone"
+for = "user"
+params = ["people", "into"]
+en = "same phone: people {people} → {into}"
+es = "mismo teléfono: personas {people} → {into}"
+
+[[message]]
+name = "same_email"
+for = "user"
+params = ["people", "into"]
+en = "same email: people {people} → {into}"
+es = "mismo correo: personas {people} → {into}"
+
+[[message]]
+name = "same_other"
+for = "user"
+params = ["reason", "people", "into"]
+en = "same {reason}: people {people} → {into}"
+es = "mismo {reason}: personas {people} → {into}"
+
+[[message]]
+name = "suggestions_count"
+for = "user"
+params = ["count"]
+en = "{count} suggestions; accept one with: oopz lib accept NUMBER"
+es = "{count} sugerencias; acepta una con: oopz lib accept NÚMERO"
+
+[[message]]
+name = "no_suggestion"
+for = "user"
+params = ["number", "count"]
+en = "no suggestion {number} (there are {count})"
+es = "no hay sugerencia {number} (hay {count})"
+
+[[message]]
+name = "linked_into"
+for = "user"
+params = ["contact"]
+en = "linked into contact {contact}"
+es = "unido en el contacto {contact}"
+
+[[message]]
+name = "linked_people_into"
+for = "user"
+params = ["count", "contact"]
+en = "linked {count} people into contact {contact}"
+es = "{count} personas unidas en el contacto {contact}"
+
+[[message]]
+name = "person_unlinked"
+for = "user"
+params = ["person"]
+en = "person {person} unlinked"
+es = "persona {person} separada"
+
+[[message]]
+name = "contact_renamed"
+for = "user"
+params = ["contact"]
+en = "contact {contact} renamed"
+es = "contacto {contact} renombrado"
+
+[[message]]
+name = "contact_deleted"
+for = "user"
+params = ["contact"]
+en = "contact {contact} deleted"
+es = "contacto {contact} borrado"
+
+[[message]]
+name = "contacts_added"
+for = "user"
+params = ["count"]
+en = "{count} contacts added or updated"
+es = "{count} contactos añadidos o actualizados"
+
+[[message]]
+name = "saved_contacts"
+for = "user"
+params = ["path", "count"]
+en = "saved: {path} ({count} contacts)"
+es = "guardado: {path} ({count} contactos)"
+
+[[message]]
+name = "keep_contacts_private"
+for = "user"
+params = []
+en = "this file holds names and numbers: keep it private"
+es = "este archivo contiene nombres y números: guárdalo en un lugar privado"
+
+[[message]]
+name = "selection_saved"
+for = "user"
+params = ["id", "count"]
+en = "selection {id} saved: {count} messages"
+es = "selección {id} guardada: {count} mensajes"
+
+[[message]]
+name = "selection_deleted"
+for = "user"
+params = ["id"]
+en = "selection {id} deleted"
+es = "selección {id} borrada"
+
+[[message]]
+name = "format_one_of"
+for = "user"
+params = ["all", "given"]
+en = "--format is one of {all}; not {given}"
+es = "--format es uno de {all}; no {given}"
+
+[[message]]
+name = "done_of"
+for = "user"
+params = ["done", "total"]
+en = "{done} of {total}"
+es = "{done} de {total}"
+
+[[message]]
+name = "files_not_in_folder"
+for = "user"
+params = ["count"]
+en = "{count} files the messages name aren't in the source's folder (listed in the zip)"
+es = "{count} archivos que nombran los mensajes no están en la carpeta de la fuente (listados en el zip)"
+
+[[message]]
+name = "saved_export"
+for = "user"
+params = ["path", "messages", "bytes"]
+en = "saved: {path} ({messages} messages, {bytes} bytes)"
+es = "guardado: {path} ({messages} mensajes, {bytes} bytes)"
+
+[[message]]
+name = "missing_glyphs"
+for = "user"
+params = ["count"]
+en = "{count} characters no font on this computer has (drawn as boxes); --font adds one"
+es = "{count} caracteres que ninguna fuente de este ordenador tiene (dibujados como cajas); --font añade una"
+
+[[message]]
+name = "no_pdf"
+for = "user"
+params = []
+en = "this oopz was built without PDF export (the `pdf` feature)"
+es = "este oopz se compiló sin exportación a PDF (la función `pdf`)"
+
+[[message]]
+name = "head_id"
+for = "user"
+params = []
+en = "id"
+es = "id"
+
+[[message]]
+name = "head_app"
+for = "user"
+params = []
+en = "app"
+es = "app"
+
+[[message]]
+name = "head_adapter"
+for = "user"
+params = []
+en = "adapter"
+es = "adaptador"
+
+[[message]]
+name = "head_convs"
+for = "user"
+params = []
+en = "convs"
+es = "convs"
+
+[[message]]
+name = "head_people"
+for = "user"
+params = []
+en = "people"
+es = "personas"
+
+[[message]]
+name = "head_first"
+for = "user"
+params = []
+en = "first"
+es = "primero"
+
+[[message]]
+name = "head_last"
+for = "user"
+params = []
+en = "last"
+es = "último"
+
+[[message]]
+name = "head_conv"
+for = "user"
+params = []
+en = "conv"
+es = "conv"
+
+[[message]]
+name = "head_src"
+for = "user"
+params = []
+en = "src"
+es = "fuente"
+
+[[message]]
+name = "head_kind"
+for = "user"
+params = []
+en = "kind"
+es = "tipo"
+
+[[message]]
+name = "head_person"
+for = "user"
+params = []
+en = "person"
+es = "persona"
+
+[[message]]
+name = "head_contact"
+for = "user"
+params = []
+en = "contact"
+es = "contacto"
+
+[[message]]
+name = "head_phones"
+for = "user"
+params = []
+en = "phones"
+es = "teléfonos"
+
+[[message]]
+name = "head_emails"
+for = "user"
+params = []
+en = "emails"
+es = "correos"
+
+[[message]]
+name = "head_apps"
+for = "user"
+params = []
+en = "apps"
+es = "apps"
+
+# A programming mistake's.
+
+[[message]]
+name = "handled_above"
+for = "developer"
+params = []
+en = "handled above"
