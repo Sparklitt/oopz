@@ -1126,6 +1126,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "clap",
+ "msgkinds",
  "oopz",
  "oopz-app",
  "oopz-core",

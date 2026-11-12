@@ -72,28 +72,30 @@ impl Kind {
         }
     }
 
+    /// Its name on the command line: msgkinds' kind name where it is one, else the generator's own.
     pub fn name(self) -> &'static str {
+        use msgkinds::Kind as K;
         match self {
-            Kind::Text => "text",
+            Kind::Text => K::Text.as_str(),
             Kind::EmojiOnly => "emoji",
             Kind::LongText => "long-text",
-            Kind::Link => "link",
+            Kind::Link => K::Link.as_str(),
             Kind::Image => "image",
-            Kind::Video => "video",
-            Kind::Voice => "voice",
-            Kind::Audio => "audio",
-            Kind::Document => "document",
-            Kind::Sticker => "sticker",
-            Kind::Gif => "gif",
-            Kind::Location => "location",
+            Kind::Video => K::Video.as_str(),
+            Kind::Voice => K::Voice.as_str(),
+            Kind::Audio => K::Audio.as_str(),
+            Kind::Document => K::Document.as_str(),
+            Kind::Sticker => K::Sticker.as_str(),
+            Kind::Gif => K::Gif.as_str(),
+            Kind::Location => K::Location.as_str(),
             Kind::LiveLocation => "live-location",
-            Kind::Contact => "contact",
-            Kind::Poll => "poll",
-            Kind::Call => "call",
-            Kind::Deleted => "deleted",
+            Kind::Contact => K::Contact.as_str(),
+            Kind::Poll => K::Poll.as_str(),
+            Kind::Call => K::Call.as_str(),
+            Kind::Deleted => K::Deleted.as_str(),
             Kind::ViewOnce => "view-once",
             Kind::VideoNote => "video-note",
-            Kind::Album => "album",
+            Kind::Album => K::Album.as_str(),
         }
     }
 

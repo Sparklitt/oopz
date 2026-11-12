@@ -12,6 +12,7 @@ name = "oopz-gen"
 path = "src/main.rs"
 
 [dependencies]
+msgkinds.workspace = true
 # The `fixtures` feature gives `crypt15::encrypt`: test data only, never for a real backup.
 oopz = { workspace = true, features = ["fixtures"] }
 anyhow.workspace = true
