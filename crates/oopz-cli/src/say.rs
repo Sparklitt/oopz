@@ -125,6 +125,18 @@ mod tests {
         assert_eq!(spanish(Message::ReceivedFile, &["a", "2", "ff"]), "se recibió a (2 bytes, sha256 ff)");
     }
 
+    /// docs/messages.md, errors row 1: SQLite's `integrity_check` text is a value, as SQLite wrote it; the command
+    /// words around it in its language.
+    #[test]
+    fn errors_1_sqlites_own_words_are_a_value() {
+        let sqlite = "*** in database main ***\nPage 3: never used";
+        assert_eq!(spanish(Message::DatabaseProblems, &[sqlite]), format!("base de datos: problemas: {sqlite}"));
+        assert_eq!(
+            spanish(Message::BackupDamaged, &["b.crypt15", "1", sqlite]),
+            format!("b.crypt15  1 MB  DAÑADA: {sqlite}")
+        );
+    }
+
     /// Row 2, the review of oopz_cli's Spanish: a participle agrees with its own noun, written in the wording.
     #[test]
     fn agreement_2_a_participle_agrees_with_its_own_noun() {

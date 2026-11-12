@@ -88,7 +88,7 @@ on it (roadmap item 6). Rows (owner, 2026-11-12), a test each:
 
 | # | Case | What happens | Test |
 |---|---|---|---|
-| 1 | An OS error's text (`io::Error`) | a value, as the system wrote it (on Windows in its own language), never translated by oopz | `oopz_model` `errors_1_a_systems_reason_is_a_value_as_given` |
+| 1 | An OS error's text (`io::Error`), a library's (SQLite's `integrity_check`) | a value, as the system wrote it (on Windows in its own language), never translated by oopz | `oopz_model` `errors_1_a_systems_reason_is_a_value_as_given`; SQLite's `integrity_check` text too: `say` `errors_1_sqlites_own_words_are_a_value` |
 | 2 | A path; a key, password, number or message text | a path is a value, never a message; the others never appear in an error | `oopz_app` `errors_2_a_key_never_appears_in_an_error` (an invented 64-hex key, spaced or not, on garbage, an empty file and the wrong backup) |
 | 3 | Cancelled, needs a secret, wrong secret | no values | `oopz_model` `errors_3_a_refusal_with_no_values` |
 | 4 | The CLI's `anyhow` chain | each cause once, `: ` between them; one that is an `oopz_model::Error`, `oopz_core::Error` or `AppError` is worded by its note in the command's language (`say::error`), others as they wrote themselves; no error has a `source()`, so the system's reason isn't said twice | the binary's `errors_4_a_failing_import_is_worded_in_the_commands_language`; `say` `errors_4_each_cause_of_the_chain_once`; `oopz_app` `errors_4_no_error_repeats_its_cause` |
