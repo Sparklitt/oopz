@@ -1063,3 +1063,460 @@ for = "user"
 params = []
 en = "Who writes most (ids masked)"
 es = "Quién escribe más (ids ocultos)"
+
+# Why a source couldn't be opened (oopz-model `Error`): its English is the error's `Display`. Never a key, a password
+# or message text; a system's reason (an io error, a zip's or SQLite's) goes in as a value, as the system wrote it.
+
+[[message]]
+name = "error_not_this_format"
+for = "user"
+params = ["format"]
+en = "not {format}"
+es = "no es {format}"
+
+[[message]]
+name = "error_unsupported_version"
+for = "user"
+params = ["what"]
+en = "{what}: a version oopz doesn't know"
+es = "{what}: una versión que oopz no conoce"
+
+[[message]]
+name = "error_needs_secret"
+for = "user"
+params = []
+en = "this source needs its owner's key or password"
+es = "este archivo necesita la clave o contraseña de su dueño"
+
+[[message]]
+name = "error_wrong_secret"
+for = "user"
+params = []
+en = "the key or password doesn't open it, or the file is damaged"
+es = "la clave o contraseña no lo abre, o el archivo está dañado"
+
+[[message]]
+name = "error_damaged"
+for = "user"
+params = ["what"]
+en = "damaged: {what}"
+es = "dañado: {what}"
+
+[[message]]
+name = "error_io"
+for = "user"
+params = ["doing", "reason"]
+en = "{doing}: {reason}"
+es = "{doing}: {reason}"
+
+[[message]]
+name = "error_cancelled"
+for = "user"
+params = []
+en = "stopped"
+es = "detenido"
+
+# The formats an adapter refuses a file as (`error_not_this_format`), each with its article.
+
+[[message]]
+name = "format_whatsapp_export"
+for = "user"
+params = []
+en = "a WhatsApp chat export"
+es = "una exportación de chat de WhatsApp"
+
+[[message]]
+name = "format_whatsapp_backup_folder"
+for = "user"
+params = []
+en = "a WhatsApp backup folder"
+es = "una carpeta de copias de WhatsApp"
+
+[[message]]
+name = "format_whatsapp_crypt15"
+for = "user"
+params = []
+en = "a WhatsApp crypt15 backup"
+es = "una copia crypt15 de WhatsApp"
+
+[[message]]
+name = "format_iphone_backup"
+for = "user"
+params = []
+en = "an iPhone backup"
+es = "una copia de iPhone"
+
+[[message]]
+name = "format_telegram_json"
+for = "user"
+params = []
+en = "a Telegram JSON export"
+es = "una exportación JSON de Telegram"
+
+[[message]]
+name = "format_sms_xml"
+for = "user"
+params = []
+en = "an SMS Backup & Restore XML file"
+es = "un archivo XML de SMS Backup & Restore"
+
+[[message]]
+name = "format_line_export"
+for = "user"
+params = []
+en = "a LINE chat history"
+es = "un historial de chat de LINE"
+
+[[message]]
+name = "format_viber_csv"
+for = "user"
+params = []
+en = "a Viber message history (CSV)"
+es = "un historial de mensajes de Viber (CSV)"
+
+# What an error was about: a version oopz doesn't know, a damaged part, what was being done when the system refused.
+
+[[message]]
+name = "version_ios_9"
+for = "user"
+params = []
+en = "an iPhone backup from iOS 9 or older"
+es = "una copia de iPhone de iOS 9 o anterior"
+
+[[message]]
+name = "version_whatsapp_no_table"
+for = "user"
+params = ["table"]
+en = "WhatsApp without a {table} table"
+es = "WhatsApp sin la tabla {table}"
+
+[[message]]
+name = "version_telegram_chats_not_list"
+for = "user"
+params = []
+en = "Telegram export whose chats aren't a list"
+es = "exportación de Telegram cuyos chats no son una lista"
+
+[[message]]
+name = "version_telegram_messages_not_list"
+for = "user"
+params = []
+en = "Telegram export whose messages aren't a list"
+es = "exportación de Telegram cuyos mensajes no son una lista"
+
+[[message]]
+name = "damaged_zip"
+for = "user"
+params = ["reason"]
+en = "the zip: {reason}"
+es = "el zip: {reason}"
+
+[[message]]
+name = "damaged_chat_storage"
+for = "user"
+params = ["reason"]
+en = "ChatStorage.sqlite: {reason}"
+es = "ChatStorage.sqlite: {reason}"
+
+[[message]]
+name = "damaged_no_app_chats"
+for = "user"
+params = ["app"]
+en = "this iPhone backup holds no {app} chats"
+es = "esta copia de iPhone no tiene chats de {app}"
+
+[[message]]
+name = "damaged_iphone_backup"
+for = "user"
+params = ["detail"]
+en = "the iPhone backup: {detail}"
+es = "la copia de iPhone: {detail}"
+
+[[message]]
+name = "no_chat"
+for = "user"
+params = ["chat"]
+en = "no chat {chat}"
+es = "no hay chat {chat}"
+
+[[message]]
+name = "doing_reading"
+for = "user"
+params = ["path"]
+en = "reading {path}"
+es = "leyendo {path}"
+
+[[message]]
+name = "doing_reading_in_zip"
+for = "user"
+params = ["file"]
+en = "reading {file} in the zip"
+es = "leyendo {file} dentro del zip"
+
+[[message]]
+name = "doing_temporary_folder"
+for = "user"
+params = []
+en = "making a private temporary folder"
+es = "creando una carpeta temporal privada"
+
+[[message]]
+name = "doing_iphone_backup"
+for = "user"
+params = ["step"]
+en = "the iPhone backup, {step}"
+es = "la copia de iPhone, {step}"
+
+# The library's errors (oopz-core `Error`, its `detail` on the wire), and a PDF export's (oopz-export-pdf).
+
+[[message]]
+name = "system_reason"
+for = "user"
+params = ["reason"]
+en = "{reason}"
+es = "{reason}"
+
+[[message]]
+name = "doing_making"
+for = "user"
+params = ["path"]
+en = "making {path}"
+es = "creando {path}"
+
+[[message]]
+name = "doing_removing"
+for = "user"
+params = ["path"]
+en = "removing {path}"
+es = "quitando {path}"
+
+[[message]]
+name = "doing_writing"
+for = "user"
+params = ["path"]
+en = "writing {path}"
+es = "escribiendo {path}"
+
+[[message]]
+name = "doing_keeping_files"
+for = "user"
+params = []
+en = "keeping the source's files"
+es = "guardando los archivos de la fuente"
+
+[[message]]
+name = "doing_files_folder"
+for = "user"
+params = []
+en = "making a folder for the source's files"
+es = "creando una carpeta para los archivos de la fuente"
+
+[[message]]
+name = "doing_free_space"
+for = "user"
+params = []
+en = "reading the free space"
+es = "leyendo el espacio libre"
+
+[[message]]
+name = "no_adapter"
+for = "user"
+params = ["adapter"]
+en = "no adapter `{adapter}`"
+es = "no hay adaptador `{adapter}`"
+
+[[message]]
+name = "not_a_file_oopz_opens"
+for = "user"
+params = ["file"]
+en = "{file} isn't a file oopz can open"
+es = "{file} no es un archivo que oopz sepa abrir"
+
+[[message]]
+name = "library_newer"
+for = "user"
+params = []
+en = "this library was made by a newer oopz"
+es = "esta biblioteca la hizo un oopz más nuevo"
+
+[[message]]
+name = "already_in_library_as"
+for = "user"
+params = ["file", "source"]
+en = "{file} is already in the library (source {source})"
+es = "{file} ya está en la biblioteca (fuente {source})"
+
+[[message]]
+name = "already_in_library"
+for = "user"
+params = ["name"]
+en = "{name} is already in the library"
+es = "{name} ya está en la biblioteca"
+
+[[message]]
+name = "no_source"
+for = "user"
+params = ["source"]
+en = "no source {source}"
+es = "no hay fuente {source}"
+
+[[message]]
+name = "no_person"
+for = "user"
+params = ["person"]
+en = "no person {person}"
+es = "no hay persona {person}"
+
+[[message]]
+name = "no_contact"
+for = "user"
+params = ["contact"]
+en = "no contact {contact}"
+es = "no hay contacto {contact}"
+
+[[message]]
+name = "selection_needs_name"
+for = "user"
+params = []
+en = "a selection needs a name"
+es = "una selección necesita un nombre"
+
+[[message]]
+name = "nobody_to_link"
+for = "user"
+params = []
+en = "nobody to link"
+es = "nadie a quien unir"
+
+[[message]]
+name = "link_not_in_library"
+for = "user"
+params = []
+en = "someone to link isn't in the library"
+es = "alguien a unir no está en la biblioteca"
+
+[[message]]
+name = "contact_needs_name"
+for = "user"
+params = []
+en = "a contact needs a name"
+es = "un contacto necesita un nombre"
+
+[[message]]
+name = "no_space_for_media"
+for = "user"
+params = []
+en = "not enough free space for the source's media files"
+es = "no hay espacio libre suficiente para los archivos multimedia de la fuente"
+
+[[message]]
+name = "selection_empty"
+for = "user"
+params = []
+en = "the selection is empty"
+es = "la selección está vacía"
+
+[[message]]
+name = "no_folder"
+for = "user"
+params = ["path"]
+en = "no folder {path}"
+es = "no existe la carpeta {path}"
+
+[[message]]
+name = "no_fonts"
+for = "user"
+params = []
+en = "no fonts found on this system; add a font folder"
+es = "no se encontraron fuentes tipográficas en este sistema; añade una carpeta de fuentes"
+
+[[message]]
+name = "pdf_failed"
+for = "user"
+params = ["reason"]
+en = "making the PDF: {reason}"
+es = "creando el PDF: {reason}"
+
+[[message]]
+name = "no_time_zone"
+for = "user"
+params = ["zone"]
+en = "no time zone `{zone}`"
+es = "no hay zona horaria `{zone}`"
+
+[[message]]
+name = "doing_free_space_in"
+for = "user"
+params = ["path"]
+en = "reading the free space in {path}"
+es = "leyendo el espacio libre en {path}"
+
+[[message]]
+name = "doing_writing_in"
+for = "user"
+params = ["path"]
+en = "writing in {path}"
+es = "escribiendo en {path}"
+
+[[message]]
+name = "needs_free_space"
+for = "user"
+params = ["path", "megabytes"]
+en = "{path} needs about {megabytes} MB free"
+es = "{path} necesita unos {megabytes} MB libres"
+
+[[message]]
+name = "doing_writing_export"
+for = "user"
+params = []
+en = "writing the export"
+es = "escribiendo la exportación"
+
+[[message]]
+name = "doing_naming"
+for = "user"
+params = ["path"]
+en = "naming {path}"
+es = "poniendo nombre a {path}"
+
+[[message]]
+name = "too_many_exports"
+for = "user"
+params = []
+en = "too many oopz exports here; choose another folder"
+es = "demasiadas exportaciones de oopz aquí; elige otra carpeta"
+
+[[message]]
+name = "nobody_to_export"
+for = "user"
+params = []
+en = "nobody in the selection has a name, number or email to export"
+es = "nadie en la selección tiene un nombre, número o correo que exportar"
+
+[[message]]
+name = "no_contacts_picked"
+for = "user"
+params = []
+en = "no contacts picked"
+es = "no se eligió ningún contacto"
+
+[[message]]
+name = "selection_no_media"
+for = "user"
+params = []
+en = "the selection has no media files"
+es = "la selección no tiene archivos multimedia"
+
+[[message]]
+name = "doing_writing_zip"
+for = "user"
+params = []
+en = "writing the zip"
+es = "escribiendo el zip"
+
+[[message]]
+name = "suggestion_gone"
+for = "user"
+params = []
+en = "that suggestion is gone"
+es = "esa sugerencia ya no está"

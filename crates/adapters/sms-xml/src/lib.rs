@@ -22,7 +22,7 @@ use oopz_model::{
 use quick_xml::events::{BytesStart, Event};
 
 pub const ID: &str = "sms-xml";
-const FORMAT: &str = "SMS Backup & Restore XML";
+const FORMAT: Msg = Msg::FormatSmsXml;
 /// The owner's person id.
 pub const ME: &str = "me";
 
@@ -55,7 +55,7 @@ impl Adapter for SmsXmlAdapter {
     }
 
     fn open(&self, path: &Path, _secret: Option<&str>) -> Result<Box<dyn Source>> {
-        let bytes = std::fs::read(path).map_err(|e| Error::io(path.display(), e))?;
+        let bytes = std::fs::read(path).map_err(|e| Error::reading(path, e))?;
         Ok(Box::new(read(&bytes)?))
     }
 }

@@ -43,17 +43,17 @@ pub const BUSINESS: WhatsAppIosAdapter = WhatsAppIosAdapter { business: true };
 fn err(e: oopz_ios_backup::Error) -> m::Error {
     use oopz_ios_backup::Error as E;
     match e {
-        E::NotABackup => m::Error::NotThisFormat("iPhone backup"),
-        E::TooOld => m::Error::UnsupportedVersion("an iPhone backup from iOS 9 or older".into()),
+        E::NotABackup => m::Error::NotThisFormat(Msg::FormatIphoneBackup),
+        E::TooOld => m::Error::UnsupportedVersion(Note::of(Msg::VersionIos9, [])),
         E::NeedsPassword => m::Error::NeedsSecret,
         E::WrongPassword => m::Error::WrongSecret,
-        E::Damaged(d) => m::Error::Damaged(d),
-        E::Io(what, e) => m::Error::Io(what, e),
+        E::Damaged(d) => m::Error::Damaged(Note::of(Msg::DamagedIphoneBackup, [d])),
+        E::Io(what, e) => m::Error::Io(Note::of(Msg::DoingIphoneBackup, [what]), e),
     }
 }
 
 fn sql(e: rusqlite::Error) -> m::Error {
-    m::Error::Damaged(format!("ChatStorage.sqlite: {e}"))
+    m::Error::Damaged(Note::of(Msg::DamagedChatStorage, [e.to_string()]))
 }
 
 impl Adapter for WhatsAppIosAdapter {
@@ -87,12 +87,12 @@ impl Adapter for WhatsAppIosAdapter {
         let (domain, other) = if self.business { (BUSINESS_DOMAIN, DOMAIN) } else { (DOMAIN, BUSINESS_DOMAIN) };
         let Some(entry) = backup.file(domain, "ChatStorage.sqlite").map_err(err)? else {
             let what = app_of(self.business).name();
-            return Err(m::Error::Damaged(format!("this iPhone backup holds no {what} chats")));
+            return Err(m::Error::Damaged(Note::of(Msg::DamagedNoAppChats, [what.to_owned()])));
         };
         let tmp = tempfile::Builder::new()
             .prefix("oopz-wa-ios-")
             .tempdir()
-            .map_err(|e| m::Error::Io("a private temporary folder".into(), e))?;
+            .map_err(|e| m::Error::io(Note::of(Msg::DoingTemporaryFolder, []), e))?;
         let db_path = backup.extract(&entry, tmp.path()).map_err(err)?;
         // The write-ahead log, when the backup kept one: its pages are the newest messages.
         for side in ["ChatStorage.sqlite-wal", "ChatStorage.sqlite-shm"] {
@@ -216,7 +216,7 @@ impl IosSource {
         }
         for needed in ["ZWACHATSESSION", "ZWAMESSAGE"] {
             if self.columns[needed].is_empty() {
-                return Err(m::Error::UnsupportedVersion(format!("WhatsApp without a {needed} table")));
+                return Err(m::Error::UnsupportedVersion(Note::of(Msg::VersionWhatsappNoTable, [needed.to_owned()])));
             }
         }
         let mut names: HashMap<String, String> = book.clone();
@@ -382,7 +382,8 @@ impl Source for IosSource {
     }
 
     fn messages(&mut self, conversation: &str, each: &mut dyn FnMut(Message) -> bool) -> m::Result<()> {
-        let chat: i64 = conversation.parse().map_err(|_| m::Error::Damaged(format!("no chat {conversation}")))?;
+        let chat: i64 =
+            conversation.parse().map_err(|_| m::Error::Damaged(Note::of(Msg::NoChat, [conversation.to_owned()])))?;
         let has_media = !self.columns["ZWAMEDIAITEM"].is_empty() && self.has("ZWAMESSAGE", "ZMEDIAITEM");
         let mc = |c: &str| if has_media && self.has("ZWAMEDIAITEM", c) { format!("i.{c}") } else { "NULL".into() };
         let member_jid = if self.has("ZWAMESSAGE", "ZGROUPMEMBER") && self.has("ZWAGROUPMEMBER", "ZMEMBERJID") {

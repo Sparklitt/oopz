@@ -30,7 +30,7 @@ pub use content::Files;
 use header::Header;
 
 pub const ID: &str = "whatsapp-export";
-const FORMAT: &str = "WhatsApp chat export";
+const FORMAT: Msg = Msg::FormatWhatsappExport;
 /// The biggest chat text or contact card read from a zip: more is a damaged or hostile file.
 const MAX_ENTRY: u64 = 1 << 30;
 
@@ -77,7 +77,7 @@ impl Adapter for WhatsAppExportAdapter {
         let loaded = if path.is_dir() {
             read_folder(path)?
         } else {
-            let bytes = std::fs::read(path).map_err(|e| Error::io(path.display(), e))?;
+            let bytes = std::fs::read(path).map_err(|e| Error::reading(path, e))?;
             let mut loaded = read(&file_name(path), &bytes)?;
             if !is_zip(&bytes) {
                 loaded.info.media_root = path.parent().map(Path::to_path_buf);
@@ -148,9 +148,9 @@ fn read_zip(name: &str, bytes: &[u8]) -> Result<Loaded> {
 
 fn read_folder(dir: &Path) -> Result<Loaded> {
     let chat_file = chat_file_in(dir).ok_or(Error::NotThisFormat(FORMAT))?;
-    let bytes = std::fs::read(&chat_file).map_err(|e| Error::io(chat_file.display(), e))?;
+    let bytes = std::fs::read(&chat_file).map_err(|e| Error::reading(&chat_file, e))?;
     let mut files = Files { names: Some(HashSet::new()), ..Default::default() };
-    let entries = std::fs::read_dir(dir).map_err(|e| Error::io(dir.display(), e))?;
+    let entries = std::fs::read_dir(dir).map_err(|e| Error::reading(dir, e))?;
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         if has_format(&name, VCARD)

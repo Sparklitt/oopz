@@ -26,7 +26,7 @@ const PAGE_MAX: u32 = 500;
 const WHATSAPP_BACKUP: &str = "whatsapp-android";
 
 fn fail(e: oopz_core::Error) -> AppError {
-    AppError::new(e.code, e.detail)
+    AppError::new(e.code, e.note.to_string())
 }
 
 /// The library, open or not yet, and where it lives.
@@ -533,7 +533,8 @@ pub fn lib_suggestions(lib: State<'_, Lib>) -> Result<Vec<Suggestion>, AppError>
 pub fn lib_accept(lib: State<'_, Lib>, reason: String, value: String) -> Result<i64, AppError> {
     lib.with(|l| {
         let found = l.suggestions()?.into_iter().find(|s| s.reason == reason && s.value == value);
-        let suggestion = found.ok_or_else(|| oopz_core::Error::new("not_found", "that suggestion is gone"))?;
+        let suggestion = found
+            .ok_or_else(|| oopz_core::Error::of("not_found", oopz_model::messages::Message::SuggestionGone, []))?;
         l.accept(&suggestion)
     })
 }

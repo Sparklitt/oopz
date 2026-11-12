@@ -1086,7 +1086,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -1178,7 +1177,6 @@ dependencies = [
  "msgkinds",
  "serde",
  "serde_json",
- "thiserror",
 ]
 
 [[package]]

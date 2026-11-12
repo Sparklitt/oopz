@@ -302,7 +302,7 @@ pub struct Clock {
 impl Clock {
     pub fn new(name: Option<&str>) -> Result<Self> {
         let zone = match name {
-            Some(n) => jiff::tz::TimeZone::get(n).map_err(|_| Error::new("library", format!("no time zone `{n}`")))?,
+            Some(n) => jiff::tz::TimeZone::get(n).map_err(|_| Error::of("library", Msg::NoTimeZone, [n.to_owned()]))?,
             None => jiff::tz::TimeZone::system(),
         };
         Ok(Clock { zone })
@@ -340,17 +340,20 @@ struct Out {
 
 impl Out {
     fn new(dir: &Path, stem: &str, ext: &'static str, need: u64) -> Result<Out> {
-        let io = |what: &str, e: std::io::Error| Error::new("io", format!("{what} {}: {e}", dir.display()));
+        let shown = dir.display().to_string();
+        let io = |doing: Msg, e: std::io::Error| Error::io(Note::of(doing, [shown.clone()]), e);
         if !dir.is_dir() {
-            return Err(Error::new("not_found", format!("no folder {}", dir.display())));
+            return Err(Error::of("not_found", Msg::NoFolder, [shown.clone()]));
         }
-        let free = fs4::available_space(dir).map_err(|e| io("reading the free space in", e))?;
+        let free = fs4::available_space(dir).map_err(|e| io(Msg::DoingFreeSpaceIn, e))?;
         // Room for the file and a margin, so the disk isn't filled to the last byte.
         if free < need.saturating_add(16 << 20) {
-            return Err(Error::new("no_space", format!("{} needs about {} MB free", dir.display(), need >> 20)));
+            return Err(Error::of("no_space", Msg::NeedsFreeSpace, [shown.clone(), (need >> 20).to_string()]));
         }
-        let file =
-            tempfile::Builder::new().prefix(".oopz-export-").tempfile_in(dir).map_err(|e| io("writing in", e))?;
+        let file = tempfile::Builder::new()
+            .prefix(".oopz-export-")
+            .tempfile_in(dir)
+            .map_err(|e| io(Msg::DoingWritingIn, e))?;
         Ok(Out { file, dir: dir.to_path_buf(), stem: stem.to_owned(), ext })
     }
 
@@ -360,7 +363,7 @@ impl Out {
 
     /// Gives the file its name: the first `oopz-<stem>-N.<ext>` that doesn't exist (never replacing one).
     fn finish(self) -> Result<(PathBuf, u64)> {
-        self.file.as_file().sync_all().map_err(|e| Error::new("io", format!("writing: {e}")))?;
+        self.file.as_file().sync_all().map_err(write_err)?;
         let bytes = self.file.as_file().metadata().map(|m| m.len()).unwrap_or(0);
         let mut file = self.file;
         for n in 1..10_000 {
@@ -368,10 +371,10 @@ impl Out {
             match file.persist_noclobber(&path) {
                 Ok(_) => return Ok((path, bytes)),
                 Err(e) if e.error.kind() == std::io::ErrorKind::AlreadyExists => file = e.file,
-                Err(e) => return Err(Error::new("io", format!("naming {}: {}", path.display(), e.error))),
+                Err(e) => return Err(Error::io(Note::of(Msg::DoingNaming, [path.display().to_string()]), e.error)),
             }
         }
-        Err(Error::new("exists", "too many oopz exports here; choose another folder"))
+        Err(Error::of("exists", Msg::TooManyExports, []))
     }
 }
 
@@ -388,7 +391,7 @@ pub fn write_new_file(dir: &Path, stem: &str, ext: &'static str, bytes: &[u8]) -
 }
 
 fn write_err(e: std::io::Error) -> Error {
-    Error::new("io", format!("writing the export: {e}"))
+    Error::io(Note::of(Msg::DoingWritingExport, []), e)
 }
 
 /// What the rows need besides themselves: conversation names, and the text a reply answers.
@@ -571,7 +574,7 @@ pub fn export(
     let clock = Clock::new(options.time_zone.as_deref())?;
     let ids = lib.selected(selection, options.order)?;
     if ids.is_empty() {
-        return Err(Error::new("not_found", "the selection is empty"));
+        return Err(Error::of("not_found", Msg::SelectionEmpty, []));
     }
     match format {
         Format::Vcard => return vcards(lib, &ids, out_dir),
@@ -621,7 +624,7 @@ pub fn export(
                 done += 1;
             }
             if !progress(done, total) {
-                return Err(Error::new("cancelled", "stopped"));
+                return Err(m::Error::Cancelled.into());
             }
         }
         match format {
@@ -808,8 +811,8 @@ fn csv_row(f: &mut impl Write, row: &MessageRow, ctx: &Context, clock: &Clock, w
         if row.message.deleted { "1" } else { "0" },
         if row.message.forwarded { "1" } else { "0" },
     ])
-    .map_err(|e| Error::new("io", e.to_string()))?;
-    let bytes = out.into_inner().map_err(|e| Error::new("io", e.to_string()))?;
+    .map_err(|e| Error::doing("io", Note::of(Msg::DoingWritingExport, []), e))?;
+    let bytes = out.into_inner().map_err(|e| Error::doing("io", Note::of(Msg::DoingWritingExport, []), e))?;
     f.write_all(&bytes).map_err(write_err)
 }
 
@@ -852,7 +855,8 @@ fn json_head(f: &mut impl Write, lib: &Library, ids: &[i64]) -> Result<()> {
         "people": people,
         "contacts": lib.contacts()?.into_iter().filter(|c| contact_ids.contains(&c.id)).collect::<Vec<_>>(),
     });
-    let text = serde_json::to_string(&head).map_err(|e| Error::new("io", e.to_string()))?;
+    let text =
+        serde_json::to_string(&head).map_err(|e| Error::doing("io", Note::of(Msg::DoingWritingExport, []), e))?;
     // The head's fields, then the messages array, streamed.
     let text = text.strip_suffix('}').unwrap_or(&text);
     write!(f, "{text},\"messages\":[").map_err(write_err)
@@ -881,7 +885,7 @@ fn json_row(f: &mut impl Write, row: &MessageRow) -> Result<()> {
         reply: row.reply,
         message,
     };
-    serde_json::to_writer(&mut *f, &j).map_err(|e| Error::new("io", e.to_string()))
+    serde_json::to_writer(&mut *f, &j).map_err(|e| Error::doing("io", Note::of(Msg::DoingWritingExport, []), e))
 }
 
 /// The contacts of the people in the selection (and those people not linked to one), as vCards.
@@ -892,7 +896,7 @@ fn vcards(lib: &Library, ids: &[i64], out_dir: &Path) -> Result<Written> {
     }
     let cards = cards_for(lib, &senders)?;
     if cards.is_empty() {
-        return Err(Error::new("not_found", "nobody in the selection has a name, number or email to export"));
+        return Err(Error::of("not_found", Msg::NobodyToExport, []));
     }
     write_cards(&cards, out_dir, ids.len() as u64)
 }
@@ -943,7 +947,7 @@ pub fn export_contacts(lib: &Library, contact_ids: &[i64], out_dir: &Path) -> Re
         })
         .collect();
     if cards.is_empty() {
-        return Err(Error::new("not_found", "no contacts picked"));
+        return Err(Error::of("not_found", Msg::NoContactsPicked, []));
     }
     write_cards(&cards, out_dir, 0)
 }
@@ -1042,7 +1046,7 @@ fn media_zip(
         }
     }
     if files.is_empty() && missing.is_empty() {
-        return Err(Error::new("not_found", "the selection has no media files"));
+        return Err(Error::of("not_found", Msg::SelectionNoMedia, []));
     }
     let mut out = Out::new(out_dir, "media", Format::MediaZip.extension(), need)?;
     let total = files.len() as u64;
@@ -1052,14 +1056,14 @@ fn media_zip(
         let opts = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
             .large_file(true);
-        let zerr = |e: zip::result::ZipError| Error::new("io", format!("writing the zip: {e}"));
+        let zerr = |e: zip::result::ZipError| Error::doing("io", Note::of(Msg::DoingWritingZip, []), e);
         for (i, (path, name)) in files.iter().enumerate() {
             zip.start_file(name.as_str(), opts).map_err(zerr)?;
-            let mut src =
-                fs::File::open(path).map_err(|e| Error::new("io", format!("reading {}: {e}", path.display())))?;
+            let mut src = fs::File::open(path)
+                .map_err(|e| Error::io(Note::of(Msg::DoingReading, [path.display().to_string()]), e))?;
             std::io::copy(&mut src, &mut zip).map_err(write_err)?;
             if !progress(i as u64 + 1, total) {
-                return Err(Error::new("cancelled", "stopped"));
+                return Err(m::Error::Cancelled.into());
             }
         }
         if !missing.is_empty() {

@@ -6,8 +6,9 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use msgkinds::{Code, Flag, Source as Registry};
+use msgkinds::{Code, Flag, Note, Source as Registry};
 use oopz_model as m;
+use oopz_model::messages::Message as Msg;
 use oopz_model::{Adapter, App, Error, Secret, Source};
 
 use crate::index::Line;
@@ -47,7 +48,7 @@ impl Adapter for WhatsAppAdapter {
             [path.join("Databases/msgstore.db.crypt15"), path.join("msgstore.db.crypt15")]
                 .into_iter()
                 .find(|p| p.is_file())
-                .ok_or(Error::NotThisFormat("WhatsApp backup folder"))?
+                .ok_or(Error::NotThisFormat(Msg::FormatWhatsappBackupFolder))?
         } else {
             path.to_path_buf()
         };
@@ -74,13 +75,14 @@ pub struct WhatsAppSource {
 }
 
 fn model_error(e: crate::AppError) -> Error {
+    let reason = Note::of(Msg::SystemReason, [e.detail]);
     match e.code {
         "key_format" | "wrong_key" => Error::WrongSecret,
-        "not_crypt15" => Error::NotThisFormat("WhatsApp crypt15 backup"),
-        "crypt14" | "unsupported" => Error::UnsupportedVersion(e.detail),
-        "damaged" => Error::Damaged(e.detail),
+        "not_crypt15" => Error::NotThisFormat(Msg::FormatWhatsappCrypt15),
+        "crypt14" | "unsupported" => Error::UnsupportedVersion(reason),
+        "damaged" => Error::Damaged(reason),
         "cancelled" => Error::Cancelled,
-        _ => Error::Io(e.detail, std::io::Error::other(e.code)),
+        _ => Error::Io(reason, std::io::Error::other(e.code)),
     }
 }
 
@@ -96,7 +98,7 @@ impl WhatsAppSource {
         let tmp = tempfile::Builder::new()
             .prefix("oopz-wa-")
             .tempdir()
-            .map_err(|e| Error::io("making a private folder", e))?;
+            .map_err(|e| Error::io(Note::of(Msg::DoingTemporaryFolder, []), e))?;
         // The WhatsApp version that wrote it, from the unencrypted header (decision 0020).
         let version = crate::session::version_of(path);
         let mut session = Session::default();
@@ -180,7 +182,8 @@ impl Source for WhatsAppSource {
     }
 
     fn messages(&mut self, conversation: &str, each: &mut dyn FnMut(m::Message) -> bool) -> m::Result<()> {
-        let chat: i64 = conversation.parse().map_err(|_| Error::Damaged(format!("no chat {conversation}")))?;
+        let chat: i64 =
+            conversation.parse().map_err(|_| Error::Damaged(Note::of(Msg::NoChat, [conversation.to_owned()])))?;
         let mut from = 0;
         loop {
             let lines = self.session.lines(self.id, chat, from, PAGE).map_err(model_error)?;

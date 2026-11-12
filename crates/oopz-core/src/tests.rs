@@ -353,7 +353,7 @@ fn adapters_are_picked_by_name_or_detection() {
             msgkinds::media_type::name::has_format(&path.to_string_lossy(), msgkinds::media_type::formats::PLAIN_TEXT)
         }
         fn open(&self, _: &Path, _: Option<&str>) -> m::Result<Box<dyn Source>> {
-            Err(m::Error::NotThisFormat("plain-text-test"))
+            Err(m::Error::NotThisFormat(oopz_model::messages::Message::FormatWhatsappExport))
         }
     }
     let adapters: [&dyn Adapter; 1] = [&Txt];
@@ -456,4 +456,34 @@ fn rows_a_newer_oopz_wrote_still_open() {
 #[test]
 fn a_new_app_bumps_the_library_schema() {
     assert_eq!((oopz_model::App::ALL.len(), SCHEMA), (7, 1), "an App was added: bump SCHEMA, then this test");
+}
+
+/// Roadmap 2b 1b's error rows (docs/messages.md, "Errors"), row 5: the desktop's wire stays `{code, detail}`, the
+/// detail in English, until notes go on it (item 6).
+#[test]
+fn errors_5_the_wire_is_code_and_english_detail() {
+    let e: Error = m::Error::reading(Path::new("/x/a.txt"), std::io::Error::other("gone")).into();
+    let json = serde_json::to_value(&e).unwrap();
+    assert_eq!(json, serde_json::json!({"code": "io", "detail": "reading /x/a.txt: gone"}));
+    assert_eq!(e.note.text("es"), "leyendo /x/a.txt: gone");
+}
+
+/// Row 6: each conversion keeps its code (stored names, the UI words them).
+#[test]
+fn errors_6_conversions_keep_their_codes() {
+    let codes = [
+        (m::Error::NotThisFormat(oopz_model::messages::Message::FormatSmsXml), "unsupported_file"),
+        (m::Error::UnsupportedVersion(Note::of(oopz_model::messages::Message::VersionIos9, [])), "unsupported"),
+        (m::Error::NeedsSecret, "needs_secret"),
+        (m::Error::WrongSecret, "wrong_key"),
+        (m::Error::Damaged(Note::of(oopz_model::messages::Message::DamagedZip, ["x".into()])), "damaged"),
+        (m::Error::Io(Note::of(oopz_model::messages::Message::DoingFreeSpace, []), std::io::Error::other("x")), "io"),
+        (m::Error::Cancelled, "cancelled"),
+    ];
+    for (e, code) in codes {
+        assert_eq!(Error::from(e).code, code);
+    }
+    let sql = rusqlite::Connection::open_in_memory().unwrap().execute("NOT SQL", []).unwrap_err();
+    assert_eq!(Error::from(sql).code, "library");
+    assert_eq!(Error::from(serde_json::from_str::<u8>("x").unwrap_err()).code, "library");
 }

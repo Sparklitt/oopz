@@ -23,7 +23,7 @@ use oopz_model::{
 };
 
 pub const ID: &str = "viber-csv";
-const FORMAT: &str = "Viber message history (CSV)";
+const FORMAT: Msg = Msg::FormatViberCsv;
 const MAX_ENTRY: u64 = 1 << 30;
 /// The owner's person id.
 pub const ME: &str = "me";
@@ -68,7 +68,7 @@ impl Adapter for ViberExportAdapter {
     }
 
     fn open(&self, path: &Path, _secret: Option<&str>) -> Result<Box<dyn Source>> {
-        let bytes = std::fs::read(path).map_err(|e| Error::io(path.display(), e))?;
+        let bytes = std::fs::read(path).map_err(|e| Error::reading(path, e))?;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         Ok(Box::new(read(&name, &bytes)?))
     }

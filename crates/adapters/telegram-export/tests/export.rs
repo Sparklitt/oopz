@@ -222,7 +222,7 @@ mod format_changes {
         assert!(matches!(read(&no_chats), Err(Error::NotThisFormat(_))));
         let (not_a_list, _) = changed(|v| v["chats"]["list"] = json!({"0": {}}));
         let Err(Error::UnsupportedVersion(why)) = read(&not_a_list) else { panic!("refused") };
-        assert!(why.contains("chats aren't a list"), "{why}");
+        assert!(why.to_string().contains("chats aren't a list"), "{why}");
         // A chat whose messages changed shape keeps the chat, and says so.
         let (odd_messages, _) = changed(|v| v["chats"]["list"][0]["messages"] = json!("later"));
         let loaded = read(&odd_messages).expect("reads the rest");

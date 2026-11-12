@@ -14,6 +14,7 @@ use krilla::num::NormalizedF32;
 use krilla::paint::Fill;
 use krilla::text::{GlyphId, KrillaGlyph};
 use oopz_core::{Error, Library, MessageRow, Order, Result, Selection};
+use oopz_model::messages::Message as Msg;
 use oopz_model::{App, Kind, Part};
 use serde::{Deserialize, Serialize};
 use unicode_bidi::BidiInfo;
@@ -508,7 +509,7 @@ fn layout(
             done += 1;
         }
         if !progress(done, total) {
-            return Err(Error::new("cancelled", "stopped"));
+            return Err(oopz_model::Error::Cancelled.into());
         }
     }
     w.flush();
@@ -608,14 +609,14 @@ pub fn export_pdf(
 ) -> Result<PdfWritten> {
     let ids = lib.selected(selection, opts.base.order)?;
     if ids.is_empty() {
-        return Err(Error::new("not_found", "the selection is empty"));
+        return Err(Error::of("not_found", Msg::SelectionEmpty, []));
     }
     if !out_dir.is_dir() {
-        return Err(Error::new("not_found", format!("no folder {}", out_dir.display())));
+        return Err(Error::of("not_found", Msg::NoFolder, [out_dir.display().to_string()]));
     }
     let mut shaper = Shaper { fonts: Fonts::find(&opts.fonts) };
     if shaper.fonts.faces.is_empty() {
-        return Err(Error::new("unsupported", "no fonts found on this system; add a font folder"));
+        return Err(Error::of("unsupported", Msg::NoFonts, []));
     }
     let size = match opts.page {
         PageSize::A4 => (595.28, 841.89),
@@ -678,7 +679,7 @@ pub fn export_pdf(
     doc.set_metadata(
         krilla::metadata::Metadata::new().title(title).creator("oopz".into()).language(opts.base.words.lang.clone()),
     );
-    let bytes = doc.finish().map_err(|e| Error::new("io", format!("making the PDF: {e:?}")))?;
+    let bytes = doc.finish().map_err(|e| Error::of("io", Msg::PdfFailed, [format!("{e:?}")]))?;
     let (path, written) = {
         // The file is named after what it is: its format's extension, as its name and its extension.
         let ext = msgkinds::media_type::by_mime(msgkinds::media_type::formats::PDF)

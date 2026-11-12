@@ -15,6 +15,8 @@ pub mod messages {
     include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 }
 
+use messages::Message as Msg;
+use msgkinds::Note;
 use serde::{Deserialize, Serialize};
 
 /// The apps oopz has an adapter for. Codes and names are msgkinds' ([`App::msgkinds`]); stored by code.
@@ -978,32 +980,61 @@ pub struct SourceInfo {
     pub notes: Vec<String>,
 }
 
-/// Why a source couldn't be opened. Never holds a key, a password or message text.
-#[derive(Debug, thiserror::Error)]
+/// Why a source couldn't be opened. Never holds a key, a password or message text. Each variant's words are a note
+/// of the `oopz` catalog ([`Error::note`]), worded in the person's language; `Display` is its English.
+#[derive(Debug)]
 pub enum Error {
-    /// The file isn't this adapter's format.
-    #[error("not a {0}")]
-    NotThisFormat(&'static str),
-    /// A version of the format oopz hasn't seen, refused by name.
-    #[error("{0}: a version oopz doesn't know")]
-    UnsupportedVersion(String),
-    #[error("this source needs its owner's key or password")]
+    /// The file isn't this adapter's format (a `format_…` message: which format it isn't).
+    NotThisFormat(Msg),
+    /// A version of the format oopz hasn't seen, refused by what it is.
+    UnsupportedVersion(Note),
     NeedsSecret,
-    #[error("the key or password doesn't open it, or the file is damaged")]
     WrongSecret,
-    #[error("damaged: {0}")]
-    Damaged(String),
-    #[error("{0}: {1}")]
-    Io(String, std::io::Error),
-    #[error("stopped")]
+    /// What is damaged, and the system's reason when it gave one.
+    Damaged(Note),
+    /// What was being done, and the system's refusal.
+    Io(Note, std::io::Error),
     Cancelled,
 }
 
 impl Error {
-    pub fn io(context: impl std::fmt::Display, e: std::io::Error) -> Self {
-        Error::Io(context.to_string(), e)
+    /// What was being done (a note) when the system refused.
+    pub fn io(doing: Note, e: std::io::Error) -> Self {
+        Error::Io(doing, e)
+    }
+
+    /// Reading `path` failed.
+    pub fn reading(path: &Path, e: std::io::Error) -> Self {
+        Error::Io(Note::of(Msg::DoingReading, [path.display().to_string()]), e)
+    }
+
+    /// The error's words, to show in the person's language (`note().text(language)`).
+    pub fn note(&self) -> Note {
+        let inner = |n: &Note| vec![msgkinds::note::Value::Note(Box::new(n.clone()))];
+        match self {
+            Error::NotThisFormat(format) => Note::new(Msg::ErrorNotThisFormat, inner(&Note::of(*format, []))),
+            Error::UnsupportedVersion(what) => Note::new(Msg::ErrorUnsupportedVersion, inner(what)),
+            Error::NeedsSecret => Note::of(Msg::ErrorNeedsSecret, []),
+            Error::WrongSecret => Note::of(Msg::ErrorWrongSecret, []),
+            Error::Damaged(what) => Note::new(Msg::ErrorDamaged, inner(what)),
+            Error::Io(doing, e) => {
+                let mut values = inner(doing);
+                values.push(msgkinds::note::Value::Text(e.to_string()));
+                Note::new(Msg::ErrorIo, values)
+            }
+            Error::Cancelled => Note::of(Msg::ErrorCancelled, []),
+        }
     }
 }
+
+/// In English, the catalog's default.
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.note().fmt(f)
+    }
+}
+
+impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -1120,6 +1151,35 @@ pub fn civil_to_ms(y: i64, mo: u32, d: u32, h: u32, mi: u32, s: u32, offset_mins
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Roadmap 2b 1b's error rows (docs/messages.md, "Errors"), row 1: the system's reason goes in as it was given
+    /// (on Windows, in the system's own language), never translated; what was being done is ours, in the language.
+    #[test]
+    fn errors_1_a_systems_reason_is_a_value_as_given() {
+        let e = Error::reading(Path::new("/x/chat.txt"), std::io::Error::other("acceso denegado"));
+        assert_eq!(e.to_string(), "reading /x/chat.txt: acceso denegado");
+        assert_eq!(e.note().text("es"), "leyendo /x/chat.txt: acceso denegado");
+    }
+
+    #[test]
+    fn errors_3_a_refusal_with_no_values() {
+        for e in [Error::Cancelled, Error::NeedsSecret, Error::WrongSecret] {
+            let note = e.note();
+            assert!(note.values.is_empty(), "{e}");
+            assert_ne!(note.text("en"), note.text("es"));
+        }
+        assert_eq!(Error::Cancelled.note().text("es"), "detenido");
+    }
+
+    /// Row 7: an error's words hold the note of what it's about, worded in one language throughout.
+    #[test]
+    fn errors_7_a_note_inside_is_worded_in_the_same_language() {
+        let e = Error::NotThisFormat(messages::Message::FormatTelegramJson);
+        assert_eq!(e.to_string(), "not a Telegram JSON export");
+        assert_eq!(e.note().text("es"), "no es una exportación JSON de Telegram");
+        let v = Error::UnsupportedVersion(Note::of(messages::Message::VersionWhatsappNoTable, ["ZWAMESSAGE".into()]));
+        assert_eq!(v.note().text("es"), "WhatsApp sin la tabla ZWAMESSAGE: una versión que oopz no conoce");
+    }
 
     #[test]
     fn a_message_is_what_its_first_meaningful_part_is() {

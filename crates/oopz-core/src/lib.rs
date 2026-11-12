@@ -10,6 +10,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use msgkinds::Note;
+use oopz_model::messages::Message as Msg;
 use oopz_model::{self as m, Adapter, App, Kind, Source};
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
@@ -18,25 +20,67 @@ use sha2::{Digest, Sha256};
 
 pub mod vcard;
 
-/// An error for the CLI and the app: a stable `code` and an English detail; never message text, a key or a number.
-#[derive(Debug, Serialize, thiserror::Error)]
-#[error("{detail}")]
+/// An error for the CLI and the app: a stable `code` and a note of the `oopz` catalog, worded in the person's
+/// language (`note.text(language)`); never message text, a key or a number. `Display` is the note's English, and so
+/// is `detail` when it's serialized (`{code, detail}`, the desktop app's wire).
+#[derive(Debug)]
 pub struct Error {
     /// `exists`, `not_found`, `unsupported_file`, `needs_secret`, `wrong_key`, `damaged`, `unsupported`, `io`,
     /// `cancelled`, `no_space`, `library`.
     pub code: &'static str,
-    pub detail: String,
+    pub note: Note,
 }
 
 impl Error {
-    pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
-        Self { code, detail: detail.into() }
+    pub fn new(code: &'static str, note: Note) -> Self {
+        Self { code, note }
+    }
+
+    /// An `io` error: what was being done, and the system's reason.
+    pub fn io(doing: Note, e: std::io::Error) -> Self {
+        m::Error::Io(doing, e).into()
+    }
+
+    /// What was being done (a note) and the reason it failed, in the system's or a library's own words (a CSV
+    /// writer's, a JSON encoder's).
+    pub fn doing(code: &'static str, doing: Note, reason: impl std::fmt::Display) -> Self {
+        let values =
+            vec![msgkinds::note::Value::Note(Box::new(doing)), msgkinds::note::Value::Text(reason.to_string())];
+        Self::new(code, Note::new(Msg::ErrorIo, values))
+    }
+
+    /// A message of the `oopz` catalog with text values.
+    pub fn of(code: &'static str, message: Msg, values: impl IntoIterator<Item = String>) -> Self {
+        Self::new(code, Note::of(message, values))
+    }
+
+    /// A `library` error in the system's own words (SQLite's, JSON's).
+    fn library(reason: impl ToString) -> Self {
+        Self::of("library", Msg::SystemReason, [reason.to_string()])
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.note.fmt(f)
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl Serialize for Error {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut out = s.serialize_struct("Error", 2)?;
+        out.serialize_field("code", self.code)?;
+        out.serialize_field("detail", &self.note.to_string())?;
+        out.end()
     }
 }
 
 impl From<rusqlite::Error> for Error {
     fn from(e: rusqlite::Error) -> Self {
-        Error::new("library", e.to_string())
+        Error::library(e)
     }
 }
 
@@ -51,13 +95,13 @@ impl From<m::Error> for Error {
             m::Error::Io(..) => "io",
             m::Error::Cancelled => "cancelled",
         };
-        Error::new(code, e.to_string())
+        Error::new(code, e.note())
     }
 }
 
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
-        Error::new("library", e.to_string())
+        Error::library(e)
     }
 }
 
@@ -284,8 +328,7 @@ pub fn fingerprint(path: &Path) -> Result<String> {
         let mut files = Vec::new();
         let mut stack = vec![path.to_path_buf()];
         while let Some(dir) = stack.pop() {
-            let entries =
-                fs::read_dir(&dir).map_err(|e| Error::new("io", format!("reading {}: {e}", dir.display())))?;
+            let entries = fs::read_dir(&dir).map_err(|e| Error::io(reading(&dir), e))?;
             for entry in entries.flatten() {
                 let p = entry.path();
                 match entry.file_type() {
@@ -305,10 +348,10 @@ pub fn fingerprint(path: &Path) -> Result<String> {
             hash.update(size.to_le_bytes());
         }
     } else {
-        let mut f = fs::File::open(path).map_err(|e| Error::new("io", format!("reading {}: {e}", path.display())))?;
+        let mut f = fs::File::open(path).map_err(|e| Error::io(reading(path), e))?;
         let mut buf = vec![0; 1 << 20];
         loop {
-            let n = f.read(&mut buf).map_err(|e| Error::new("io", format!("reading {}: {e}", path.display())))?;
+            let n = f.read(&mut buf).map_err(|e| Error::io(reading(path), e))?;
             if n == 0 {
                 break;
             }
@@ -325,11 +368,18 @@ pub fn pick_adapter<'a>(adapters: &[&'a dyn Adapter], path: &Path, named: Option
             .iter()
             .find(|a| a.id() == id)
             .copied()
-            .ok_or_else(|| Error::new("unsupported_file", format!("no adapter `{id}`"))),
-        None => adapters.iter().find(|a| a.detect(path)).copied().ok_or_else(|| {
-            Error::new("unsupported_file", format!("{} isn't a file oopz can open", display_name(path)))
-        }),
+            .ok_or_else(|| Error::of("unsupported_file", Msg::NoAdapter, [id.to_owned()])),
+        None => adapters
+            .iter()
+            .find(|a| a.detect(path))
+            .copied()
+            .ok_or_else(|| Error::of("unsupported_file", Msg::NotAFileOopzOpens, [display_name(path)])),
     }
+}
+
+/// Reading `path`, for an io error.
+fn reading(path: &Path) -> Note {
+    Note::of(Msg::DoingReading, [path.display().to_string()])
 }
 
 fn display_name(path: &Path) -> String {
@@ -430,7 +480,7 @@ const NAME_OF_SENDER: &str = "(SELECT coalesce(ct.name, p.name, p.username, p.ph
 impl Library {
     /// Opens the library in `dir` (made if missing), upgrading an older one; a newer one is refused.
     pub fn open(dir: &Path) -> Result<Self> {
-        fs::create_dir_all(dir).map_err(|e| Error::new("io", format!("making {}: {e}", dir.display())))?;
+        fs::create_dir_all(dir).map_err(|e| Error::io(Note::of(Msg::DoingMaking, [dir.display().to_string()]), e))?;
         let db = Connection::open(dir.join(FILE))?;
         // 64 MB of page cache: a large import keeps its indexes in memory instead of re-reading them.
         db.execute_batch(
@@ -439,7 +489,7 @@ impl Library {
         )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         if version > SCHEMA {
-            return Err(Error::new("unsupported", "this library was made by a newer oopz"));
+            return Err(Error::of("unsupported", Msg::LibraryNewer, []));
         }
         if version < SCHEMA {
             db.execute_batch(
@@ -501,10 +551,7 @@ impl Library {
         let adapter = pick_adapter(adapters, path, adapter)?;
         let print = fingerprint(path)?;
         if let Some(id) = self.source_by_fingerprint(&print)? {
-            return Err(Error::new(
-                "exists",
-                format!("{} is already in the library (source {id})", display_name(path)),
-            ));
+            return Err(Error::of("exists", Msg::AlreadyInLibraryAs, [display_name(path), id.to_string()]));
         }
         let mut source = adapter.open(path, secret)?;
         self.import(source.as_mut(), &display_name(path), &print, progress)
@@ -524,7 +571,7 @@ impl Library {
         progress: &mut dyn FnMut(u64, u64) -> bool,
     ) -> Result<SourceRow> {
         if self.source_by_fingerprint(fingerprint)?.is_some() {
-            return Err(Error::new("exists", format!("{name} is already in the library")));
+            return Err(Error::of("exists", Msg::AlreadyInLibrary, [name.to_owned()]));
         }
         // Files the source holds inline go to a staging folder first, renamed to `media/<id>` once the rows are in:
         // a failure or a stop leaves no files behind either.
@@ -549,7 +596,7 @@ impl Library {
             if let Err(e) = fs::rename(&staging, &target) {
                 let _ = fs::remove_dir_all(&staging);
                 let _ = self.remove_source(id);
-                return Err(Error::new("io", format!("keeping the source's files: {e}")));
+                return Err(Error::io(Note::of(Msg::DoingKeepingFiles, []), e));
             }
         }
         self.source(id)
@@ -598,7 +645,7 @@ impl Library {
                 },
             )
             .optional()?
-            .ok_or_else(|| Error::new("not_found", format!("no source {id}")))
+            .ok_or_else(|| Error::of("not_found", Msg::NoSource, [id.to_string()]))
     }
 
     /// The folder a source's media file paths are relative to.
@@ -631,7 +678,7 @@ impl Library {
         let tx = self.db.transaction()?;
         let n = tx.execute("DELETE FROM source WHERE id = ?1", [id])?;
         if n == 0 {
-            return Err(Error::new("not_found", format!("no source {id}")));
+            return Err(Error::of("not_found", Msg::NoSource, [id.to_string()]));
         }
         tx.execute(
             "DELETE FROM contact WHERE phones = '[]' AND emails = '[]'
@@ -641,7 +688,8 @@ impl Library {
         tx.commit()?;
         let media = self.dir.join("media").join(id.to_string());
         if media.exists() {
-            fs::remove_dir_all(&media).map_err(|e| Error::new("io", format!("removing {}: {e}", media.display())))?;
+            fs::remove_dir_all(&media)
+                .map_err(|e| Error::io(Note::of(Msg::DoingRemoving, [media.display().to_string()]), e))?;
         }
         Ok(())
     }
@@ -653,7 +701,7 @@ impl Library {
         let source: i64 = tx
             .query_row("SELECT source FROM person WHERE id = ?1", [person], |r| r.get(0))
             .optional()?
-            .ok_or_else(|| Error::new("not_found", format!("no person {person}")))?;
+            .ok_or_else(|| Error::of("not_found", Msg::NoPerson, [person.to_string()]))?;
         tx.execute("UPDATE person SET me = (id = ?1) WHERE source = ?2", params![person, source])?;
         tx.execute(
             "UPDATE msg SET from_me = (sender = ?1)
@@ -895,7 +943,7 @@ impl Library {
     pub fn save_selection(&mut self, name: &str, selection: &Selection) -> Result<i64> {
         let name = name.trim();
         if name.is_empty() {
-            return Err(Error::new("library", "a selection needs a name"));
+            return Err(Error::of("library", Msg::SelectionNeedsName, []));
         }
         self.db.execute(
             "INSERT INTO selection (name, json, saved_ms) VALUES (?1, ?2, ?3)
@@ -1062,7 +1110,7 @@ impl Library {
     /// `name` (else the first one's name). Returns the contact's id.
     pub fn link(&mut self, people: &[i64], name: Option<&str>) -> Result<i64> {
         if people.is_empty() {
-            return Err(Error::new("library", "nobody to link"));
+            return Err(Error::of("library", Msg::NobodyToLink, []));
         }
         let tx = self.db.transaction()?;
         let marks = vec!["?"; people.len()].join(",");
@@ -1072,7 +1120,7 @@ impl Library {
             |r| r.get(0),
         )?;
         if found as usize != people.len() {
-            return Err(Error::new("not_found", "someone to link isn't in the library"));
+            return Err(Error::of("not_found", Msg::LinkNotInLibrary, []));
         }
         let existing: Option<i64> = tx.query_row(
             &format!("SELECT min(contact) FROM person WHERE id IN ({marks})"),
@@ -1121,10 +1169,10 @@ impl Library {
     pub fn rename_contact(&mut self, contact: i64, name: &str) -> Result<()> {
         let name = name.trim();
         if name.is_empty() {
-            return Err(Error::new("library", "a contact needs a name"));
+            return Err(Error::of("library", Msg::ContactNeedsName, []));
         }
         if self.db.execute("UPDATE contact SET name = ?1 WHERE id = ?2", params![name, contact])? == 0 {
-            return Err(Error::new("not_found", format!("no contact {contact}")));
+            return Err(Error::of("not_found", Msg::NoContact, [contact.to_string()]));
         }
         Ok(())
     }
@@ -1314,7 +1362,7 @@ fn import_into(
     )?;
     for (done, conv) in conversations.iter().enumerate() {
         if !progress(done as u64, total) {
-            return Err(Error::new("cancelled", "stopped"));
+            return Err(m::Error::Cancelled.into());
         }
         insert_conv.execute(params![source_id, conv.id, conv.kind.code(), conv.name, conv.created_ms])?;
         let conv_id = tx.last_insert_rowid();
@@ -1384,7 +1432,7 @@ fn import_into(
         }
         match streamed {
             Ok(()) => {}
-            Err(m::Error::Cancelled) => return Err(Error::new("cancelled", "stopped")),
+            Err(m::Error::Cancelled) => return Err(m::Error::Cancelled.into()),
             Err(e) => return Err(e.into()),
         }
     }
@@ -1424,13 +1472,13 @@ fn keep_inline(media: &mut m::Media, staging: &Path, count: &mut u64) -> Result<
     let own = if own.is_empty() { format!("{:?}", media.kind).to_lowercase() } else { own.to_owned() };
     *count += 1;
     let file = format!("{count:06}-{own}");
-    fs::create_dir_all(staging).map_err(|e| Error::new("io", format!("a folder for the source's files: {e}")))?;
+    fs::create_dir_all(staging).map_err(|e| Error::io(Note::of(Msg::DoingFilesFolder, []), e))?;
     // Room for the file and 256 MB to spare, so the library never fills the disk.
-    let free = fs4::available_space(staging).map_err(|e| Error::new("io", format!("reading the free space: {e}")))?;
+    let free = fs4::available_space(staging).map_err(|e| Error::io(Note::of(Msg::DoingFreeSpace, []), e))?;
     if free < data.len() as u64 + (256 << 20) {
-        return Err(Error::new("no_space", "not enough free space for the source's media files"));
+        return Err(Error::of("no_space", Msg::NoSpaceForMedia, []));
     }
-    fs::write(staging.join(&file), &data).map_err(|e| Error::new("io", format!("writing {file}: {e}")))?;
+    fs::write(staging.join(&file), &data).map_err(|e| Error::io(Note::of(Msg::DoingWriting, [file.clone()]), e))?;
     media.file = Some(file);
     media.omitted = false;
     Ok(())

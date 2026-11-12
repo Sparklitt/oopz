@@ -26,7 +26,7 @@ use oopz_model::{
 use serde_json::{Map, Value};
 
 pub const ID: &str = "telegram-json";
-const FORMAT: &str = "Telegram JSON export";
+const FORMAT: Msg = Msg::FormatTelegramJson;
 const MAX_ENTRY: u64 = 4 << 30;
 /// Reactions counted without who: at most this many are listed per emoji.
 const MAX_ANONYMOUS_REACTIONS: u64 = 1000;
@@ -73,9 +73,9 @@ impl Adapter for TelegramExportAdapter {
         let (json, root) = if path.is_dir() {
             let file = result_in(path).ok_or(Error::NotThisFormat(FORMAT))?;
             let root = file.parent().map(Path::to_path_buf);
-            (std::fs::read(&file).map_err(|e| Error::io(file.display(), e))?, root)
+            (std::fs::read(&file).map_err(|e| Error::reading(&file, e))?, root)
         } else {
-            let bytes = std::fs::read(path).map_err(|e| Error::io(path.display(), e))?;
+            let bytes = std::fs::read(path).map_err(|e| Error::reading(path, e))?;
             if bytes.starts_with(b"PK") {
                 (from_zip(&bytes)?, None)
             } else {
@@ -115,9 +115,12 @@ pub fn from_zip(bytes: &[u8]) -> Result<Vec<u8>> {
         }
     }
     let (_, i) = best.ok_or(Error::NotThisFormat(FORMAT))?;
-    let entry = zip.by_index(i).map_err(|e| Error::Damaged(e.to_string()))?;
+    let entry = zip.by_index(i).map_err(|e| Error::Damaged(Note::of(Msg::DamagedZip, [e.to_string()])))?;
     let mut out = Vec::new();
-    entry.take(MAX_ENTRY).read_to_end(&mut out).map_err(|e| Error::io(format_args!("{EXPORT} in the zip"), e))?;
+    entry
+        .take(MAX_ENTRY)
+        .read_to_end(&mut out)
+        .map_err(|e| Error::io(Note::of(Msg::DoingReadingInZip, [EXPORT.to_owned()]), e))?;
     Ok(out)
 }
 
@@ -163,13 +166,13 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
 
     let chats: Vec<&Value> = if let Some(chats) = top.get("chats") {
         let Some(list) = chats.get("list").and_then(Value::as_array) else {
-            return Err(Error::UnsupportedVersion("Telegram export whose chats aren't a list".into()));
+            return Err(Error::UnsupportedVersion(Note::of(Msg::VersionTelegramChatsNotList, [])));
         };
         let left = top.get("left_chats").and_then(|l| l.get("list")).and_then(Value::as_array);
         list.iter().chain(left.into_iter().flatten()).collect()
     } else if let Some(messages) = top.get("messages") {
         if !messages.is_array() {
-            return Err(Error::UnsupportedVersion("Telegram export whose messages aren't a list".into()));
+            return Err(Error::UnsupportedVersion(Note::of(Msg::VersionTelegramMessagesNotList, [])));
         }
         vec![&value]
     } else {
