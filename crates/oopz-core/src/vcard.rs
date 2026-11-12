@@ -13,6 +13,16 @@ pub struct Card {
 
 /// Lines with their folding undone: a line starting with a space or tab continues the one before (3.0/4.0), and a
 /// quoted-printable value ending in `=` continues on the next line (2.1).
+/// A vCard's first line: how msgkinds knows one by its first bytes (its text start for `text/vcard`).
+fn begin() -> String {
+    use msgkinds::media_type::{formats::VCARD, signatures::TEXT_STARTS};
+    TEXT_STARTS
+        .iter()
+        .find(|(_, mime)| *mime == VCARD)
+        .map(|(b, _)| String::from_utf8_lossy(b).into_owned())
+        .unwrap_or_default()
+}
+
 fn unfold(text: &str) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut soft = false;
@@ -158,7 +168,7 @@ pub fn parse(text: &str) -> Vec<Card> {
 pub fn write(cards: &[Card]) -> String {
     let mut out = String::new();
     for c in cards {
-        let mut lines = vec!["BEGIN:VCARD".to_owned(), "VERSION:3.0".to_owned(), format!("FN:{}", escape(&c.name))];
+        let mut lines = vec![begin(), "VERSION:3.0".to_owned(), format!("FN:{}", escape(&c.name))];
         lines.push(format!("N:;{};;;", escape(&c.name)));
         lines.extend(c.phones.iter().map(|p| format!("TEL;TYPE=CELL:{}", escape(p))));
         lines.extend(c.emails.iter().map(|e| format!("EMAIL;TYPE=INTERNET:{}", escape(e))));

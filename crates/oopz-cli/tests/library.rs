@@ -141,19 +141,32 @@ fn every_lib_command_on_invented_exports_and_a_backup() {
     let id = saved.split("selection ").nth(1).unwrap().split_whitespace().next().unwrap().to_owned();
     assert!(ok(lib, &["selections"]).contains("sms only"));
     assert_eq!(first(&ok(lib, &["count", "--selection", &id])) as usize, sms_n);
-    for format in ["html", "json", "csv", "txt", "vcard", "media-zip"] {
+    for format in oopz_export::Format::ALL.map(|f| f.code()) {
         let w = ok(lib, &["export", "--format", format, "--selection", &id, "--out-dir", out.to_str().unwrap()]);
         assert!(w.contains("saved: "), "{w}");
     }
     let w = ok(
         lib,
-        &["export", "--format", "txt", "--app", "telegram", "--order", "time", "--tz", "UTC", "--out-dir"]
-            .into_iter()
-            .chain([out.to_str().unwrap()])
-            .collect::<Vec<_>>(),
+        &[
+            "export",
+            "--format",
+            oopz_export::Format::Txt.code(),
+            "--app",
+            "telegram",
+            "--order",
+            "time",
+            "--tz",
+            "UTC",
+            "--out-dir",
+        ]
+        .into_iter()
+        .chain([out.to_str().unwrap()])
+        .collect::<Vec<_>>(),
     );
     assert!(w.contains(&format!("{telegram_n} messages")), "{w}");
-    assert!(fails(lib, &["export", "--format", "docx", "--out-dir", out.to_str().unwrap()]).contains("--format"));
+    assert!(
+        fails(lib, &["export", "--format", "not-a-format", "--out-dir", out.to_str().unwrap()]).contains("--format")
+    );
     ok(lib, &["unselect", "--selection", &id]);
 
     let telegram_id = sources.lines().find(|l| l.contains("telegram")).unwrap().split_whitespace().next().unwrap();
@@ -182,8 +195,14 @@ fn set_me_on_a_text_export_and_flags_are_checked() {
     assert!(fails(lib, &["accept", "99"]).contains("no suggestion 99"));
     let out = dir.path().join("out");
     std::fs::create_dir(&out).unwrap();
-    assert!(fails(lib, &["export", "--format", "csv", "--out-dir", out.to_str().unwrap()]).contains("--all"));
-    assert!(ok(lib, &["export", "--format", "csv", "--all", "--out-dir", out.to_str().unwrap()]).contains("saved: "));
+    assert!(
+        fails(lib, &["export", "--format", oopz_export::Format::Csv.code(), "--out-dir", out.to_str().unwrap()])
+            .contains("--all")
+    );
+    assert!(
+        ok(lib, &["export", "--format", oopz_export::Format::Csv.code(), "--all", "--out-dir", out.to_str().unwrap()])
+            .contains("saved: ")
+    );
     let no_lib = Command::new(env!("CARGO_BIN_EXE_oopz")).args(["lib", "sources"]).output().unwrap();
     assert!(String::from_utf8_lossy(&no_lib.stderr).contains("--library"));
 }
@@ -207,7 +226,7 @@ fn an_encrypted_iphone_backup_with_its_password_and_its_photos() {
     // The photos came out of the backup into the library's own folder.
     let media: Vec<_> = std::fs::read_dir(lib.join("media").join("1")).unwrap().collect();
     assert_eq!(media.len(), m.media_files);
-    let zip = dir.path().join("zip");
+    let zip = dir.path().join("media");
     std::fs::create_dir(&zip).unwrap();
     let w = ok(lib, &["export", "--format", "media-zip", "--all", "--out-dir", zip.to_str().unwrap()]);
     assert!(w.contains("saved: "), "{w}");

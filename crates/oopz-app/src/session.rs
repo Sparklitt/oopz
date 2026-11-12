@@ -724,7 +724,7 @@ mod tests {
     #[test]
     fn finds_backups_current_first_and_names_old_formats() {
         let fx = fixture::build();
-        let dir = fx.dir.path().join("WhatsApp");
+        let dir = fx.dir.path().join(msgkinds::App::WhatsApp.name());
         let db = dir.join("Databases");
         fs::create_dir_all(&db).unwrap();
         fs::copy(&fx.backup, db.join("msgstore.db.crypt15")).unwrap();

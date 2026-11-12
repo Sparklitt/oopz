@@ -22,6 +22,7 @@ oopz-core.workspace = true
 oopz-export.workspace = true
 oopz-export-pdf = { workspace = true, optional = true }
 oopz-model.workspace = true
+msgkinds.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
@@ -34,7 +35,6 @@ zeroize.workspace = true
 [dev-dependencies]
 oopz = { workspace = true, features = ["fixtures"] }
 oopz-gen = { path = "../oopz-gen" }
-msgkinds.workspace = true
 tempfile.workspace = true
 
 [lints]

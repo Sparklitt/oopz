@@ -102,7 +102,11 @@ pub fn generate(seed: u64, layout: Layout) -> Export {
             let name = PEOPLE[who];
             let (kind, line) = match content {
                 Content::Text(t) => {
-                    let kind = if t.contains("https://") { Kind::Link } else { Kind::Text };
+                    let kind = if !msgkinds::media_type::sources::whatsapp_export::links(&t).is_empty() {
+                        Kind::Link
+                    } else {
+                        Kind::Text
+                    };
                     let t = if t.contains('\n') || t.starts_with('"') {
                         format!("\"{}\"", t.replace('"', "\"\""))
                     } else {

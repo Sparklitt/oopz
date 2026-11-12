@@ -107,7 +107,7 @@ fn an_encrypted_backup_opens_only_with_its_password() {
     assert!(matches!(WHATSAPP.open(&out, Some("wrong")), Err(oopz_model::Error::WrongSecret)));
     check(&out, Some(PASSWORD), &m);
     let s = WHATSAPP.open(&out, Some(PASSWORD)).unwrap();
-    assert!(s.info().notes.iter().any(|n| n.contains("WhatsApp Business")));
+    assert!(s.info().notes.iter().any(|n| n.contains(msgkinds::App::WhatsAppBusiness.name())));
     let b = BUSINESS.open(&out, Some(PASSWORD)).unwrap();
     assert_eq!(b.info().adapter, "whatsapp-business-ios");
 }

@@ -37,7 +37,7 @@ impl Layout {
         match self {
             Layout::Android | Layout::Us => format!("WhatsApp Chat with {GROUP}.txt"),
             Layout::Spanish => format!("Chat de WhatsApp con {GROUP}.txt"),
-            Layout::Ios => "_chat.txt".into(),
+            Layout::Ios => msgkinds::media_type::sources::whatsapp::IOS_CHAT_TEXT.into(),
         }
     }
 }
@@ -156,7 +156,7 @@ pub fn generate(seed: u64, layout: Layout) -> Export {
                 out.push_str(&format!("{}{body}", header(ms, layout)));
             }
         } else {
-            let mark = if body.starts_with('\u{200E}') { "\u{200E}" } else { "" };
+            let mark = if body.starts_with(lrm()) { lrm() } else { "" };
             out.push_str(&format!("{mark}{}{}: {body}", header(ms, layout), PEOPLE[*who]));
         }
         out.push('\n');
@@ -179,6 +179,11 @@ pub fn generate(seed: u64, layout: Layout) -> Export {
 
 const VCARD: &str = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ben Ejemplo\r\nTEL;type=CELL:+99990000002\r\nEND:VCARD\r\n";
 
+/// iPhone's left-to-right mark, the first of the marks WhatsApp writes (msgkinds' wording `[shape] marks`).
+fn lrm() -> &'static str {
+    msgkinds::wording::shape(msgkinds::Source::WhatsAppExport, "marks")[0]
+}
+
 fn contact_file(layout: Layout) -> &'static str {
     if layout == Layout::Ios { "00000011-Ben Ejemplo.vcf" } else { "Ben Ejemplo.vcf" }
 }
@@ -200,7 +205,7 @@ fn body(content: &Content, who: usize, layout: Layout) -> String {
     let es = layout == Layout::Spanish;
     let ios = layout == Layout::Ios;
     let pick = |en: &str, sp: &str| if es { sp.to_string() } else { en.to_string() };
-    let lrm = if ios { "\u{200E}" } else { "" };
+    let lrm = if ios { lrm() } else { "" };
     match content {
         Content::Text(t) | Content::Link(t) => t.clone(),
         Content::Omitted if ios => "\u{200E}image omitted".into(),
@@ -209,8 +214,11 @@ fn body(content: &Content, who: usize, layout: Layout) -> String {
             let mut s = if ios {
                 format!("\u{200E}<attached: {ios_name}>")
             } else {
-                let pages =
-                    if android.ends_with(".pdf") { pick(" • 2 pages", " • 2 páginas") } else { String::new() };
+                let pages = if msgkinds::media_type::name::has_format(android, msgkinds::media_type::formats::PDF) {
+                    pick(" • 2 pages", " • 2 páginas")
+                } else {
+                    String::new()
+                };
                 format!("{android}{pages} {}", pick("(file attached)", "(archivo adjunto)"))
             };
             if let Some(c) = caption {

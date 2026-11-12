@@ -130,7 +130,12 @@ fn restore_writes_a_checked_backup_in_a_new_folder() {
     assert!(text(&merged).contains("original target unchanged: yes"));
     let result = out.join("oopz-result-1");
     assert!(result.join("Media/WhatsApp Images/Sent/hilo-IMG-20231114-WA0001.jpg").is_file());
-    for secret in ["Hola", "playa", "IMG-", KEY_HEX, fixture::TARGET_KEY_HEX] {
+    // WhatsApp's file-name marker for a photo: the fixture's file names start with it.
+    let photo_marker = msgkinds::media_type::sources::whatsapp::NAME_MARKERS
+        .iter()
+        .find(|(m, k, _)| *k == msgkinds::Kind::Photo && !m.starts_with('-'))
+        .map_or("", |(m, ..)| *m);
+    for secret in ["Hola", "playa", photo_marker, KEY_HEX, fixture::TARGET_KEY_HEX] {
         assert!(!text(&merged).contains(secret), "printed {secret:?}");
     }
 

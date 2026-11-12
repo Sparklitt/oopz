@@ -12,6 +12,7 @@ publish.workspace = true
 fixtures = ["dep:zip"]
 
 [dependencies]
+msgkinds.workspace = true
 aes-gcm.workspace = true
 flate2.workspace = true
 getrandom.workspace = true

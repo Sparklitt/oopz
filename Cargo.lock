@@ -1011,6 +1011,7 @@ dependencies = [
  "hex",
  "hkdf",
  "md-5",
+ "msgkinds",
  "prost",
  "rusqlite",
  "sha2",
@@ -1077,6 +1078,7 @@ version = "0.1.1"
 dependencies = [
  "fs4",
  "hex",
+ "msgkinds",
  "oopz-model",
  "rusqlite",
  "serde",

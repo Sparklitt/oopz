@@ -8,6 +8,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+msgkinds.workspace = true
 fs4.workspace = true
 oopz-model.workspace = true
 rusqlite.workspace = true

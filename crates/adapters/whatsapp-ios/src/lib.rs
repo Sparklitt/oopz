@@ -31,6 +31,11 @@ pub struct WhatsAppIosAdapter {
     pub business: bool,
 }
 
+/// The app an adapter reads: WhatsApp, or WhatsApp Business (its name is msgkinds').
+fn app_of(business: bool) -> msgkinds::App {
+    if business { msgkinds::App::WhatsAppBusiness } else { msgkinds::App::WhatsApp }
+}
+
 pub const WHATSAPP: WhatsAppIosAdapter = WhatsAppIosAdapter { business: false };
 pub const BUSINESS: WhatsAppIosAdapter = WhatsAppIosAdapter { business: true };
 
@@ -80,7 +85,7 @@ impl Adapter for WhatsAppIosAdapter {
         let backup = Backup::open(path, secret).map_err(err)?;
         let (domain, other) = if self.business { (BUSINESS_DOMAIN, DOMAIN) } else { (DOMAIN, BUSINESS_DOMAIN) };
         let Some(entry) = backup.file(domain, "ChatStorage.sqlite").map_err(err)? else {
-            let what = if self.business { "WhatsApp Business" } else { "WhatsApp" };
+            let what = app_of(self.business).name();
             return Err(m::Error::Damaged(format!("this iPhone backup holds no {what} chats")));
         };
         let tmp = tempfile::Builder::new()
@@ -119,7 +124,7 @@ impl Adapter for WhatsAppIosAdapter {
                 adapter: self.id().into(),
                 format: Some(format!(
                     "{}{} on iPhone{}",
-                    if self.business { "WhatsApp Business" } else { "WhatsApp" },
+                    app_of(self.business).name(),
                     version.as_deref().map(|v| format!(" {v}")).unwrap_or_default(),
                     backup.info.product_version.as_deref().map(|v| format!(" (iOS {v})")).unwrap_or_default()
                 )),
@@ -476,7 +481,8 @@ impl Source for IosSource {
             let mut parts = Vec::new();
             // What `ZMESSAGETYPE` (and a notice's `ZGROUPEVENTTYPE`) means comes from msgkinds' registry
             // (decision 0020); a type it doesn't name stays an unknown part with its code.
-            let opus = path.as_deref().is_some_and(|p| p.ends_with(".opus"));
+            let voice_ext = msgkinds::media_type::sources::whatsapp::voice_note_extension();
+            let opus = path.as_deref().and_then(msgkinds::media_type::name::extension).is_some_and(|e| e == voice_ext);
             let Some((kind_of, row, detail)) = resolve(kind, event_type, opus, &mut self.reading) else {
                 parts.push(Part::Unknown { code: kind.to_string(), text });
                 msg.parts = parts;
@@ -503,7 +509,7 @@ impl Source for IosSource {
                     m::Kind::Text => parts.push(Part::text(text.unwrap_or_default())),
                     m::Kind::Link => {
                         let url = text.clone().unwrap_or_default();
-                        match url.split_whitespace().find(|w| w.starts_with("http://") || w.starts_with("https://")) {
+                        match msgkinds::media_type::sources::whatsapp_export::links(&url).first().copied() {
                             Some(u) => {
                                 parts.push(Part::text(url.clone()));
                                 parts.push(Part::Link { url: u.to_owned(), title: None });
@@ -605,7 +611,7 @@ fn resolve(
 impl IosSource {
     /// The notes say what stayed out; rewritten after each conversation, so they're complete at the end.
     fn write_notes(&mut self) {
-        self.info.notes.retain(|n| n.starts_with("WhatsApp Business"));
+        self.info.notes.retain(|n| n.starts_with(msgkinds::App::WhatsAppBusiness.name()));
         self.info.notes.push(
             "reactions, replies, edits and poll votes are kept by WhatsApp in a form oopz doesn't read yet".into(),
         );

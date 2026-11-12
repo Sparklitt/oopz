@@ -341,7 +341,7 @@ fn adapters_are_picked_by_name_or_detection() {
     struct Txt;
     impl Adapter for Txt {
         fn id(&self) -> &'static str {
-            "txt"
+            "plain-text-test"
         }
         fn app(&self) -> App {
             App::Line
@@ -350,16 +350,16 @@ fn adapters_are_picked_by_name_or_detection() {
             m::Secret::None
         }
         fn detect(&self, path: &Path) -> bool {
-            path.extension().is_some_and(|e| e == "txt")
+            msgkinds::media_type::name::has_format(&path.to_string_lossy(), msgkinds::media_type::formats::PLAIN_TEXT)
         }
         fn open(&self, _: &Path, _: Option<&str>) -> m::Result<Box<dyn Source>> {
-            Err(m::Error::NotThisFormat("txt"))
+            Err(m::Error::NotThisFormat("plain-text-test"))
         }
     }
     let adapters: [&dyn Adapter; 1] = [&Txt];
-    assert_eq!(pick_adapter(&adapters, Path::new("a.txt"), None).unwrap().id(), "txt");
+    assert_eq!(pick_adapter(&adapters, Path::new("a.txt"), None).unwrap().id(), "plain-text-test");
     assert_eq!(pick_adapter(&adapters, Path::new("a.pdf"), None).err().unwrap().code, "unsupported_file");
-    assert_eq!(pick_adapter(&adapters, Path::new("a.pdf"), Some("txt")).unwrap().id(), "txt");
+    assert_eq!(pick_adapter(&adapters, Path::new("a.pdf"), Some("plain-text-test")).unwrap().id(), "plain-text-test");
     assert_eq!(pick_adapter(&adapters, Path::new("a.txt"), Some("nope")).err().unwrap().code, "unsupported_file");
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.txt");

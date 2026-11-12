@@ -221,9 +221,9 @@ fn outcome(code: Option<i64>) -> m::CallOutcome {
 
 /// The links in a text, for link parts.
 fn links(text: &str) -> Vec<m::Part> {
-    text.split_whitespace()
-        .filter(|w| w.starts_with("https://") || w.starts_with("http://"))
-        .map(|w| m::Part::Link { url: w.trim_end_matches([',', '.', ')', '!', '?']).to_owned(), title: None })
+    msgkinds::media_type::sources::whatsapp_export::links(text)
+        .into_iter()
+        .map(|url| m::Part::Link { url: url.to_owned(), title: None })
         .collect()
 }
 
@@ -243,8 +243,10 @@ fn message(conversation: &str, line: Line, sender: Option<String>, reading: &mut
     // Type 2 is a voice note or an audio file: a voice note is Ogg Opus (or sits under `Voice Notes/`).
     let kind = if kind == m::Kind::Audio && entry.has(Flag::Refined) {
         let media = line.media.as_ref();
-        let voice = media.and_then(|x| x.mime.as_deref()).is_some_and(|t| t.contains("ogg"))
-            || media.and_then(|x| x.file.as_deref()).is_some_and(|f| f.contains("Voice Notes/"));
+        let voice = msgkinds::media_type::sources::whatsapp::is_voice_note(
+            media.and_then(|x| x.file.as_deref()),
+            media.and_then(|x| x.mime.as_deref()),
+        );
         if voice { m::Kind::Voice } else { m::Kind::Audio }
     } else {
         kind
@@ -450,7 +452,7 @@ mod tests {
     #[test]
     fn stickers_have_no_duration_and_keep_their_file() {
         let media = crate::index::Media {
-            mime: Some("image/webp".into()),
+            mime: Some(msgkinds::media_type::formats::WEBP.into()),
             size: Some(20_000),
             secs: Some(0),
             file: Some("Media/WhatsApp Stickers/STK-9999.webp".into()),

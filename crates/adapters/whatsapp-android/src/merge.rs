@@ -51,9 +51,14 @@ const PER_MESSAGE: &[&str] = &[
 /// Copied with their own rules below; with [`PER_MESSAGE`], what's never counted as left behind.
 const HANDLED: &[&str] = &["message", "chat", "message_association", "message_call_log", "message_add_on"];
 
-/// The media folders where WhatsApp keeps what the phone's owner sent in `Sent/`.
-const SENT_FOLDERS: &[&str] =
-    &["WhatsApp Images", "WhatsApp Video", "WhatsApp Audio", "WhatsApp Documents", "WhatsApp Animated Gifs"];
+/// Whether WhatsApp keeps what the phone's owner sent in a `Sent/` folder inside this media folder: the folders of
+/// photos, videos, audio, documents and GIFs (msgkinds' `whatsapp::FOLDERS`).
+fn has_sent_folder(folder: &str) -> bool {
+    use msgkinds::Kind as K;
+    msgkinds::media_type::sources::whatsapp::FOLDERS
+        .iter()
+        .any(|(k, f)| *f == folder && [K::Photo, K::Video, K::Audio, K::Document, K::Gif].contains(k))
+}
 
 /// Merges `source_chat` of `source` into `target_chat` of the backup whose original bytes are `target`.
 pub struct ChatMerge<'a> {
@@ -837,7 +842,7 @@ fn mirror_path(path: &str) -> Option<String> {
     let mut dirs = dirs.to_vec();
     if dirs.len() == 2 && dirs[1] == "Sent" {
         dirs.pop();
-    } else if dirs.len() == 1 && SENT_FOLDERS.contains(&dirs[0]) {
+    } else if dirs.len() == 1 && has_sent_folder(dirs[0]) {
         dirs.push("Sent");
     }
     Some(format!("{prefix}{}/hilo-{name}", dirs.join("/")))

@@ -2,6 +2,7 @@
 //! group, emoji written as surrogate-pair entities as the app writes them) and `calls.xml` (`<calls>` with every call
 //! type). The manifest counts both files together.
 
+use msgkinds::media_type::formats;
 use std::fmt::Write as _;
 
 use oopz_model::Kind;
@@ -114,9 +115,9 @@ pub fn generate(seed: u64) -> Export {
 
     // A picture with a caption, received.
     let date = tick(&mut rng);
-    let parts = part(-1, "application/smil", "smil.xml", Some(smil), None)
-        + &part(0, "image/jpeg", "image.jpg", None, Some(b"oopz-gen placeholder image.jpg"))
-        + &part(1, "text/plain", "text_0.txt", Some("la playa 🏖️"), None);
+    let parts = part(-1, msgkinds::media_type::formats::SMIL, "smil.xml", Some(smil), None)
+        + &part(0, formats::JPEG, "image.jpg", None, Some(b"oopz-gen placeholder image.jpg"))
+        + &part(1, formats::PLAIN_TEXT, "text_0.txt", Some("la playa 🏖️"), None);
     records.push(mms(date, BEN.0, BEN.1, 1, &parts, &(addr(BEN.0, 137) + &addr(OWNER_NUMBER, 151))));
     manifest.count(Kind::Photo, false);
     // A contact card, sent.
@@ -127,18 +128,18 @@ pub fn generate(seed: u64) -> Export {
     manifest.count(Kind::Contact, true);
     // A voice recording, received.
     let date = tick(&mut rng);
-    let parts = part(0, "audio/amr", "audio.amr", None, Some(b"#!AMR\n oopz-gen"));
+    let parts = part(0, formats::AMR, "audio.amr", None, Some(b"#!AMR\n oopz-gen"));
     records.push(mms(date, CARLA.0, CARLA.1, 1, &parts, &(addr(CARLA.0, 137) + &addr(OWNER_NUMBER, 151))));
     manifest.count(Kind::Voice, false);
     // A group: received from Ben, then sent to both.
     let group = format!("{}~{}", BEN.0, CARLA.0);
     let date = tick(&mut rng);
-    let parts = part(0, "text/plain", "text_0.txt", Some("¿quedamos el jueves?"), None);
+    let parts = part(0, formats::PLAIN_TEXT, "text_0.txt", Some("¿quedamos el jueves?"), None);
     let addrs = addr(BEN.0, 137) + &addr(OWNER_NUMBER, 151) + &addr(CARLA.0, 151);
     records.push(mms(date, &group, "Ben Ejemplo, Carla Inventado", 1, &parts, &addrs));
     manifest.count(Kind::Text, false);
     let date = tick(&mut rng);
-    let parts = part(0, "text/plain", "text_0.txt", Some("¡vale! 😊"), None);
+    let parts = part(0, formats::PLAIN_TEXT, "text_0.txt", Some("¡vale! 😊"), None);
     let addrs = addr(OWNER_NUMBER, 137) + &addr(BEN.0, 151) + &addr(CARLA.0, 151);
     records.push(mms(date, &group, "Ben Ejemplo, Carla Inventado", 2, &parts, &addrs));
     manifest.count(Kind::Text, true);

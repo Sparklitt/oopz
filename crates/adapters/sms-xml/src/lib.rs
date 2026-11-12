@@ -487,7 +487,8 @@ impl Book {
                 continue;
             }
             // A phone records voice in AMR or 3GPP: in a message, that's a voice note.
-            let recorded = format.is_some_and(|f| [formats::AMR, formats::AMR_WB, formats::THREE_GPP].contains(&f.mime));
+            let recorded =
+                format.is_some_and(|f| [formats::AMR, formats::AMR_WB, formats::THREE_GPP].contains(&f.mime));
             let kind = match part {
                 mms::Part::File(msgkinds::Kind::Audio) if recorded => MediaKind::Voice,
                 mms::Part::File(kind) => MediaKind::from_msgkinds(kind),

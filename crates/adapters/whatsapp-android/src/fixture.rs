@@ -1,6 +1,7 @@
 //! A synthetic WhatsApp backup: two invented people (Ana, the owner, and Ben), invented numbers, placeholder media
 //! bytes. Shaped like the current msgstore schema, reduced to what the importer reads. Never real data.
 
+use msgkinds::media_type::formats;
 use std::fs;
 use std::path::PathBuf;
 
@@ -109,11 +110,11 @@ pub fn build() -> Fixture {
         .expect("fixture message");
     }
     let media: &[(i64, &str, &str)] = &[
-        (3, "Media/WhatsApp Images/IMG-00000001-WA0001.jpg", "image/jpeg"),
+        (3, "Media/WhatsApp Images/IMG-00000001-WA0001.jpg", formats::JPEG),
         (4, "Media/WhatsApp Voice Notes/202311/PTT-00000001-WA0001.opus", "audio/ogg; codecs=opus"),
-        (5, "Media/WhatsApp Images/Sent/IMG-00000001-WA0002.jpg", "image/jpeg"),
-        (6, "Media/WhatsApp Video/VID-00000001-WA0001.mp4", "video/mp4"),
-        (9, "Media/../../outside.pdf", "application/pdf"),
+        (5, "Media/WhatsApp Images/Sent/IMG-00000001-WA0002.jpg", formats::JPEG),
+        (6, "Media/WhatsApp Video/VID-00000001-WA0001.mp4", formats::MP4),
+        (9, "Media/../../outside.pdf", formats::PDF),
     ];
     for (row, path, mime) in media {
         db.execute(

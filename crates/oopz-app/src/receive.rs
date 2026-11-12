@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(body, format!("{} {sha}", backup.len()));
         assert_eq!(fs::read(dest.join(name)).unwrap(), backup);
         // Spaces and accents in a name arrive percent-encoded.
-        assert_eq!(http(&url, "PUT", &format!("{base}files/Media%20m%C3%B3vil.zip"), b"zip").0, 200);
+        assert_eq!(http(&url, "PUT", &format!("{base}files/Media%20m%C3%B3vil.zip"), b"synthetic bytes").0, 200);
         assert!(dest.join("Media móvil.zip").exists());
 
         // Never over a received file, never outside the folder, never without the token.

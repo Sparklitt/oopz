@@ -51,7 +51,10 @@ fn read_everything(dir: &Path, key: &str) -> u64 {
             if kind == 4 {
                 let q = schema.vcards_query().expect("has vcards");
                 let card: String = db.query_row(q, [row], |r| r.get(0)).expect("a card");
-                assert!(card.starts_with("BEGIN:VCARD"));
+                assert!(
+                    msgkinds::media_type::sniff(card.as_bytes(), msgkinds::media_type::Hint::None)
+                        .is_some_and(|s| s.format.mime == msgkinds::media_type::formats::VCARD)
+                );
             }
             if kind == 46 {
                 let q = schema.poll_query().expect("has polls");

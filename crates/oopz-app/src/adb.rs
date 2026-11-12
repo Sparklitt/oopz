@@ -853,7 +853,10 @@ mod tests {
         assert_eq!((with_media.root.as_str(), with_media.files, with_media.bytes), ("/sdcard/WhatsApp", 3, 5500));
         // Business has none; an empty folder and a missing one say so; Media asked for but missing.
         let business = plan(&phone, &Wanted { business: true, ..Wanted::default() }).unwrap_err();
-        assert!(business.code == "not_found" && business.detail.contains("WhatsApp Business"), "{business}");
+        assert!(
+            business.code == "not_found" && business.detail.contains(msgkinds::App::WhatsAppBusiness.name()),
+            "{business}"
+        );
         let empty = plan(&phone, &Wanted { remote_dir: Some("/sdcard/Download/empty"), ..Wanted::default() });
         assert!(empty.unwrap_err().detail.contains("is empty"));
         let missing = plan(&phone, &Wanted { remote_dir: Some("/sdcard/nothing"), ..Wanted::default() });

@@ -651,10 +651,14 @@ pub fn run(lib_args: Lib) -> Result<()> {
             no_contents,
             font,
         } => {
+            // The PDF is its own crate's; the rest are oopz-export's formats, by their codes.
+            let pdf = msgkinds::media_type::by_mime(msgkinds::media_type::formats::PDF).and_then(|f| f.extension());
             let plain = match format.as_str() {
-                "pdf" => None,
+                f if Some(f) == pdf => None,
                 code => Some(oopz_export::Format::from_code(code).with_context(|| {
-                    format!("--format is one of html, json, csv, txt, vcard, media-zip, pdf; not {format:?}")
+                    let mut all: Vec<&str> = oopz_export::Format::ALL.iter().map(|f| f.code()).collect();
+                    all.extend(pdf);
+                    format!("--format is one of {}; not {format:?}", all.join(", "))
                 })?),
             };
             let selection = pick.selection(&lib)?;

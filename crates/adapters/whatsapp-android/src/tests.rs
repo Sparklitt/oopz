@@ -1,6 +1,7 @@
 use crate::crypt15::{self, Error as CryptError};
 use crate::fixture::{self, BEN_CHAT, GROUP_CHAT, KEY_HEX};
 use crate::*;
+use msgkinds::media_type::formats;
 
 fn key() -> Key {
     Key::from_hex(KEY_HEX).unwrap()
@@ -83,7 +84,7 @@ fn type_profiles_count_structure_only() {
     let photos = get(1);
     assert_eq!((photos.messages, photos.with_text), (2, 1));
     assert_eq!(photos.linked, vec![("message_media".to_owned(), 2)]);
-    assert_eq!(photos.mimes, vec![("image/jpeg".to_owned(), 2)]);
+    assert_eq!(photos.mimes, vec![(formats::JPEG.to_owned(), 2)]);
     let text_links: Vec<_> = get(0).linked.iter().map(|(t, n)| (t.as_str(), *n)).collect();
     let expected = [("message_edit_info", 1), ("message_forwarded", 1), ("message_quoted", 1), ("message_text", 1)];
     assert_eq!(text_links, expected);
