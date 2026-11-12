@@ -6,10 +6,13 @@
 //! first number over 12: day first; a second: month first; else day first, noted). The sender "Me" is the owner. A
 //! zip is read in memory; entries with `..` or absolute paths are ignored.
 
+use msgkinds::Note;
 use msgkinds::media_type::formats::{CSV, ZIP};
 use msgkinds::media_type::name::has_format;
 use msgkinds::media_type::sources::viber_csv;
+use msgkinds::note::Value;
 use msgkinds::wording::codes::viber_csv as col;
+use oopz_model::messages::Message as Msg;
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -24,6 +27,8 @@ const FORMAT: &str = "Viber message history (CSV)";
 const MAX_ENTRY: u64 = 1 << 30;
 /// The owner's person id.
 pub const ME: &str = "me";
+/// The owner's name as the export shows it (in English), and as the person is named.
+const ME_NAME: &str = "Me";
 
 pub struct ViberExportAdapter;
 
@@ -102,7 +107,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
             return Err(Error::NotThisFormat(FORMAT));
         }
         if refused > 0 {
-            book.notes.push(format!("{refused} files in the zip aren't Viber CSV: skipped"));
+            book.notes.push(Note::of(Msg::ViberNotCsv, [refused.to_string()]).to_string());
         }
     } else {
         book.csv(name, &decode(bytes))?;
@@ -268,7 +273,7 @@ impl Book {
         }
         let month_first = month && !day;
         if day == month && dates.iter().flatten().any(|d| !d.year_first) {
-            self.notes.push(format!("{title}: no date decides the day/month order: read as day first"));
+            self.notes.push(in_chat(&title, Note::of(Msg::DayMonthUndecidedDayFirst, [])));
         }
 
         let (mut short, mut no_time) = (0, 0);
@@ -352,14 +357,13 @@ impl Book {
             self.messages.push(m);
         }
         if short > 0 {
-            self.notes.push(format!("{title}: {short} rows too short to be a message kept as unknown"));
+            self.notes.push(in_chat(&title, Note::of(Msg::RowsTooShort, [short.to_string()])));
         }
         if no_time > 0 {
-            self.notes
-                .push(format!("{title}: {no_time} rows with a date or time oopz can't read: kept without a time"));
+            self.notes.push(in_chat(&title, Note::of(Msg::RowsBadDate, [no_time.to_string()])));
         }
         if broken > 0 {
-            self.notes.push(format!("{title}: {broken} rows the CSV reader couldn't split"));
+            self.notes.push(in_chat(&title, Note::of(Msg::RowsUnsplit, [broken.to_string()])));
         }
         let kind = if members.len() > 2 { ConversationKind::Group } else { ConversationKind::Direct };
         self.conversations.push(Conversation {
@@ -373,20 +377,19 @@ impl Book {
     }
 
     fn finish(mut self) -> Loaded {
-        let mut notes =
-            vec!["times are the phone's local time, read as UTC: the export doesn't say its time zone".to_string()];
+        let mut notes = vec![Note::of(Msg::WallClockUtc, []).to_string()];
         notes.append(&mut self.notes);
         if self.unsafe_names > 0 {
-            notes.push(format!("{} zip entries with unsafe paths ignored", self.unsafe_names));
+            notes.push(Note::of(Msg::UnsafeZipEntries, [self.unsafe_names.to_string()]).to_string());
         }
         notes.extend(self.reading.report().lines());
         let owner =
-            self.me_seen.then(|| Person { id: ME.into(), name: Some("Me".into()), me: true, ..Default::default() });
+            self.me_seen.then(|| Person { id: ME.into(), name: Some(ME_NAME.into()), me: true, ..Default::default() });
         match &owner {
             Some(me) => {
                 self.people.insert(ME.into(), me.clone());
             }
-            None => notes.push("no row is from \"Me\": pick yourself".into()),
+            None => notes.push(Note::of(Msg::ViberNoMe, [ME_NAME.to_owned()]).to_string()),
         }
         Loaded {
             info: SourceInfo {
@@ -403,6 +406,11 @@ impl Book {
             messages: self.messages,
         }
     }
+}
+
+/// A note about one chat: its title, then the note (worded in the same language).
+fn in_chat(title: &str, note: Note) -> String {
+    Note::new(Msg::InChat, vec![Value::Text(title.to_owned()), Value::Note(Box::new(note))]).to_string()
 }
 
 #[cfg(test)]

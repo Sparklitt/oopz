@@ -13,6 +13,10 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+[build-dependencies]
+# Compiles data/messages.toml with msgkinds' generator: one mechanism for every sentence (msgkinds' docs/messages.md).
+msgkinds = { workspace = true, features = ["build-support"] }
+
 [lints]
 workspace = true
 

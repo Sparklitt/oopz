@@ -154,7 +154,11 @@ impl WhatsAppSource {
             owner: Some(people[0].clone()),
             wall_clock: false,
             media_root: path.parent().and_then(Path::parent).map(|p| p.join("Media")).filter(|p| p.is_dir()),
-            notes: if summary.sound { Vec::new() } else { vec![format!("SQLite's check found: {}", summary.problems)] },
+            notes: if summary.sound {
+                Vec::new()
+            } else {
+                vec![msgkinds::Note::of(m::messages::Message::SqliteCheck, [summary.problems.clone()]).to_string()]
+            },
         };
         let notes = info.notes.clone();
         let reading = msgkinds::Reading::new(version.as_deref());

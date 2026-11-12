@@ -11,10 +11,12 @@
 mod content;
 mod header;
 
+use msgkinds::Note;
 use msgkinds::media_type::formats::{PLAIN_TEXT, VCARD, ZIP};
 use msgkinds::media_type::name::has_format;
 use msgkinds::media_type::sources::whatsapp::IOS_CHAT_TEXT;
 use msgkinds::media_type::sources::whatsapp_export as words;
+use oopz_model::messages::Message as Msg;
 use std::collections::{BTreeMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -137,9 +139,9 @@ fn read_zip(name: &str, bytes: &[u8]) -> Result<Loaded> {
     let chat_title =
         chat_name(&chat_entry).filter(|_| !chat_entry.ends_with(IOS_CHAT_TEXT)).or_else(|| chat_name(name));
     let mut loaded = parse(chat_title, &text, &files)?;
-    loaded.info.notes.push("media files are inside the zip".into());
+    loaded.info.notes.push(Note::of(Msg::MediaInsideZip, []).to_string());
     if unsafe_names > 0 {
-        loaded.info.notes.push(format!("{unsafe_names} zip entries with unsafe paths ignored"));
+        loaded.info.notes.push(Note::of(Msg::UnsafeZipEntries, [unsafe_names.to_string()]).to_string());
     }
     Ok(loaded)
 }
@@ -241,11 +243,10 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
         return Err(Error::NotThisFormat(FORMAT));
     }
 
-    let mut notes =
-        vec!["times are the phone's local time, read as UTC: the export doesn't say its time zone".to_string()];
+    let mut notes = vec![Note::of(Msg::WallClockUtc, []).to_string()];
     let order = header::decide_order(raws.iter().filter_map(|r| r.header.as_ref()));
-    if let Some(note) = order.note() {
-        notes.push(note.into());
+    if let Some(message) = order.note() {
+        notes.push(Note::of(message, []).to_string());
     }
 
     let conversation = chat.clone().unwrap_or_else(|| "chat".into());
@@ -321,7 +322,7 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
         messages.push(m);
     }
     if bad_dates > 0 {
-        notes.push(format!("{bad_dates} lines with a date or time that doesn't exist: kept without a time"));
+        notes.push(Note::of(Msg::LinesBadDate, [bad_dates.to_string()]).to_string());
     }
     stats.notes(&mut notes);
 
@@ -330,11 +331,11 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
     let owner = match owner_hints.as_slice() {
         [one] => Some(one.clone()),
         [] => {
-            notes.push("the export doesn't say who the owner is: pick yourself".into());
+            notes.push(Note::of(Msg::PickOwner, []).to_string());
             None
         }
         _ => {
-            notes.push("more than one sender looks like the owner: pick yourself".into());
+            notes.push(Note::of(Msg::OwnersTooMany, []).to_string());
             None
         }
     };

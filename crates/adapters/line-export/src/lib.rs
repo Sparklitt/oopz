@@ -7,9 +7,11 @@
 //! header names the other side, so the one other sender is the owner; otherwise the library lets the owner pick. A
 //! line that fits nothing continues the message before it, or, before any message, is kept as an `Unknown` part.
 
+use msgkinds::Note;
 use msgkinds::media_type::formats::PLAIN_TEXT;
 use msgkinds::media_type::name::has_format;
 use msgkinds::registry::codes::line_txt as code;
+use oopz_model::messages::Message as Msg;
 use std::io::Read;
 use std::path::Path;
 
@@ -232,7 +234,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
         }
     };
 
-    let mut notes = vec!["times are the phone's local time, read as UTC: the export doesn't say its time zone".into()];
+    let mut notes = vec![Note::of(Msg::WallClockUtc, []).to_string()];
     // msgkinds' LINE rows, and the lines in wording they don't know (counted, kept as they are). One language per
     // export, found from its markers, calls and notices; then only that language's words are read.
     let mut reading = msgkinds::Reading::new(None);
@@ -260,7 +262,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
     let ambiguous = raws.iter().any(|r| r.day.is_some_and(|d| d.ambiguous));
     let swap = day_first && !month_first;
     if ambiguous && day_first == month_first {
-        notes.push("no date decides the day/month order of `Mon, 01/02/2024` lines: read as month first".into());
+        notes.push(Note::of(Msg::LineDayMonthUndecided, []).to_string());
     }
 
     let conversation = title.clone().or_else(|| stem(name)).unwrap_or_else(|| "chat".into());
@@ -319,28 +321,28 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
         messages.push(m);
     }
     if unknown > 0 {
-        notes.push(format!("{unknown} lines before the first message kept as unknown"));
+        notes.push(Note::of(Msg::LinesBeforeFirstMessage, [unknown.to_string()]).to_string());
     }
     notes.extend(reading.report().lines());
     if no_day > 0 {
-        notes.push(format!("{no_day} messages before any date line: kept without a time"));
+        notes.push(Note::of(Msg::MessagesBeforeDateLine, [no_day.to_string()]).to_string());
     }
     if bad > 0 {
-        notes.push(format!("{bad} messages with a date or time that doesn't exist: kept without a time"));
+        notes.push(Note::of(Msg::MessagesBadDate, [bad.to_string()]).to_string());
     }
     if !no_quote.is_empty() {
-        notes.push(format!("{} quotes never closed: read as plain text", no_quote.len()));
+        notes.push(Note::of(Msg::QuotesUnclosed, [no_quote.len().to_string()]).to_string());
     }
 
     // In a one-to-one chat the header names the other side: the one other sender is the owner.
     let others: Vec<&String> = senders.iter().filter(|s| Some(s.as_str()) != direct_with.as_deref()).collect();
     let owner = match (&direct_with, others.as_slice()) {
         (Some(_), [one]) => {
-            notes.push("the owner is the sender the header doesn't name".into());
+            notes.push(Note::of(Msg::OwnerNotInHeader, []).to_string());
             Some((*one).clone())
         }
         _ => {
-            notes.push("the export doesn't say who the owner is: pick yourself".into());
+            notes.push(Note::of(Msg::PickOwner, []).to_string());
             None
         }
     };

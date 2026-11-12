@@ -1,0 +1,306 @@
+# Every sentence oopz writes, by language: compiled by build.rs with msgkinds' generator into
+# `oopz_model::messages::Message` (msgkinds' docs/messages.md has the format and its checks). `name` is stable: notes
+# are stored by it, so never rename or reuse one; add a new one instead. `for = "user"`: shown to people, in every
+# language; `"developer"`: a programming mistake's, English only.
+
+catalog = "oopz"
+languages = ["en", "es"]
+
+# An import's notes: what an adapter kept as unknown or read around. Counts and codes only, never message text.
+
+[[message]]
+name = "wall_clock_utc"
+for = "user"
+params = []
+en = "times are the phone's local time, read as UTC: the export doesn't say its time zone"
+es = "las horas son las locales del teléfono, leídas como UTC: la exportación no dice su zona horaria"
+
+[[message]]
+name = "pick_owner"
+for = "user"
+params = []
+en = "the export doesn't say who the owner is: pick yourself"
+es = "la exportación no dice quién es el dueño: elígete tú"
+
+[[message]]
+name = "owners_too_many"
+for = "user"
+params = []
+en = "more than one sender looks like the owner: pick yourself"
+es = "más de un remitente parece el dueño: elígete tú"
+
+[[message]]
+name = "media_inside_zip"
+for = "user"
+params = []
+en = "media files are inside the zip"
+es = "los archivos multimedia están dentro del zip"
+
+[[message]]
+name = "unsafe_zip_entries"
+for = "user"
+params = ["count"]
+en = "{count} zip entries with unsafe paths ignored"
+es = "{count} entradas del zip con rutas inseguras ignoradas"
+
+[[message]]
+name = "lines_before_first_message"
+for = "user"
+params = ["count"]
+en = "{count} lines before the first message kept as unknown"
+es = "{count} líneas antes del primer mensaje conservadas como desconocidas"
+
+[[message]]
+name = "day_month_undecided_day_first"
+for = "user"
+params = []
+en = "no date decides the day/month order: read as day first"
+es = "ninguna fecha decide el orden día/mes: leídas con el día primero"
+
+[[message]]
+name = "day_month_disagree_day_first"
+for = "user"
+params = []
+en = "dates disagree on the day/month order: read as day first"
+es = "las fechas no coinciden en el orden día/mes: leídas con el día primero"
+
+[[message]]
+name = "lines_bad_date"
+for = "user"
+params = ["count"]
+en = "{count} lines with a date or time that doesn't exist: kept without a time"
+es = "{count} líneas con una fecha u hora que no existe: conservadas sin hora"
+
+[[message]]
+name = "media_kindless"
+for = "user"
+params = ["count"]
+en = "{count} media left out of the export without saying what they were: counted as documents"
+es = "{count} archivos multimedia que la exportación dejó fuera sin decir qué eran: contados como documentos"
+
+[[message]]
+name = "files_named_missing"
+for = "user"
+params = ["count"]
+en = "{count} files named in the chat aren't in the export"
+es = "{count} archivos nombrados en el chat no están en la exportación"
+
+# LINE.
+
+[[message]]
+name = "line_day_month_undecided"
+for = "user"
+params = []
+en = "no date decides the day/month order of `Mon, 01/02/2024` lines: read as month first"
+es = "ninguna fecha decide el orden día/mes de las líneas `Mon, 01/02/2024`: leídas con el mes primero"
+
+[[message]]
+name = "messages_before_date_line"
+for = "user"
+params = ["count"]
+en = "{count} messages before any date line: kept without a time"
+es = "{count} mensajes antes de cualquier línea de fecha: conservados sin hora"
+
+[[message]]
+name = "messages_bad_date"
+for = "user"
+params = ["count"]
+en = "{count} messages with a date or time that doesn't exist: kept without a time"
+es = "{count} mensajes con una fecha u hora que no existe: conservados sin hora"
+
+[[message]]
+name = "quotes_unclosed"
+for = "user"
+params = ["count"]
+en = "{count} quotes never closed: read as plain text"
+es = "{count} comillas nunca cerradas: leídas como texto normal"
+
+[[message]]
+name = "owner_not_in_header"
+for = "user"
+params = []
+en = "the owner is the sender the header doesn't name"
+es = "el dueño es el remitente que la cabecera no nombra"
+
+# WhatsApp on the iPhone, and its Android backup.
+
+[[message]]
+name = "business_too"
+for = "user"
+params = ["app"]
+en = "{app} is in this backup too: add it again choosing {app} (iPhone)"
+es = "{app} también está en esta copia: añádela otra vez eligiendo {app} (iPhone)"
+
+[[message]]
+name = "ios_not_read_yet"
+for = "user"
+params = []
+en = "reactions, replies, edits and poll votes are kept by WhatsApp in a form oopz doesn't read yet"
+es = "WhatsApp guarda las reacciones, respuestas, ediciones y votos de encuestas de una forma que oopz aún no lee"
+
+[[message]]
+name = "message_type_unknown"
+for = "user"
+params = ["count", "code"]
+en = "{count} × message type {code} kept as unknown"
+es = "{count} × tipo de mensaje {code} conservados como desconocidos"
+
+[[message]]
+name = "media_not_in_backup"
+for = "user"
+params = ["count"]
+en = "{count} media files aren't in the backup"
+es = "{count} archivos multimedia no están en la copia"
+
+[[message]]
+name = "media_too_large"
+for = "user"
+params = ["count", "megabytes"]
+en = "{count} media files larger than {megabytes} MB left in the backup"
+es = "{count} archivos multimedia de más de {megabytes} MB dejados en la copia"
+
+[[message]]
+name = "sqlite_check"
+for = "user"
+params = ["problems"]
+en = "SQLite's check found: {problems}"
+es = "la comprobación de SQLite encontró: {problems}"
+
+# Telegram.
+
+[[message]]
+name = "telegram_wall_times"
+for = "user"
+params = ["count"]
+en = "{count} times have no zone (no date_unixtime): the computer's wall clock, read as UTC"
+es = "{count} horas sin zona (sin date_unixtime): el reloj del ordenador, leídas como UTC"
+
+[[message]]
+name = "messages_no_date"
+for = "user"
+params = ["count"]
+en = "{count} messages without a date"
+es = "{count} mensajes sin fecha"
+
+[[message]]
+name = "code_unknown"
+for = "user"
+params = ["count", "code"]
+en = "{count} × `{code}` kept as unknown"
+es = "{count} × `{code}` conservados como desconocidos"
+
+[[message]]
+name = "ids_repeated"
+for = "user"
+params = ["count"]
+en = "{count} repeated message ids made unique with #2, #3…"
+es = "{count} ids de mensaje repetidos hechos únicos con #2, #3…"
+
+[[message]]
+name = "not_objects"
+for = "user"
+params = ["count"]
+en = "{count} chats or messages that weren't objects skipped"
+es = "{count} chats o mensajes que no eran objetos omitidos"
+
+[[message]]
+name = "owner_inferred"
+for = "user"
+params = []
+en = "the owner is inferred from the one-to-one chat (the other side is the chat's id)"
+es = "el dueño se deduce del chat individual (el otro lado es el id del chat)"
+
+# SMS Backup & Restore.
+
+[[message]]
+name = "file_damaged_after"
+for = "user"
+params = ["records"]
+en = "the file is cut short or damaged after {records} records: those are kept"
+es = "el archivo está cortado o dañado tras {records} registros: esos se conservan"
+
+[[message]]
+name = "records_stated"
+for = "user"
+params = ["stated", "records"]
+en = "the file says it holds {stated} records; {records} were read"
+es = "el archivo dice que tiene {stated} registros; se leyeron {records}"
+
+[[message]]
+name = "records_type_unknown"
+for = "user"
+params = ["count"]
+en = "{count} records with a type oopz doesn't know: read as received"
+es = "{count} registros con un tipo que oopz no conoce: leídos como recibidos"
+
+[[message]]
+name = "records_no_date"
+for = "user"
+params = ["count"]
+en = "{count} records without a date"
+es = "{count} registros sin fecha"
+
+[[message]]
+name = "element_unknown"
+for = "user"
+params = ["count", "name"]
+en = "{count} × element `{name}` oopz doesn't know, skipped"
+es = "{count} × elemento `{name}` que oopz no conoce, omitidos"
+
+[[message]]
+name = "mms_bad_base64"
+for = "user"
+params = ["count"]
+en = "{count} MMS parts whose data isn't valid base64"
+es = "{count} partes de MMS cuyos datos no son base64 válido"
+
+[[message]]
+name = "mms_empty"
+for = "user"
+params = ["count"]
+en = "{count} MMS with no part oopz reads kept as unknown"
+es = "{count} MMS sin ninguna parte que oopz lea conservados como desconocidos"
+
+# Viber.
+
+[[message]]
+name = "viber_not_csv"
+for = "user"
+params = ["count"]
+en = "{count} files in the zip aren't Viber CSV: skipped"
+es = "{count} archivos del zip no son CSV de Viber: omitidos"
+
+[[message]]
+name = "in_chat"
+for = "user"
+params = ["chat", "note"]
+en = "{chat}: {note}"
+es = "{chat}: {note}"
+
+[[message]]
+name = "rows_too_short"
+for = "user"
+params = ["count"]
+en = "{count} rows too short to be a message kept as unknown"
+es = "{count} filas demasiado cortas para ser un mensaje conservadas como desconocidas"
+
+[[message]]
+name = "rows_bad_date"
+for = "user"
+params = ["count"]
+en = "{count} rows with a date or time oopz can't read: kept without a time"
+es = "{count} filas con una fecha u hora que oopz no puede leer: conservadas sin hora"
+
+[[message]]
+name = "rows_unsplit"
+for = "user"
+params = ["count"]
+en = "{count} rows the CSV reader couldn't split"
+es = "{count} filas que el lector de CSV no pudo separar"
+
+[[message]]
+name = "viber_no_me"
+for = "user"
+params = ["me"]
+en = "no row is from \"{me}\": pick yourself"
+es = "ninguna fila es de \"{me}\": elígete tú"

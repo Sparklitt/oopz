@@ -5,6 +5,8 @@
 use msgkinds::registry::codes::whatsapp_export as code;
 use std::collections::{HashMap, HashSet};
 
+use msgkinds::Note;
+use oopz_model::messages::Message as Msg;
 use oopz_model::{CallOutcome, Event, Media, MediaKind, Part, PollOption};
 
 use crate::header::is_mark;
@@ -44,16 +46,13 @@ pub struct Stats {
 impl Stats {
     pub fn notes(&self, notes: &mut Vec<String>) {
         if self.unknown_lines > 0 {
-            notes.push(format!("{} lines before the first message kept as unknown", self.unknown_lines));
+            notes.push(Note::of(Msg::LinesBeforeFirstMessage, [self.unknown_lines.to_string()]).to_string());
         }
         if self.kindless_media > 0 {
-            notes.push(format!(
-                "{} media left out of the export without saying what they were: counted as documents",
-                self.kindless_media
-            ));
+            notes.push(Note::of(Msg::MediaKindless, [self.kindless_media.to_string()]).to_string());
         }
         if self.missing_files > 0 {
-            notes.push(format!("{} files named in the chat aren't in the export", self.missing_files));
+            notes.push(Note::of(Msg::FilesNamedMissing, [self.missing_files.to_string()]).to_string());
         }
         notes.extend(self.reading.report().lines());
     }

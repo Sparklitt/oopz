@@ -9,6 +9,12 @@
 
 use std::path::{Path, PathBuf};
 
+/// Every sentence oopz writes (`data/messages.toml`): `Message`, worded through msgkinds' `Note`
+/// (`msgkinds::Note::of(Message::…, values)`, then `text(language)`).
+pub mod messages {
+    include!(concat!(env!("OUT_DIR"), "/messages.rs"));
+}
+
 use serde::{Deserialize, Serialize};
 
 /// The apps oopz has an adapter for. Codes and names are msgkinds' ([`App::msgkinds`]); stored by code.

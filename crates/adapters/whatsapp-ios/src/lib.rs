@@ -10,8 +10,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use msgkinds::{Code, Flag, Source as Registry};
+use msgkinds::{Code, Flag, Note, Source as Registry};
 use oopz_ios_backup::{Backup, Entry};
+use oopz_model::messages::Message as Msg;
 use oopz_model::{
     self as m, Adapter, App, Conversation, ConversationKind, Event, Media, MediaKind, Message, Part, Person, Secret,
     Source, SourceInfo,
@@ -104,9 +105,7 @@ impl Adapter for WhatsAppIosAdapter {
                 .map_err(sql)?;
         let mut notes = Vec::new();
         if !self.business && backup.file(other, "ChatStorage.sqlite").map_err(err)?.is_some() {
-            notes.push(
-                "WhatsApp Business is in this backup too: add it again choosing WhatsApp Business (iPhone)".into(),
-            );
+            notes.push(Note::of(Msg::BusinessToo, [msgkinds::App::WhatsAppBusiness.name().to_owned()]).to_string());
         }
         let book = match backup.file(domain, "ContactsV2.sqlite").map_err(err)? {
             Some(e) => {
@@ -612,23 +611,18 @@ impl IosSource {
     /// The notes say what stayed out; rewritten after each conversation, so they're complete at the end.
     fn write_notes(&mut self) {
         self.info.notes.retain(|n| n.starts_with(msgkinds::App::WhatsAppBusiness.name()));
-        self.info.notes.push(
-            "reactions, replies, edits and poll votes are kept by WhatsApp in a form oopz doesn't read yet".into(),
-        );
+        self.info.notes.push(Note::of(Msg::IosNotReadYet, []).to_string());
         let mut unknown: Vec<_> = self.unknown.iter().collect();
         unknown.sort();
         for (code, n) in unknown {
-            self.info.notes.push(format!("{n} × message type {code} kept as unknown"));
+            self.info.notes.push(Note::of(Msg::MessageTypeUnknown, [n.to_string(), code.to_string()]).to_string());
         }
         if self.missing_media > 0 {
-            self.info.notes.push(format!("{} media files aren't in the backup", self.missing_media));
+            self.info.notes.push(Note::of(Msg::MediaNotInBackup, [self.missing_media.to_string()]).to_string());
         }
         if self.large_media > 0 {
-            self.info.notes.push(format!(
-                "{} media files larger than {} MB left in the backup",
-                self.large_media,
-                MAX_MEDIA >> 20
-            ));
+            let values = [self.large_media.to_string(), (MAX_MEDIA >> 20).to_string()];
+            self.info.notes.push(Note::of(Msg::MediaTooLarge, values).to_string());
         }
         self.info.notes.extend(self.reading.report().lines());
     }

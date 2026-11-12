@@ -4,6 +4,7 @@
 
 /// Direction and byte-order marks WhatsApp puts around names, notices and attachments (msgkinds' wording `[shape]`).
 pub use msgkinds::media_type::sources::whatsapp_export::is_mark;
+use oopz_model::messages::Message as Msg;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Header {
@@ -150,11 +151,11 @@ impl Header {
 /// The day/month order of a whole file (0015 point 3).
 pub struct DateOrder {
     month_first: bool,
-    note: Option<&'static str>,
+    note: Option<Msg>,
 }
 
 impl DateOrder {
-    pub fn note(&self) -> Option<&'static str> {
+    pub fn note(&self) -> Option<Msg> {
         self.note
     }
 
@@ -179,12 +180,8 @@ pub fn decide_order<'a>(headers: impl Iterator<Item = &'a Header>) -> DateOrder 
     match (day, month) {
         (false, true) => DateOrder { month_first: true, note: None },
         (true, false) => DateOrder { month_first: false, note: None },
-        (false, false) => {
-            DateOrder { month_first: false, note: Some("no date decides the day/month order: read as day first") }
-        }
-        (true, true) => {
-            DateOrder { month_first: false, note: Some("dates disagree on the day/month order: read as day first") }
-        }
+        (false, false) => DateOrder { month_first: false, note: Some(Msg::DayMonthUndecidedDayFirst) },
+        (true, true) => DateOrder { month_first: false, note: Some(Msg::DayMonthDisagreeDayFirst) },
     }
 }
 

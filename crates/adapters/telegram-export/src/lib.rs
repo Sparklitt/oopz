@@ -10,12 +10,14 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
+use msgkinds::Note;
 use msgkinds::media_type::formats::{JSON, VCARD, ZIP};
 use msgkinds::media_type::name::has_format;
 use msgkinds::media_type::sources::telegram::{EXPORT, NOT_INCLUDED, left_out};
 use msgkinds::registry::codes::telegram_json as tg;
 use msgkinds::registry::codes::telegram_json_action as action;
 use msgkinds::registry::codes::telegram_json_entity as entity;
+use oopz_model::messages::Message as Msg;
 
 use oopz_model::{
     Adapter, App, CallOutcome, CardKind, Conversation, ConversationKind, Error, Event, Loaded, Media, MediaKind,
@@ -83,7 +85,7 @@ impl Adapter for TelegramExportAdapter {
         let mut loaded = read(&json)?;
         loaded.info.media_root = root;
         if loaded.info.media_root.is_none() {
-            loaded.info.notes.push("media files are inside the zip".into());
+            loaded.info.notes.push(Note::of(Msg::MediaInsideZip, []).to_string());
         }
         Ok(Box::new(loaded))
     }
@@ -212,28 +214,25 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
     let mut notes = Vec::new();
     let wall_clock = n.wall_times > 0 && n.unix_times == 0;
     if n.wall_times > 0 {
-        notes.push(format!(
-            "{} times have no zone (no date_unixtime): the computer's wall clock, read as UTC",
-            n.wall_times
-        ));
+        notes.push(Note::of(Msg::TelegramWallTimes, [n.wall_times.to_string()]).to_string());
     }
     if n.no_time > 0 {
-        notes.push(format!("{} messages without a date", n.no_time));
+        notes.push(Note::of(Msg::MessagesNoDate, [n.no_time.to_string()]).to_string());
     }
     for (code, count) in &n.unknown {
-        notes.push(format!("{count} × `{code}` kept as unknown"));
+        notes.push(Note::of(Msg::CodeUnknown, [count.to_string(), code.to_string()]).to_string());
     }
     if n.duplicate_ids > 0 {
-        notes.push(format!("{} repeated message ids made unique with #2, #3…", n.duplicate_ids));
+        notes.push(Note::of(Msg::IdsRepeated, [n.duplicate_ids.to_string()]).to_string());
     }
     if n.not_objects > 0 {
-        notes.push(format!("{} chats or messages that weren't objects skipped", n.not_objects));
+        notes.push(Note::of(Msg::NotObjects, [n.not_objects.to_string()]).to_string());
     }
     if n.owner_inferred {
-        notes.push("the owner is inferred from the one-to-one chat (the other side is the chat's id)".into());
+        notes.push(Note::of(Msg::OwnerInferred, []).to_string());
     }
     if r.owner.is_none() {
-        notes.push("the export doesn't say who the owner is: pick yourself".into());
+        notes.push(Note::of(Msg::PickOwner, []).to_string());
     }
     notes.extend(r.reading.report().lines());
     let owner = r.owner.as_ref().and_then(|o| r.people.get(o)).cloned();

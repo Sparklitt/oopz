@@ -7,8 +7,10 @@
 //! (`&#55357;&#56842;`), which no XML reader accepts as they are: attribute values are decoded here, pairing them.
 //! A file cut short keeps what was read before the cut, and the notes say so.
 
+use msgkinds::Note;
 use msgkinds::media_type::sources::sms as mms;
 use msgkinds::media_type::{formats, mime};
+use oopz_model::messages::Message as Msg;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
@@ -171,25 +173,25 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
 
     let mut notes = Vec::new();
     if damaged {
-        notes.push(format!("the file is cut short or damaged after {records} records: those are kept"));
+        notes.push(Note::of(Msg::FileDamagedAfter, [records.to_string()]).to_string());
     }
     if let Some(n) = stated.filter(|n| *n != records) {
-        notes.push(format!("the file says it holds {n} records; {records} were read"));
+        notes.push(Note::of(Msg::RecordsStated, [n.to_string(), records.to_string()]).to_string());
     }
     if book.unknown_types > 0 {
-        notes.push(format!("{} records with a type oopz doesn't know: read as received", book.unknown_types));
+        notes.push(Note::of(Msg::RecordsTypeUnknown, [book.unknown_types.to_string()]).to_string());
     }
     if book.no_time > 0 {
-        notes.push(format!("{} records without a date", book.no_time));
+        notes.push(Note::of(Msg::RecordsNoDate, [book.no_time.to_string()]).to_string());
     }
     for (name, n) in &book.unknown_elements {
-        notes.push(format!("{n} × element `{name}` oopz doesn't know, skipped"));
+        notes.push(Note::of(Msg::ElementUnknown, [n.to_string(), name.to_string()]).to_string());
     }
     if book.bad_data > 0 {
-        notes.push(format!("{} MMS parts whose data isn't valid base64", book.bad_data));
+        notes.push(Note::of(Msg::MmsBadBase64, [book.bad_data.to_string()]).to_string());
     }
     if book.empty_mms > 0 {
-        notes.push(format!("{} MMS with no part oopz reads kept as unknown", book.empty_mms));
+        notes.push(Note::of(Msg::MmsEmpty, [book.empty_mms.to_string()]).to_string());
     }
     notes.extend(book.reading.report().lines());
     let me = Person { id: ME.into(), phone: book.owner_phone.clone(), me: true, ..Default::default() };
