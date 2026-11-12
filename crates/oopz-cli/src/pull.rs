@@ -8,7 +8,7 @@ use std::time::Duration;
 use anyhow::Result;
 use oopz_app::adb::{self, Adb, Remote, Wanted};
 
-use crate::say::say;
+use crate::say::{Message, count, say};
 
 #[derive(clap::Args)]
 pub struct Pull {
@@ -88,7 +88,10 @@ pub fn run(args: Pull) -> Result<()> {
     };
     eprintln!();
     for p in &status.copied {
-        println!("{}", say!(CopiedFolder, p.name, p.files, p.bytes));
+        println!(
+            "{}",
+            say!(CopiedFolder, p.name, count(Message::CountFiles, p.files), count(Message::CountBytes, p.bytes))
+        );
     }
     if let Some(e) = status.error {
         return Err(e.into());

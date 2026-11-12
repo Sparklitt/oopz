@@ -21,7 +21,7 @@ mod library;
 mod pull;
 mod say;
 
-use say::{Message, say};
+use say::{Message, count, say};
 
 #[derive(Parser)]
 #[command(
@@ -287,7 +287,17 @@ fn run(cli: Cli) -> Result<()> {
                         checked += 1;
                         match open.check_with(&file.path, key) {
                             Ok(s) if s.sound => {
-                                println!("{}", say!(BackupOk, name, mb, s.chats, s.messages, date(s.last_ms)));
+                                println!(
+                                    "{}",
+                                    say!(
+                                        BackupOk,
+                                        name,
+                                        mb,
+                                        count(Message::CountChats, s.chats),
+                                        count(Message::CountMessages, s.messages),
+                                        date(s.last_ms)
+                                    )
+                                );
                                 open.session.forget(s.id);
                             }
                             Ok(s) => {

@@ -13,7 +13,7 @@ use oopz_core::{Filter, Library, Order, Selection};
 use oopz_model::{App, Kind, Secret};
 
 use crate::say::Message::*;
-use crate::say::say;
+use crate::say::{Message, count, say};
 use crate::{date, day_ms, days, read_secret};
 
 #[derive(Args)]
@@ -400,7 +400,18 @@ pub fn run(lib_args: Lib) -> Result<()> {
             )?;
             eprintln!();
             let (first, last) = (date(row.first_ms), date(row.last_ms));
-            println!("{}", say!(ImportedSource, row.id, row.conversations, row.people, row.messages, first, last));
+            println!(
+                "{}",
+                say!(
+                    ImportedSource,
+                    row.id,
+                    count(Message::CountConversations, row.conversations),
+                    count(Message::CountPeople, row.people),
+                    count(Message::CountMessages, row.messages),
+                    first,
+                    last
+                )
+            );
             for note in &row.notes {
                 println!("{}", say!(NoteLine, note));
             }
@@ -693,7 +704,10 @@ pub fn run(lib_args: Lib) -> Result<()> {
                 export_pdf(&lib, &selection, options, page, no_media, no_cover, no_contents, font, &out_dir)?
             };
             eprintln!();
-            println!("{}", say!(SavedExport, w.0.display(), w.1, w.2));
+            println!(
+                "{}",
+                say!(SavedExport, w.0.display(), count(Message::CountMessages, w.1), count(Message::CountBytes, w.2))
+            );
             println!("{}", say!(KeepTextPrivate));
         }
     }

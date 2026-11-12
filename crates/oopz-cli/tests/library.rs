@@ -135,7 +135,7 @@ fn every_lib_command_on_invented_exports_and_a_backup() {
     assert!(std::fs::read_to_string(&vcf).unwrap().contains("FN:Renamed"));
     ok(lib, &["unlink", "--person", ids[0]]);
     ok(lib, &["forget", "--contact", &contact]);
-    assert!(ok(lib, &["vcard-import", &vcf]).contains("1 contacts"));
+    assert!(ok(lib, &["vcard-import", &vcf]).contains("1 contact added"));
 
     let saved = ok(lib, &["select", "--name", "sms only", "--app", "sms"]);
     assert!(saved.contains(&format!("{sms_n} messages")), "{saved}");

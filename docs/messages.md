@@ -21,3 +21,15 @@ The command's language is the terminal's: msgkinds' `Catalog::locale_language` o
 `LANG` (the first set decides; `C` and a language oopz lacks are English). Its tests run in `LC_ALL=C`;
 `the_terminals_language_words_the_output` checks the Spanish. Clap's `--help` text is still English (the derive
 attributes are fixed at compile time).
+
+## Agreement
+
+A Spanish participle or article agrees with its noun, so a wording agrees with a noun it writes itself ("selección
+{id} guardada"); next to a value whose noun isn't fixed (a path, a name) it takes a form without gender ("se guardó:
+{path}"). Rows (msgkinds' `docs/messages.md` has the rule), a test each in `crates/oopz-cli/src/say.rs`:
+
+| # | Case | What happens |
+|---|---|---|
+| 1 | A value whose gender we don't know (`saved`, `saved_bytes`, `saved_contacts`, `saved_export`, `received_file`) | "se guardó", "se recibió": no gendered word |
+| 2 | The review of `oopz_cli`'s Spanish (2026-11-12) | `copied_folder` "carpeta {name} copiada" (was "copiado", wrong for a folder), `linked_into` "personas unidas" (the people of a suggestion); the rest agree with their own nouns |
+

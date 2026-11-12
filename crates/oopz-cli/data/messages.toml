@@ -70,7 +70,7 @@ name = "saved"
 for = "user"
 params = ["path"]
 en = "saved: {path}"
-es = "guardado: {path}"
+es = "se guardó: {path}"
 
 [[message]]
 name = "keep_text_private"
@@ -97,15 +97,23 @@ es = "posición {at} de {of}"
 name = "results"
 for = "user"
 params = ["count"]
-en = "{count} results, newest first"
-es = "{count} resultados, los más recientes primero"
+plural = "count"
+en_one = "{count} result"
+en_other = "{count} results, newest first"
+es_one = "{count} resultado"
+es_many = "{count} resultados, los más recientes primero"
+es_other = "{count} resultados, los más recientes primero"
 
 [[message]]
 name = "results_first_ones"
 for = "user"
 params = ["count"]
-en = "{count} results, newest first (the first ones; narrow the search)"
-es = "{count} resultados, los más recientes primero (los primeros; afina la búsqueda)"
+plural = "count"
+en_one = "{count} result (the first one; narrow the search)"
+en_other = "{count} results, newest first (the first ones; narrow the search)"
+es_one = "{count} resultado (el primero; afina la búsqueda)"
+es_many = "{count} resultados, los más recientes primero (los primeros; afina la búsqueda)"
+es_other = "{count} resultados, los más recientes primero (los primeros; afina la búsqueda)"
 
 [[message]]
 name = "by_month"
@@ -125,8 +133,12 @@ es = "quién escribe más:"
 name = "voice_minutes"
 for = "user"
 params = ["minutes"]
-en = "voice notes and audio: {minutes} minutes"
-es = "notas de voz y audio: {minutes} minutos"
+plural = "minutes"
+en_one = "voice notes and audio: {minutes} minute"
+en_other = "voice notes and audio: {minutes} minutes"
+es_one = "notas de voz y audio: {minutes} minuto"
+es_many = "notas de voz y audio: {minutes} minutos"
+es_other = "notas de voz y audio: {minutes} minutos"
 
 [[message]]
 name = "sent"
@@ -294,8 +306,8 @@ es = "otro ••••{ending}"
 name = "backup_ok"
 for = "user"
 params = ["name", "mb", "chats", "messages", "last"]
-en = "{name}  {mb} MB  ok: {chats} chats, {messages} messages, last {last}"
-es = "{name}  {mb} MB  bien: {chats} chats, {messages} mensajes, el último {last}"
+en = "{name}  {mb} MB  ok: {chats}, {messages}, last {last}"
+es = "{name}  {mb} MB  bien: {chats}, {messages}, el último {last}"
 
 [[message]]
 name = "backup_damaged"
@@ -336,8 +348,8 @@ es = "no hay copias crypt15 en {dir}: solo formatos antiguos"
 name = "backups_failed"
 for = "user"
 params = ["bad", "checked"]
-en = "{bad} of {checked} backups didn't pass"
-es = "{bad} de {checked} copias no pasaron la comprobación"
+en = "backups that didn't pass: {bad} of {checked}"
+es = "copias que no pasaron la comprobación: {bad} de {checked}"
 
 # oopz check
 
@@ -345,8 +357,12 @@ es = "{bad} de {checked} copias no pasaron la comprobación"
 name = "backup_bytes"
 for = "user"
 params = ["name", "bytes"]
-en = "{name}  {bytes} bytes"
-es = "{name}  {bytes} bytes"
+plural = "bytes"
+en_one = "{name}  {bytes} byte"
+en_other = "{name}  {bytes} bytes"
+es_one = "{name}  {bytes} byte"
+es_many = "{name}  {bytes} bytes"
+es_other = "{name}  {bytes} bytes"
 
 [[message]]
 name = "database_sound"
@@ -366,8 +382,8 @@ es = "base de datos: problemas: {problems}"
 name = "chat_counts"
 for = "user"
 params = ["chats", "one_to_one", "groups"]
-en = "chats: {chats} ({one_to_one} one-to-one, {groups} groups)"
-es = "chats: {chats} ({one_to_one} individuales, {groups} grupos)"
+en = "chats: {chats} (one-to-one: {one_to_one}, groups: {groups})"
+es = "chats: {chats} (individuales: {one_to_one}, grupos: {groups})"
 
 [[message]]
 name = "messages_count"
@@ -382,8 +398,8 @@ es = "mensajes: {messages}"
 name = "messages_sent_received"
 for = "user"
 params = ["messages", "sent", "received"]
-en = "messages: {messages} ({sent} sent, {received} received)"
-es = "mensajes: {messages} ({sent} enviados, {received} recibidos)"
+en = "messages: {messages} (sent: {sent}, received: {received})"
+es = "mensajes: {messages} (enviados: {sent}, recibidos: {received})"
 
 [[message]]
 name = "by_type"
@@ -396,8 +412,12 @@ es = "por tipo:"
 name = "type_messages_media"
 for = "user"
 params = ["code", "messages", "mb"]
-en = "type {code}: {messages} messages, {mb} MB of media"
-es = "tipo {code}: {messages} mensajes, {mb} MB de archivos"
+plural = "messages"
+en_one = "type {code}: {messages} message, {mb} MB of media"
+en_other = "type {code}: {messages} messages, {mb} MB of media"
+es_one = "tipo {code}: {messages} mensaje, {mb} MB de archivos"
+es_many = "tipo {code}: {messages} mensajes, {mb} MB de archivos"
+es_other = "tipo {code}: {messages} mensajes, {mb} MB de archivos"
 
 [[message]]
 name = "by_hour_here"
@@ -419,8 +439,12 @@ es = "por día y hora (zona horaria de este ordenador; filas de domingo a sábad
 name = "saved_bytes"
 for = "user"
 params = ["path", "bytes"]
-en = "saved {path} ({bytes} bytes)"
-es = "guardado {path} ({bytes} bytes)"
+plural = "bytes"
+en_one = "saved {path} ({bytes} byte)"
+en_other = "saved {path} ({bytes} bytes)"
+es_one = "se guardó {path} ({bytes} byte)"
+es_many = "se guardó {path} ({bytes} bytes)"
+es_other = "se guardó {path} ({bytes} bytes)"
 
 [[message]]
 name = "no_picture"
@@ -486,8 +510,8 @@ es = "{path} no es una carpeta"
 name = "restore_counts"
 for = "user"
 params = ["before", "already", "added"]
-en = "target chat had {before} messages: {already} already there, {added} added"
-es = "el chat de destino tenía {before} mensajes: {already} ya estaban, {added} añadidos"
+en = "messages in the target chat before: {before}; already there: {already}; added: {added}"
+es = "mensajes en el chat de destino antes: {before}; ya estaban: {already}; añadidos: {added}"
 
 [[message]]
 name = "check_line"
@@ -500,8 +524,8 @@ es = "comprobación {check}"
 name = "media_copied_missing"
 for = "user"
 params = ["copied", "missing"]
-en = "media files: {copied} copied, {missing} missing"
-es = "archivos multimedia: {copied} copiados, {missing} faltan"
+en = "media files copied: {copied}; missing: {missing}"
+es = "archivos multimedia copiados: {copied}; que faltan: {missing}"
 
 [[message]]
 name = "original_unchanged"
@@ -586,8 +610,12 @@ es = "El teléfono aún no ha abierto la página. Lo que suele ayudar:\n  - Pon 
 name = "received_file"
 for = "user"
 params = ["name", "bytes", "sha256"]
-en = "received {name} ({bytes} bytes, sha256 {sha256})"
-es = "recibido {name} ({bytes} bytes, sha256 {sha256})"
+plural = "bytes"
+en_one = "received {name} ({bytes} byte, sha256 {sha256})"
+en_other = "received {name} ({bytes} bytes, sha256 {sha256})"
+es_one = "se recibió {name} ({bytes} byte, sha256 {sha256})"
+es_many = "se recibió {name} ({bytes} bytes, sha256 {sha256})"
+es_other = "se recibió {name} ({bytes} bytes, sha256 {sha256})"
 
 [[message]]
 name = "receiving"
@@ -600,8 +628,12 @@ es = "recibiendo {name}: {done} / {total} MB, {speed} MB/s"
 name = "receive_stopped"
 for = "user"
 params = ["why", "files", "dest"]
-en = "stopped: {why}; {files} files in {dest}"
-es = "detenido: {why}; {files} archivos en {dest}"
+plural = "files"
+en_one = "stopped: {why}; {files} file in {dest}"
+en_other = "stopped: {why}; {files} files in {dest}"
+es_one = "detenido: {why}; {files} archivo en {dest}"
+es_many = "detenido: {why}; {files} archivos en {dest}"
+es_other = "detenido: {why}; {files} archivos en {dest}"
 
 # oopz types
 
@@ -609,8 +641,12 @@ es = "detenido: {why}; {files} archivos en {dest}"
 name = "type_messages_text"
 for = "user"
 params = ["code", "messages", "with_text"]
-en = "type {code}: {messages} messages, {with_text} with text"
-es = "tipo {code}: {messages} mensajes, {with_text} con texto"
+plural = "messages"
+en_one = "type {code}: {messages} message, {with_text} with text"
+en_other = "type {code}: {messages} messages, {with_text} with text"
+es_one = "tipo {code}: {messages} mensaje, {with_text} con texto"
+es_many = "tipo {code}: {messages} mensajes, {with_text} con texto"
+es_other = "tipo {code}: {messages} mensajes, {with_text} con texto"
 
 [[message]]
 name = "linked_table"
@@ -674,8 +710,12 @@ es = "{model} ({serial}, por USB)"
 name = "folder_files"
 for = "user"
 params = ["folder", "files", "mb"]
-en = "{folder}: {files} files, {mb} MB"
-es = "{folder}: {files} archivos, {mb} MB"
+plural = "files"
+en_one = "{folder}: {files} file, {mb} MB"
+en_other = "{folder}: {files} files, {mb} MB"
+es_one = "{folder}: {files} archivo, {mb} MB"
+es_many = "{folder}: {files} archivos, {mb} MB"
+es_other = "{folder}: {files} archivos, {mb} MB"
 
 [[message]]
 name = "copying_into"
@@ -695,8 +735,8 @@ es = "copiando {folder}: {done} / {total} MB, {speed} MB/s"
 name = "copied_folder"
 for = "user"
 params = ["name", "files", "bytes"]
-en = "copied {name}: {files} files, {bytes} bytes, every size checked"
-es = "copiado {name}: {files} archivos, {bytes} bytes, cada tamaño comprobado"
+en = "copied {name}: {files}, {bytes}, every size checked"
+es = "carpeta {name} copiada: {files}, {bytes}, cada tamaño comprobado"
 
 [[message]]
 name = "next_backups"
@@ -802,15 +842,19 @@ es = "leyendo {path} como {adapter}"
 name = "conversations_done"
 for = "user"
 params = ["done", "total"]
-en = "{done} of {total} conversations"
-es = "{done} de {total} conversaciones"
+plural = "total"
+en_one = "{done} of {total} conversation"
+en_other = "{done} of {total} conversations"
+es_one = "{done} de {total} conversación"
+es_many = "{done} de {total} conversaciones"
+es_other = "{done} de {total} conversaciones"
 
 [[message]]
 name = "imported_source"
 for = "user"
 params = ["id", "conversations", "people", "messages", "first", "last"]
-en = "source {id}: {conversations} conversations, {people} people, {messages} messages, {first} to {last}"
-es = "fuente {id}: {conversations} conversaciones, {people} personas, {messages} mensajes, del {first} al {last}"
+en = "source {id}: {conversations}, {people}, {messages}, {first} to {last}"
+es = "fuente {id}: {conversations}, {people}, {messages}, del {first} al {last}"
 
 [[message]]
 name = "note_line"
@@ -886,8 +930,12 @@ es = "{from} a {to} de {total}"
 name = "count_messages"
 for = "user"
 params = ["count"]
-en = "{count} messages"
-es = "{count} mensajes"
+plural = "count"
+en_one = "{count} message"
+en_other = "{count} messages"
+es_one = "{count} mensaje"
+es_many = "{count} mensajes"
+es_other = "{count} mensajes"
 
 [[message]]
 name = "media_mb"
@@ -914,8 +962,12 @@ es = "por tipo:"
 name = "kind_messages_media"
 for = "user"
 params = ["kind", "messages", "mb"]
-en = "{kind}: {messages} messages, {mb} MB of media"
-es = "{kind}: {messages} mensajes, {mb} MB de archivos"
+plural = "messages"
+en_one = "{kind}: {messages} message, {mb} MB of media"
+en_other = "{kind}: {messages} messages, {mb} MB of media"
+es_one = "{kind}: {messages} mensaje, {mb} MB de archivos"
+es_many = "{kind}: {messages} mensajes, {mb} MB de archivos"
+es_other = "{kind}: {messages} mensajes, {mb} MB de archivos"
 
 [[message]]
 name = "by_hour"
@@ -984,29 +1036,41 @@ es = "mismo {reason}: personas {people} → {into}"
 name = "suggestions_count"
 for = "user"
 params = ["count"]
-en = "{count} suggestions; accept one with: oopz lib accept NUMBER"
-es = "{count} sugerencias; acepta una con: oopz lib accept NÚMERO"
+plural = "count"
+en_one = "{count} suggestion; accept it with: oopz lib accept NUMBER"
+en_other = "{count} suggestions; accept one with: oopz lib accept NUMBER"
+es_one = "{count} sugerencia; acéptala con: oopz lib accept NÚMERO"
+es_many = "{count} sugerencias; acepta una con: oopz lib accept NÚMERO"
+es_other = "{count} sugerencias; acepta una con: oopz lib accept NÚMERO"
 
 [[message]]
 name = "no_suggestion"
 for = "user"
 params = ["number", "count"]
-en = "no suggestion {number} (there are {count})"
-es = "no hay sugerencia {number} (hay {count})"
+plural = "count"
+en_one = "no suggestion {number} (there is {count})"
+en_other = "no suggestion {number} (there are {count})"
+es_one = "no hay sugerencia {number} (hay {count})"
+es_many = "no hay sugerencia {number} (hay {count})"
+es_other = "no hay sugerencia {number} (hay {count})"
 
 [[message]]
 name = "linked_into"
 for = "user"
 params = ["contact"]
 en = "linked into contact {contact}"
-es = "unido en el contacto {contact}"
+es = "personas unidas en el contacto {contact}"
 
 [[message]]
 name = "linked_people_into"
 for = "user"
 params = ["count", "contact"]
-en = "linked {count} people into contact {contact}"
-es = "{count} personas unidas en el contacto {contact}"
+plural = "count"
+en_one = "linked {count} person into contact {contact}"
+en_other = "linked {count} people into contact {contact}"
+es_one = "{count} persona unida en el contacto {contact}"
+es_many = "{count} personas unidas en el contacto {contact}"
+es_other = "{count} personas unidas en el contacto {contact}"
 
 [[message]]
 name = "person_unlinked"
@@ -1033,15 +1097,23 @@ es = "contacto {contact} borrado"
 name = "contacts_added"
 for = "user"
 params = ["count"]
-en = "{count} contacts added or updated"
-es = "{count} contactos añadidos o actualizados"
+plural = "count"
+en_one = "{count} contact added or updated"
+en_other = "{count} contacts added or updated"
+es_one = "{count} contacto añadido o actualizado"
+es_many = "{count} contactos añadidos o actualizados"
+es_other = "{count} contactos añadidos o actualizados"
 
 [[message]]
 name = "saved_contacts"
 for = "user"
 params = ["path", "count"]
-en = "saved: {path} ({count} contacts)"
-es = "guardado: {path} ({count} contactos)"
+plural = "count"
+en_one = "saved: {path} ({count} contact)"
+en_other = "saved: {path} ({count} contacts)"
+es_one = "se guardó: {path} ({count} contacto)"
+es_many = "se guardó: {path} ({count} contactos)"
+es_other = "se guardó: {path} ({count} contactos)"
 
 [[message]]
 name = "keep_contacts_private"
@@ -1054,8 +1126,12 @@ es = "este archivo contiene nombres y números: guárdalo en un lugar privado"
 name = "selection_saved"
 for = "user"
 params = ["id", "count"]
-en = "selection {id} saved: {count} messages"
-es = "selección {id} guardada: {count} mensajes"
+plural = "count"
+en_one = "selection {id} saved: {count} message"
+en_other = "selection {id} saved: {count} messages"
+es_one = "selección {id} guardada: {count} mensaje"
+es_many = "selección {id} guardada: {count} mensajes"
+es_other = "selección {id} guardada: {count} mensajes"
 
 [[message]]
 name = "selection_deleted"
@@ -1082,22 +1158,30 @@ es = "{done} de {total}"
 name = "files_not_in_folder"
 for = "user"
 params = ["count"]
-en = "{count} files the messages name aren't in the source's folder (listed in the zip)"
-es = "{count} archivos que nombran los mensajes no están en la carpeta de la fuente (listados en el zip)"
+plural = "count"
+en_one = "{count} file the messages name isn't in the source's folder (listed in the zip)"
+en_other = "{count} files the messages name aren't in the source's folder (listed in the zip)"
+es_one = "{count} archivo que nombran los mensajes no está en la carpeta de la fuente (listado en el zip)"
+es_many = "{count} archivos que nombran los mensajes no están en la carpeta de la fuente (listados en el zip)"
+es_other = "{count} archivos que nombran los mensajes no están en la carpeta de la fuente (listados en el zip)"
 
 [[message]]
 name = "saved_export"
 for = "user"
 params = ["path", "messages", "bytes"]
-en = "saved: {path} ({messages} messages, {bytes} bytes)"
-es = "guardado: {path} ({messages} mensajes, {bytes} bytes)"
+en = "saved: {path} ({messages}, {bytes})"
+es = "se guardó: {path} ({messages}, {bytes})"
 
 [[message]]
 name = "missing_glyphs"
 for = "user"
 params = ["count"]
-en = "{count} characters no font on this computer has (drawn as boxes); --font adds one"
-es = "{count} caracteres que ninguna fuente de este ordenador tiene (dibujados como cajas); --font añade una"
+plural = "count"
+en_one = "{count} character no font on this computer has (drawn as a box); --font adds one"
+en_other = "{count} characters no font on this computer has (drawn as boxes); --font adds one"
+es_one = "{count} carácter que ninguna fuente de este ordenador tiene (dibujado como una caja); --font añade una"
+es_many = "{count} caracteres que ninguna fuente de este ordenador tiene (dibujados como cajas); --font añade una"
+es_other = "{count} caracteres que ninguna fuente de este ordenador tiene (dibujados como cajas); --font añade una"
 
 [[message]]
 name = "no_pdf"
@@ -1218,3 +1302,60 @@ name = "handled_above"
 for = "developer"
 params = []
 en = "handled above"
+
+# Amounts: a count and its noun, for a line with more than one count (each its own form, put in by `say::count`).
+
+[[message]]
+name = "count_chats"
+for = "user"
+params = ["count"]
+plural = "count"
+en_one = "{count} chat"
+en_other = "{count} chats"
+es_one = "{count} chat"
+es_many = "{count} chats"
+es_other = "{count} chats"
+
+[[message]]
+name = "count_bytes"
+for = "user"
+params = ["count"]
+plural = "count"
+en_one = "{count} byte"
+en_other = "{count} bytes"
+es_one = "{count} byte"
+es_many = "{count} bytes"
+es_other = "{count} bytes"
+
+[[message]]
+name = "count_files"
+for = "user"
+params = ["count"]
+plural = "count"
+en_one = "{count} file"
+en_other = "{count} files"
+es_one = "{count} archivo"
+es_many = "{count} archivos"
+es_other = "{count} archivos"
+
+[[message]]
+name = "count_people"
+for = "user"
+params = ["count"]
+plural = "count"
+en_one = "{count} person"
+en_other = "{count} people"
+es_one = "{count} persona"
+es_many = "{count} personas"
+es_other = "{count} personas"
+
+[[message]]
+name = "count_conversations"
+for = "user"
+params = ["count"]
+plural = "count"
+en_one = "{count} conversation"
+en_other = "{count} conversations"
+es_one = "{count} conversación"
+es_many = "{count} conversaciones"
+es_other = "{count} conversaciones"

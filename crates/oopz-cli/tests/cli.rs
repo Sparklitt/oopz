@@ -52,7 +52,7 @@ fn chats_types_tables_print_structure_only() {
     assert!(text(&chats).contains("contact ••••001"));
 
     let types = oopz(&["types", "--backup", backup, "--chat", &chat], Some(KEY_HEX));
-    assert!(text(&types).contains("type 9999: 1 messages, 0 with text"), "{}", text(&types));
+    assert!(text(&types).contains("type 9999: 1 message, 0 with text"), "{}", text(&types));
     assert!(text(&types).contains("linked message_media: 2"));
 
     let tables = oopz(&["tables", "--backup", backup], Some(KEY_HEX));
@@ -92,7 +92,7 @@ fn backups_checks_every_backup_in_a_folder() {
     let mixed = oopz(&["backups", "--dir", dir.to_str().unwrap()], Some(KEY_HEX));
     assert!(!mixed.status.success());
     assert!(text(&mixed).contains("msgstore-2023-11-13.1.db.crypt15  0 MB  FAILED:"), "{}", text(&mixed));
-    assert!(text(&mixed).contains("1 of 2 backups didn't pass"), "{}", text(&mixed));
+    assert!(text(&mixed).contains("backups that didn't pass: 1 of 2"), "{}", text(&mixed));
     for secret in ["Hola", "playa", BEN_JID, KEY_HEX] {
         assert!(!text(&mixed).contains(secret), "printed {secret:?}");
     }
@@ -132,9 +132,9 @@ fn restore_writes_a_checked_backup_in_a_new_folder() {
     let keys = format!("{KEY_HEX}\n{}", fixture::TARGET_KEY_HEX);
     let merged = oopz(&args, Some(&keys));
     assert!(merged.status.success(), "{}", text(&merged));
-    assert!(text(&merged).contains("2 already there, 8 added"), "{}", text(&merged));
+    assert!(text(&merged).contains("already there: 2; added: 8"), "{}", text(&merged));
     assert!(text(&merged).contains("check integrity_check: ok"));
-    assert!(text(&merged).contains("media files: 1 copied, 1 missing"), "{}", text(&merged));
+    assert!(text(&merged).contains("media files copied: 1; missing: 1"), "{}", text(&merged));
     assert!(text(&merged).contains("original target unchanged: yes"));
     let result = out.join("oopz-result-1");
     assert!(result.join("Media/WhatsApp Images/Sent/hilo-IMG-20231114-WA0001.jpg").is_file());
@@ -182,7 +182,7 @@ fn check_stats_search_export_missing_print_counts_only() {
     // The text searched for is the person's own; the matching messages' text is never printed.
     let search = oopz(&["search", "--backup", source, "--query", "respuesta"], Some(KEY_HEX));
     assert!(search.status.success(), "{}", text(&search));
-    assert!(text(&search).contains("1 results"), "{}", text(&search));
+    assert!(text(&search).contains("1 result"), "{}", text(&search));
     assert!(text(&search).contains("sent"));
 
     let pages = fx.dir.path().join("pages");
