@@ -74,8 +74,9 @@ pub struct WhatsAppSource {
     _tmp: tempfile::TempDir,
 }
 
+/// The app's error as a source's, its note kept (one language throughout).
 fn model_error(e: crate::AppError) -> Error {
-    let reason = Note::of(Msg::SystemReason, [e.detail]);
+    let reason = e.note;
     match e.code {
         "key_format" | "wrong_key" => Error::WrongSecret,
         "not_crypt15" => Error::NotThisFormat(Msg::FormatWhatsappCrypt15),

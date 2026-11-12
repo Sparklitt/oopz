@@ -21,7 +21,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tiny_http::{Header, Method, Request, Response, Server};
 
+use crate::messages::Message as Msg;
 use crate::{AppError, Result};
+use msgkinds::Note;
+use oopz_model::messages::Message as ModelMsg;
 
 /// Wrong-token requests after which the server stops: the token can't be guessed, so many means someone is trying.
 const MAX_REFUSED: u64 = 50;
@@ -97,9 +100,8 @@ pub struct ReceiveInfo {
 /// tests) or else the likeliest address, stopping after [`IDLE`] without a request.
 pub fn start_in(parent: &Path, ip: Option<IpAddr>) -> Result<(Receiver, ReceiveInfo)> {
     let addresses = addresses();
-    let ip = ip.or_else(|| addresses.first().map(|a| a.ip)).ok_or_else(|| {
-        AppError::new("network", "this computer isn't on a local network; connect it to the same Wi-Fi as the phone")
-    })?;
+    let ip =
+        ip.or_else(|| addresses.first().map(|a| a.ip)).ok_or_else(|| AppError::of("network", Msg::NoNetwork, []))?;
     let dest = new_folder(parent, "oopz-received")?;
     let rx = Receiver::start(&dest, ip, IDLE)?;
     let free = crate::session::free_space(&dest)?;
@@ -112,7 +114,7 @@ pub(crate) fn new_folder(parent: &Path, stem: &str) -> Result<PathBuf> {
     (1..1000)
         .map(|n| parent.join(format!("{stem}-{n}")))
         .find(|p| !p.exists())
-        .ok_or_else(|| AppError::new("exists", format!("too many {stem} folders here; choose another folder")))
+        .ok_or_else(|| AppError::of("exists", Msg::TooManyFolders, [stem.to_owned()]))
 }
 
 /// A running receive page. Stops when dropped.
@@ -127,9 +129,9 @@ impl Receiver {
     /// Creates `dest` (it must not exist) and serves the page on `ip` at a free port, until the phone is done, the
     /// app stops it, or nothing arrives for `idle`.
     pub fn start(dest: &Path, ip: IpAddr, idle: Duration) -> Result<Self> {
-        fs::create_dir(dest).map_err(|e| AppError::io(format!("creating {}", dest.display()), e))?;
+        fs::create_dir(dest).map_err(|e| AppError::io_at(ModelMsg::DoingMaking, dest, e))?;
         let server = Server::http(SocketAddr::new(ip, 0))
-            .map_err(|e| AppError::new("network", format!("opening the receive page: {e}")))?;
+            .map_err(|e| AppError::doing("network", Note::of(Msg::DoingReceivePage, []), e))?;
         let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or_default();
         let token = random_token()?;
         let url = format!("http://{}/{token}/", SocketAddr::new(ip, port));
@@ -154,7 +156,7 @@ impl Receiver {
     /// The address as a QR code, an SVG in oopz's ink on white.
     pub fn qr_svg(&self) -> Result<String> {
         let code = qrcode::QrCode::new(self.url.as_bytes())
-            .map_err(|e| AppError::new("network", format!("making the QR code: {e}")))?;
+            .map_err(|e| AppError::doing("network", Note::of(Msg::DoingQrCode, []), e))?;
         Ok(code
             .render::<qrcode::render::svg::Color<'_>>()
             .min_dimensions(240, 240)
@@ -166,7 +168,7 @@ impl Receiver {
     /// The address as a QR code drawn with block characters, for a terminal.
     pub fn qr_text(&self) -> Result<String> {
         let code = qrcode::QrCode::new(self.url.as_bytes())
-            .map_err(|e| AppError::new("network", format!("making the QR code: {e}")))?;
+            .map_err(|e| AppError::doing("network", Note::of(Msg::DoingQrCode, []), e))?;
         Ok(code
             .render::<qrcode::render::unicode::Dense1x2>()
             .dark_color(qrcode::render::unicode::Dense1x2::Light)
@@ -300,7 +302,7 @@ pub fn is_lan(ip: IpAddr) -> bool {
 
 fn random_token() -> Result<String> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|_| AppError::new("network", "this computer gave no randomness"))?;
+    getrandom::fill(&mut bytes).map_err(|_| AppError::of("network", Msg::NoRandomness, []))?;
     Ok(hex::encode(bytes))
 }
 

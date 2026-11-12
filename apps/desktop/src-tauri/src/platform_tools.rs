@@ -9,8 +9,10 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use msgkinds::Note;
 use oopz_app::AppError;
 use oopz_app::adb;
+use oopz_app::messages::Message as Msg;
 use serde::Serialize;
 use sha1::{Digest, Sha1};
 use tauri::State;
@@ -54,12 +56,18 @@ pub struct Installed {
     pub folder: String,
 }
 
-fn failed(detail: impl std::fmt::Display) -> AppError {
-    AppError::new("platform_tools", detail.to_string())
+/// A `platform_tools` error, one of this catalog's messages.
+fn refused(message: Msg) -> AppError {
+    AppError::of("platform_tools", message, [])
+}
+
+/// A `platform_tools` error in a library's own words (the network's, the zip reader's).
+fn failed(reason: impl std::fmt::Display) -> AppError {
+    AppError::doing("platform_tools", Note::of(Msg::DoingPlatformTools, []), reason)
 }
 
 fn io(e: std::io::Error) -> AppError {
-    AppError::io("Android's platform-tools", e)
+    AppError::io(Note::of(Msg::DoingPlatformTools, []), e)
 }
 
 /// The text between `open` and the next `close`.
@@ -77,7 +85,7 @@ fn unescape(s: &str) -> String {
 /// platform-tools for `host_os` in Google's index: its version, archive, size, SHA-1 and licence.
 fn parse_offer(index: &str, host_os: &str) -> Result<Offer, AppError> {
     let package = between(index, "<remotePackage path=\"platform-tools\">", "</remotePackage>")
-        .ok_or_else(|| failed("Google's index has no platform-tools"))?;
+        .ok_or_else(|| refused(Msg::ToolsIndexNone))?;
     let number = |tag: &str| between(package, &format!("<{tag}>"), &format!("</{tag}>")).map(str::trim);
     let version =
         [number("major"), number("minor"), number("micro")].into_iter().flatten().collect::<Vec<_>>().join(".");
@@ -85,30 +93,28 @@ fn parse_offer(index: &str, host_os: &str) -> Result<Offer, AppError> {
         .split("<archive>")
         .skip(1)
         .find(|a| between(a, "<host-os>", "</host-os>").map(str::trim) == Some(host_os))
-        .ok_or_else(|| failed(format!("Google's index has no platform-tools for {host_os}")))?;
+        .ok_or_else(|| AppError::of("platform_tools", Msg::ToolsIndexNoneFor, [host_os.to_owned()]))?;
     let field = |tag: &str| {
         between(archive, &format!("<{tag}"), &format!("</{tag}>")).map(|v| v.rsplit('>').next().unwrap_or(v).trim())
     };
-    let file = field("url").ok_or_else(|| failed("no archive name in Google's index"))?.to_owned();
-    let bytes =
-        field("size").and_then(|s| s.parse().ok()).ok_or_else(|| failed("no archive size in Google's index"))?;
-    let sha1 = field("checksum").ok_or_else(|| failed("no checksum in Google's index"))?.to_ascii_lowercase();
+    let file = field("url").ok_or_else(|| refused(Msg::ToolsIndexNoArchive))?.to_owned();
+    let bytes = field("size").and_then(|s| s.parse().ok()).ok_or_else(|| refused(Msg::ToolsIndexNoSize))?;
+    let sha1 = field("checksum").ok_or_else(|| refused(Msg::ToolsIndexNoChecksum))?.to_ascii_lowercase();
     // Only a plain file name in Google's folder: never another host, never a path.
     if file.is_empty()
         || file.contains(['/', '\\', ':'])
         || !msgkinds::media_type::name::has_format(&file, msgkinds::media_type::formats::ZIP)
     {
-        return Err(failed(format!("unexpected archive name in Google's index: {file}")));
+        return Err(AppError::of("platform_tools", Msg::ToolsIndexOddName, [file]));
     }
     if sha1.len() != 40 || !sha1.bytes().all(|b| b.is_ascii_hexdigit()) || bytes == 0 || bytes > MAX_ARCHIVE {
-        return Err(failed("unexpected size or checksum in Google's index"));
+        return Err(refused(Msg::ToolsIndexOddSize));
     }
-    let license_id =
-        between(package, "<uses-license ref=\"", "\"").ok_or_else(|| failed("no licence in Google's index"))?;
+    let license_id = between(package, "<uses-license ref=\"", "\"").ok_or_else(|| refused(Msg::ToolsIndexNoLicence))?;
     let license = between(index, &format!("<license id=\"{license_id}\""), "</license>")
         .map(|l| unescape(l.split_once('>').map_or(l, |(_, text)| text).trim()))
         .filter(|l| !l.is_empty())
-        .ok_or_else(|| failed(format!("Google's index doesn't include the licence {license_id}")))?;
+        .ok_or_else(|| AppError::of("platform_tools", Msg::ToolsIndexLacksLicence, [license_id.to_owned()]))?;
     Ok(Offer { version, bytes, license, file, sha1 })
 }
 
@@ -129,7 +135,7 @@ pub async fn offer() -> Result<Offer, AppError> {
     let response = client()?.get(INDEX).send().await.and_then(|r| r.error_for_status()).map_err(failed)?;
     let body = response.bytes().await.map_err(failed)?;
     if body.len() > MAX_INDEX {
-        return Err(failed("Google's index is unexpectedly large"));
+        return Err(refused(Msg::ToolsIndexLarge));
     }
     parse_offer(&String::from_utf8_lossy(&body), HOST_OS)
 }
@@ -149,12 +155,12 @@ pub fn installed() -> Option<Installed> {
 /// Downloads the archive `offer` names, checks its size and SHA-1, and unpacks its `platform-tools/` folder into
 /// [`adb::downloaded_dir`], replacing an older one only once the new one is complete.
 pub async fn download(offer: &Offer, progress: &Channel<Step>) -> Result<Installed, AppError> {
-    let dest = adb::downloaded_dir().ok_or_else(|| failed("no folder for oopz's data on this computer"))?;
+    let dest = adb::downloaded_dir().ok_or_else(|| refused(Msg::NoDataFolder))?;
     download_into(&dest, offer, progress).await
 }
 
 async fn download_into(dest: &Path, offer: &Offer, progress: &Channel<Step>) -> Result<Installed, AppError> {
-    let parent = dest.parent().ok_or_else(|| failed("no folder for oopz's data on this computer"))?;
+    let parent = dest.parent().ok_or_else(|| refused(Msg::NoDataFolder))?;
     fs::create_dir_all(parent).map_err(io)?;
 
     let mut response = client()?
@@ -170,7 +176,7 @@ async fn download_into(dest: &Path, offer: &Offer, progress: &Channel<Step>) -> 
     while let Some(chunk) = response.chunk().await.map_err(failed)? {
         done += chunk.len() as u64;
         if done > offer.bytes {
-            return Err(failed("the download is bigger than Google's index says"));
+            return Err(refused(Msg::ToolsDownloadBigger));
         }
         hash.update(&chunk);
         archive.write_all(&chunk).map_err(io)?;
@@ -178,7 +184,7 @@ async fn download_into(dest: &Path, offer: &Offer, progress: &Channel<Step>) -> 
     }
     let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
     if done != offer.bytes || got != offer.sha1 {
-        return Err(failed("the download doesn't match Google's index (size or SHA-1): nothing was kept"));
+        return Err(refused(Msg::ToolsDownloadMismatch));
     }
 
     // Unpack beside the destination, then swap: a failure leaves the old copy (or nothing), never half a folder.
@@ -186,7 +192,7 @@ async fn download_into(dest: &Path, offer: &Offer, progress: &Channel<Step>) -> 
     unpack(archive, staging.path())?;
     let unpacked = staging.path().join("platform-tools");
     if !unpacked.join(if cfg!(windows) { "adb.exe" } else { "adb" }).is_file() {
-        return Err(failed("the archive has no adb in it"));
+        return Err(refused(Msg::ToolsNoAdb));
     }
     if dest.exists() {
         stop_server(dest);
@@ -202,7 +208,11 @@ fn unpack(archive: fs::File, into: &Path) -> Result<(), AppError> {
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(failed)?;
         let Some(name) = entry.enclosed_name() else {
-            return Err(failed(format!("unsafe name in the archive: {}", entry.name_raw().escape_ascii())));
+            return Err(AppError::of(
+                "platform_tools",
+                Msg::ToolsUnsafeName,
+                [entry.name_raw().escape_ascii().to_string()],
+            ));
         };
         let path: PathBuf = into.join(name);
         if entry.is_dir() {
@@ -277,7 +287,7 @@ pub async fn tools_offer(shown: State<'_, Shown>) -> Result<Offer, AppError> {
 
 #[tauri::command]
 pub async fn tools_download(shown: State<'_, Shown>, progress: Channel<Step>) -> Result<Installed, AppError> {
-    let offer = lock(&shown.0).clone().ok_or_else(|| failed("look at Google's licence first"))?;
+    let offer = lock(&shown.0).clone().ok_or_else(|| refused(Msg::ToolsLicenceFirst))?;
     let got = download(&offer, &progress).await?;
     *lock(&shown.0) = None;
     Ok(got)

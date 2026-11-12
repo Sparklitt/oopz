@@ -169,7 +169,7 @@ fn a_missing_required_part_is_refused_by_name() {
         change(&backup, &key, &sql);
         let e = use_it(&backup, &key).expect_err(sql.as_str());
         assert_eq!(e.code, "unsupported", "{sql}: {e}");
-        assert!(e.detail.contains(named), "{sql}: {e}");
+        assert!(e.to_string().contains(named), "{sql}: {e}");
     }
 }
 
@@ -237,7 +237,7 @@ fn merge_into_a_target_needing_a_value_the_source_lacks_is_refused_cleanly() {
     );
     let e = done.expect_err("refused");
     assert_eq!(e.code, "merge_check", "{e}");
-    assert!(e.detail.contains("message_quoted.future_required"), "{e}");
+    assert!(e.to_string().contains("message_quoted.future_required"), "{e}");
     // Nothing written.
     let made: Vec<_> = fs::read_dir(out.path())
         .unwrap()

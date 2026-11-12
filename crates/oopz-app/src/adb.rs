@@ -16,7 +16,11 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
+use crate::messages::Message as Msg;
 use crate::{AppError, Result};
+use msgkinds::Note;
+use msgkinds::note::Value;
+use oopz_model::messages::Message as ModelMsg;
 
 /// Where to get adb when it's missing.
 pub const PLATFORM_TOOLS: &str = "https://developer.android.com/tools/releases/platform-tools";
@@ -93,50 +97,31 @@ fn parse_devices(out: &str) -> Vec<Device> {
 /// that isn't ready.
 pub fn choose<'a>(devices: &'a [Device], serial: Option<&str>) -> Result<&'a Device> {
     let device = match serial {
-        Some(serial) => devices.iter().find(|d| d.serial == serial).ok_or_else(|| {
-            AppError::new(
-                "no_device",
-                format!("adb doesn't see a phone named {serial} (it sees: {})", serials(devices)),
-            )
+        Some(serial) => devices.iter().find(|d| d.serial == serial).ok_or_else(|| match devices {
+            [] => AppError::of("no_device", Msg::AdbNoPhoneNamedNone, [serial.to_owned()]),
+            seen => AppError::of("no_device", Msg::AdbNoPhoneNamed, [serial.to_owned(), serials(seen)]),
         })?,
         None => match devices {
             [] => {
-                return Err(AppError::new(
-                    "no_device",
-                    "adb sees no phone: connect it with a USB cable and turn on USB debugging, or pair it for wireless debugging",
-                ));
+                return Err(AppError::of("no_device", Msg::AdbNoPhone, []));
             }
             [one] => one,
             several => {
-                return Err(AppError::new(
-                    "several_devices",
-                    format!("several phones are connected ({}): choose one with --serial", serials(several)),
-                ));
+                return Err(AppError::of("several_devices", Msg::AdbSeveralPhones, [serials(several)]));
             }
         },
     };
     match device.state.as_str() {
         "device" => Ok(device),
-        "unauthorized" => Err(AppError::new(
-            "unauthorized",
-            "the phone hasn't allowed this computer yet: unlock it and tap Allow when it asks about USB debugging",
-        )),
-        "offline" => Err(AppError::new(
-            "device_offline",
-            "the phone is offline for adb: unplug it and plug it in again, or turn USB debugging off and on",
-        )),
-        "no_permissions" => Err(AppError::new(
-            "no_permissions",
-            "this computer doesn't let adb use the phone (on Linux, add a udev rule for Android phones)",
-        )),
-        other => Err(AppError::new("adb", format!("the phone's adb state is {other}"))),
+        "unauthorized" => Err(AppError::of("unauthorized", Msg::AdbUnauthorized, [])),
+        "offline" => Err(AppError::of("device_offline", Msg::AdbOffline, [])),
+        "no_permissions" => Err(AppError::of("no_permissions", Msg::AdbNoPermissions, [])),
+        other => Err(AppError::of("adb", Msg::AdbState, [other.to_owned()])),
     }
 }
 
+/// The phones' serials, `, ` between them (never empty: no phone has its own message).
 fn serials(devices: &[Device]) -> String {
-    if devices.is_empty() {
-        return "none".into();
-    }
     devices.iter().map(|d| d.serial.as_str()).collect::<Vec<_>>().join(", ")
 }
 
@@ -149,14 +134,7 @@ pub struct Adb {
 impl Adb {
     /// [`find`], or a `no_adb` error that says where to get it.
     pub fn find() -> Result<Self> {
-        find().map(|exe| Self { exe }).ok_or_else(|| {
-            AppError::new(
-                "no_adb",
-                format!(
-                    "adb isn't on this computer: the desktop app can download it (Add a backup › With USB or wireless debugging), or get Android's platform-tools from {PLATFORM_TOOLS} and put its folder on PATH (or set ANDROID_HOME)"
-                ),
-            )
-        })
+        find().map(|exe| Self { exe }).ok_or_else(|| AppError::of("no_adb", Msg::NoAdb, [PLATFORM_TOOLS.to_owned()]))
     }
 
     /// The phones adb sees, over USB and wireless debugging.
@@ -170,29 +148,25 @@ impl Adb {
         let host = host_port(host)?;
         let code = code.trim();
         if code.is_empty() || !code.chars().all(|c| c.is_ascii_digit()) {
-            return Err(AppError::new("adb", "the pairing code is the 6 digits on the phone's pairing screen"));
+            return Err(AppError::of("adb", Msg::AdbPairingCode, []));
         }
         let out = run(&self.exe, &["pair", host], Some(code), WIRELESS)?;
         if out.contains("Successfully paired") {
             Ok(())
         } else {
-            Err(AppError::new("adb", format!("pairing didn't work: {}", last_line(&out))))
+            Err(AppError::new("adb", Note::new(Msg::AdbPairingFailed, vec![said(&out)])))
         }
     }
 
     /// Wireless debugging: connects to the phone at `host` (its Wireless debugging screen's "IP address & port").
     pub fn connect(&self, host: &str) -> Result<()> {
-        let out = run(&self.exe, &["connect", host_port(host)?], None, WIRELESS).map_err(|e| {
-            AppError::new(
-                e.code,
-                format!("{}: check the address and port, and that the phone is on this Wi-Fi", e.detail),
-            )
-        })?;
+        let out = run(&self.exe, &["connect", host_port(host)?], None, WIRELESS)
+            .map_err(|e| AppError::new(e.code, Note::new(Msg::AdbConnectCheck, vec![Value::Note(Box::new(e.note))])))?;
         // adb says "failed to connect" or "cannot connect" and still exits with 0.
         if out.contains("connected to") && !out.contains("failed") && !out.contains("cannot") {
             Ok(())
         } else {
-            Err(AppError::new("adb", format!("connecting didn't work: {}", last_line(&out))))
+            Err(AppError::new("adb", Note::new(Msg::AdbConnectFailed, vec![said(&out)])))
         }
     }
 
@@ -206,18 +180,23 @@ impl Adb {
 fn host_port(host: &str) -> Result<&str> {
     let host = host.trim();
     let ok = host.contains(':') && !host.starts_with('-') && !host.chars().any(char::is_whitespace);
-    if ok {
-        Ok(host)
-    } else {
-        Err(AppError::new("adb", format!("not an address and port like 192.168.1.20:37099: {host}")))
-    }
+    if ok { Ok(host) } else { Err(AppError::of("adb", Msg::AdbNotHostPort, [host.to_owned()])) }
 }
 
 /// The line of adb's output that says what went wrong: the last that mentions an error, else the last.
-fn last_line(out: &str) -> &str {
+fn last_line(out: &str) -> Option<&str> {
     let lines = || out.split(['\n', '\r']).map(str::trim).filter(|l| !l.is_empty());
     let bad = |l: &&str| l.contains("error") || l.contains("failed") || l.contains("cannot");
-    lines().rfind(bad).or_else(|| lines().next_back()).unwrap_or("adb said nothing")
+    lines().rfind(bad).or_else(|| lines().next_back())
+}
+
+/// [`last_line`] as a note's value, as adb wrote it (or that it said nothing).
+fn said(out: &str) -> Value {
+    line_value(last_line(out))
+}
+
+fn line_value(line: Option<&str>) -> Value {
+    line.map_or_else(|| Value::Note(Box::new(Note::of(Msg::AdbSaidNothing, []))), |l| Value::Text(l.to_owned()))
 }
 
 fn command(exe: &Path) -> Command {
@@ -241,14 +220,14 @@ fn run(exe: &Path, args: &[&str], input: Option<&str>, limit: Duration) -> Resul
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| AppError::io(format!("starting {}", exe.display()), e))?;
+        .map_err(|e| AppError::io(Note::of(Msg::DoingStarting, [exe.display().to_string()]), e))?;
     if let (Some(input), Some(mut stdin)) = (input, child.stdin.take()) {
         let _ = writeln!(stdin, "{input}");
     }
     let (stdout, stderr) = (drain(child.stdout.take()), drain(child.stderr.take()));
     let deadline = Instant::now() + limit;
     let Some(status) = wait(&mut child, Duration::from_millis(50), &mut || Instant::now() < deadline)? else {
-        return Err(AppError::new("adb", format!("adb didn't answer within {} s", limit.as_secs())));
+        return Err(AppError::of("adb", Msg::AdbTimeout, [limit.as_secs().to_string()]));
     };
     let (stdout, stderr) = (stdout(), stderr());
     if status.success() { Ok(format!("{stdout}{stderr}")) } else { Err(adb_error(&format!("{stderr}{stdout}"))) }
@@ -269,7 +248,7 @@ fn drain(pipe: Option<impl Read + Send + 'static>) -> impl FnOnce() -> String {
 /// Waits for adb, asking `go_on` every `every`; when that says no, stops adb and returns none.
 fn wait(child: &mut Child, every: Duration, go_on: &mut dyn FnMut() -> bool) -> Result<Option<ExitStatus>> {
     loop {
-        if let Some(status) = child.try_wait().map_err(|e| AppError::io("running adb", e))? {
+        if let Some(status) = child.try_wait().map_err(|e| AppError::io(Note::of(Msg::DoingRunningAdb, []), e))? {
             return Ok(Some(status));
         }
         if !go_on() {
@@ -283,8 +262,7 @@ fn wait(child: &mut Child, every: Duration, go_on: &mut dyn FnMut() -> bool) -> 
 
 /// What adb said when it failed, as a code the app words.
 fn adb_error(said: &str) -> AppError {
-    let line = last_line(said);
-    let line = line.strip_prefix("adb: ").unwrap_or(line);
+    let line = last_line(said).map(|l| l.strip_prefix("adb: ").unwrap_or(l));
     let code = if said.contains("unauthorized") {
         "unauthorized"
     } else if said.contains("no devices") || said.contains("not found") && said.contains("device") {
@@ -298,7 +276,7 @@ fn adb_error(said: &str) -> AppError {
     } else {
         "adb"
     };
-    AppError::new(code, format!("adb: {line}"))
+    AppError::new(code, Note::new(Msg::AdbSaid, vec![line_value(line)]))
 }
 
 /// What a copy needs from the phone. [`Phone`] is adb; a test stands in for it.
@@ -330,13 +308,13 @@ impl Remote for Phone {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| AppError::io(format!("starting {}", self.exe.display()), e))?;
+            .map_err(|e| AppError::io(Note::of(Msg::DoingStarting, [self.exe.display().to_string()]), e))?;
         // adb reports every file on its error output.
         let said = drain(child.stderr.take());
         match wait(&mut child, Duration::from_millis(250), tick)? {
             Some(status) if status.success() => Ok(()),
             Some(_) => Err(adb_error(&said())),
-            None => Err(AppError::new("cancelled", "stopped")),
+            None => Err(AppError::cancelled()),
         }
     }
 }
@@ -406,24 +384,16 @@ pub fn plan(remote: &dyn Remote, want: &Wanted<'_>) -> Result<Plan> {
     let (root, databases) = match (found, empty) {
         (Some(found), _) => found,
         (None, Some(root)) => {
-            return Err(AppError::new(
-                "not_found",
-                format!(
-                    "{root}/Databases on the phone is empty: make a backup in WhatsApp first (Settings › Chats › Chat backup)"
-                ),
-            ));
+            return Err(AppError::of("not_found", Msg::PhoneDatabasesEmpty, [root]));
         }
         (None, None) => {
-            return Err(AppError::new(
-                "not_found",
-                format!("no WhatsApp Databases folder on the phone (looked in {})", roots.join(" and ")),
-            ));
+            return Err(AppError::of("not_found", Msg::PhoneNoDatabases, [roots.join(", ")]));
         }
     };
     let mut folders = vec![Folder { name: "Databases", files: databases }];
     if want.media {
         let media = list(remote, &format!("{root}/Media"))?
-            .ok_or_else(|| AppError::new("not_found", format!("no Media folder on the phone in {root}")))?;
+            .ok_or_else(|| AppError::of("not_found", Msg::PhoneNoMedia, [root.clone()]))?;
         folders.push(Folder { name: "Media", files: media });
     }
     let all = || folders.iter().flat_map(|f| &f.files);
@@ -446,7 +416,7 @@ fn parse_listing(out: &str) -> Result<Option<Vec<RemoteFile>>> {
         return Ok(None);
     }
     if !lines.contains(&"oopz:listed") {
-        return Err(AppError::new("adb", format!("couldn't list the phone's folder: {}", last_line(out))));
+        return Err(AppError::new("adb", Note::new(Msg::PhoneListingFailed, vec![said(out)])));
     }
     let mut files: Vec<RemoteFile> = lines
         .iter()
@@ -471,9 +441,10 @@ fn enough_space(need: u64, free: u64, at: &Path) -> Result<()> {
         return Ok(());
     }
     let mb = |b: u64| b.div_ceil(1_000_000);
-    Err(AppError::new(
+    Err(AppError::of(
         "no_space",
-        format!("needs about {} MB at {}, {} MB free", mb(need), at.display(), free / 1_000_000),
+        Msg::NeedsSpace,
+        [mb(need).to_string(), at.display().to_string(), (free / 1_000_000).to_string()],
     ))
 }
 
@@ -533,7 +504,7 @@ pub fn start_in(parent: &Path, remote: impl Remote, plan: Plan) -> Result<(Pulle
     let free = crate::session::free_space(parent)?;
     enough_space(plan.bytes, free, parent)?;
     let dest = crate::receive::new_folder(parent, "oopz-pulled")?;
-    fs::create_dir(&dest).map_err(|e| AppError::io(format!("creating {}", dest.display()), e))?;
+    fs::create_dir(&dest).map_err(|e| AppError::io_at(ModelMsg::DoingMaking, &dest, e))?;
     let info = PullInfo { dest: dest.clone(), root: plan.root.clone(), files: plan.files, bytes: plan.bytes, free };
     let shared = Arc::new(Shared {
         stop: AtomicBool::new(false),
@@ -585,7 +556,8 @@ fn copy_all(remote: &dyn Remote, plan: &Plan, dest: &Path, shared: &Shared) -> R
             .and_then(|()| check_sizes(&part, &folder.files))
             .and_then(|()| {
                 let target = dest.join(folder.name);
-                fs::rename(&part, &target).map_err(|e| AppError::io(format!("finishing {}", target.display()), e))
+                fs::rename(&part, &target)
+                    .map_err(|e| AppError::io(Note::of(Msg::DoingFinishing, [target.display().to_string()]), e))
             });
         if let Err(e) = result {
             let _ = fs::remove_dir_all(&part);
@@ -605,14 +577,12 @@ fn check_sizes(local: &Path, files: &[RemoteFile]) -> Result<()> {
     for file in files {
         let rel = Path::new(&file.path);
         if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-            return Err(AppError::new("adb", format!("the phone listed an odd path: {}", file.path)));
+            return Err(AppError::of("adb", Msg::PhoneOddPath, [file.path.clone()]));
         }
         let got = fs::metadata(local.join(rel)).map(|m| m.len()).unwrap_or(0);
         if got != file.bytes {
-            return Err(AppError::new(
-                "incomplete",
-                format!("{} arrived with {got} of its {} bytes", file.path, file.bytes),
-            ));
+            let values = [file.path.clone(), got.to_string(), file.bytes.to_string()];
+            return Err(AppError::of("incomplete", Msg::ArrivedIncomplete, values));
         }
     }
     Ok(())
@@ -724,7 +694,7 @@ mod tests {
                         std::thread::sleep(Duration::from_millis(50));
                     }
                     if !tick() {
-                        return Err(AppError::new("cancelled", "stopped"));
+                        return Err(AppError::cancelled());
                     }
                 }
                 Ok(())
@@ -828,7 +798,7 @@ mod tests {
         // The line that says what failed, not adb's last progress report.
         let full =
             adb_error("adb: error: cannot create '/x/a.mp3': No space left on device\n[  0%] /sdcard/b.mp3: 100%\r");
-        assert_eq!(full.detail, "adb: error: cannot create '/x/a.mp3': No space left on device");
+        assert_eq!(full.to_string(), "adb: error: cannot create '/x/a.mp3': No space left on device");
         assert_eq!(parse_listing("sh: find: inaccessible\n").unwrap_err().code, "adb");
         assert_eq!(parse_listing("oopz:missing\r\n").unwrap(), None);
         let listed = parse_listing("12 ./b\r\n3 ./a b/c\r\nfind: ./x: Permission denied\r\noopz:listed\r\n").unwrap();
@@ -854,15 +824,15 @@ mod tests {
         // Business has none; an empty folder and a missing one say so; Media asked for but missing.
         let business = plan(&phone, &Wanted { business: true, ..Wanted::default() }).unwrap_err();
         assert!(
-            business.code == "not_found" && business.detail.contains(msgkinds::App::WhatsAppBusiness.name()),
+            business.code == "not_found" && business.to_string().contains(msgkinds::App::WhatsAppBusiness.name()),
             "{business}"
         );
         let empty = plan(&phone, &Wanted { remote_dir: Some("/sdcard/Download/empty"), ..Wanted::default() });
-        assert!(empty.unwrap_err().detail.contains("is empty"));
+        assert!(empty.unwrap_err().to_string().contains("is empty"));
         let missing = plan(&phone, &Wanted { remote_dir: Some("/sdcard/nothing"), ..Wanted::default() });
         assert_eq!(missing.unwrap_err().code, "not_found");
         let no_media = plan(&phone, &Wanted { media: true, ..Wanted::default() }).unwrap_err();
-        assert!(no_media.detail.contains("no Media"), "{no_media}");
+        assert!(no_media.to_string().contains("no Media"), "{no_media}");
     }
 
     #[test]
@@ -923,6 +893,6 @@ mod tests {
         assert!(enough_space(10, 10, at).is_ok());
         let full = enough_space(5_000_001, 1_000_000, at).unwrap_err();
         assert_eq!(full.code, "no_space");
-        assert!(full.detail.contains("6 MB") && full.detail.contains("1 MB free"), "{full}");
+        assert!(full.to_string().contains("6 MB") && full.to_string().contains("1 MB free"), "{full}");
     }
 }

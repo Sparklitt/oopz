@@ -5,7 +5,10 @@
 
 use std::path::{Path, PathBuf};
 
+use msgkinds::Note;
 use oopz_app::AppError;
+use oopz_app::messages::Message as Msg;
+use oopz_model::messages::Message as ModelMsg;
 use serde::Serialize;
 
 /// Where `oopz` stands now; the screen hides the setting when the command answers null.
@@ -30,7 +33,7 @@ fn bundled() -> Option<PathBuf> {
 }
 
 fn home() -> Result<PathBuf, AppError> {
-    std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| AppError::new("io", "HOME isn't set"))
+    std::env::var_os("HOME").map(PathBuf::from).ok_or_else(|| AppError::of("io", Msg::HomeUnset, []))
 }
 
 /// ~/.local/bin/oopz: the AppImage's copy, or macOS's link when the administrator's password was refused.
@@ -72,7 +75,7 @@ fn status(cli: &Path, home: &Path, path: Option<&std::ffi::OsStr>) -> CliStatus 
 
 #[tauri::command(async)]
 pub fn cli_install() -> Result<CliStatus, AppError> {
-    let cli = bundled().ok_or_else(|| AppError::new("not_found", "this copy of oopz has no command to install"))?;
+    let cli = bundled().ok_or_else(|| AppError::of("not_found", Msg::NoCommandToInstall, []))?;
     let home = home()?;
     install(&cli, &home)?;
     Ok(status(&cli, &home, std::env::var_os("PATH").as_deref()))
@@ -80,7 +83,7 @@ pub fn cli_install() -> Result<CliStatus, AppError> {
 
 #[tauri::command(async)]
 pub fn cli_remove() -> Result<CliStatus, AppError> {
-    let cli = bundled().ok_or_else(|| AppError::new("not_found", "this copy of oopz has no command to remove"))?;
+    let cli = bundled().ok_or_else(|| AppError::of("not_found", Msg::NoCommandToRemove, []))?;
     let home = home()?;
     remove(&cli, &home)?;
     Ok(status(&cli, &home, std::env::var_os("PATH").as_deref()))
@@ -92,21 +95,24 @@ fn install(cli: &Path, home: &Path) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
     let to = user_bin(home);
     let dir = to.parent().expect("a folder");
-    std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating ~/.local/bin", e))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|e| AppError::io(Note::of(ModelMsg::DoingMaking, ["~/.local/bin".to_owned()]), e))?;
     let part = dir.join(".oopz.part");
-    std::fs::copy(cli, &part).map_err(|e| AppError::io("copying the oopz command", e))?;
+    std::fs::copy(cli, &part).map_err(|e| AppError::io(Note::of(Msg::DoingCopyingCommand, []), e))?;
     std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755))
         .and_then(|()| std::fs::rename(&part, &to))
         .map_err(|e| {
             let _ = std::fs::remove_file(&part);
-            AppError::io("copying the oopz command", e)
+            AppError::io(Note::of(Msg::DoingCopyingCommand, []), e)
         })
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn remove(_cli: &Path, home: &Path) -> Result<(), AppError> {
     match std::fs::remove_file(user_bin(home)) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(AppError::io("removing the oopz command", e)),
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            Err(AppError::io(Note::of(Msg::DoingRemovingCommand, []), e))
+        }
         _ => Ok(()),
     }
 }
@@ -114,7 +120,7 @@ fn remove(_cli: &Path, home: &Path) -> Result<(), AppError> {
 /// Windows never offers it ([`bundled`] is None): its installers put the install folder on PATH.
 #[cfg(windows)]
 fn install(_cli: &Path, _home: &Path) -> Result<(), AppError> {
-    Err(AppError::new("unsupported", "the Windows installers put oopz on PATH"))
+    Err(AppError::of("unsupported", Msg::WindowsPath, []))
 }
 
 #[cfg(windows)]
@@ -139,9 +145,10 @@ fn install(cli: &Path, home: &Path) -> Result<(), AppError> {
         }
     }
     let to = user_bin(home);
-    std::fs::create_dir_all(to.parent().expect("a folder")).map_err(|e| AppError::io("creating ~/.local/bin", e))?;
+    std::fs::create_dir_all(to.parent().expect("a folder"))
+        .map_err(|e| AppError::io(Note::of(ModelMsg::DoingMaking, ["~/.local/bin".to_owned()]), e))?;
     let _ = std::fs::remove_file(&to);
-    std::os::unix::fs::symlink(cli, &to).map_err(|e| AppError::io("linking the oopz command", e))
+    std::os::unix::fs::symlink(cli, &to).map_err(|e| AppError::io(Note::of(Msg::DoingLinkingCommand, []), e))
 }
 
 /// Removes this app's links (only links to this app's CLI), asking for the password when /usr/local/bin needs it.
@@ -149,11 +156,11 @@ fn install(cli: &Path, home: &Path) -> Result<(), AppError> {
 fn remove(cli: &Path, home: &Path) -> Result<(), AppError> {
     let user = user_bin(home);
     if is_ours(&user, cli) {
-        std::fs::remove_file(&user).map_err(|e| AppError::io("removing the oopz command", e))?;
+        std::fs::remove_file(&user).map_err(|e| AppError::io(Note::of(Msg::DoingRemovingCommand, []), e))?;
     }
     let system = Path::new(SYSTEM_BIN);
     if is_ours(system, cli) && std::fs::remove_file(system).is_err() && !as_admin(&format!("rm -f {SYSTEM_BIN}")) {
-        return Err(AppError::new("io", format!("removing {SYSTEM_BIN} needs an administrator")));
+        return Err(AppError::of("io", Msg::NeedsAdministrator, [SYSTEM_BIN.to_owned()]));
     }
     Ok(())
 }

@@ -12,7 +12,9 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::index::{Index, Stats};
+use crate::messages::Message as Msg;
 use crate::{AppError, Result};
+use oopz_model::messages::Message as ModelMsg;
 
 /// The page's words, in the person's language, from the UI (`src/i18n.ts`), so they live in one place.
 #[derive(Debug, Deserialize)]
@@ -86,15 +88,15 @@ pub fn write(index: &Index, backup_name: &str, chat: Option<i64>, labels: &Label
                     Err(e) => {
                         drop(f);
                         let _ = fs::remove_file(&path); // Never leave half a page.
-                        Err(AppError::io(format!("writing {}", path.display()), e))
+                        Err(AppError::io_at(ModelMsg::DoingWriting, &path, e))
                     }
                 };
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(AppError::io(format!("writing {}", path.display()), e)),
+            Err(e) => return Err(AppError::io_at(ModelMsg::DoingWriting, &path, e)),
         }
     }
-    Err(AppError::new("exists", "too many oopz-export files here; choose another folder"))
+    Err(AppError::of("exists", Msg::TooManyFiles, ["oopz-export".to_owned()]))
 }
 
 fn page(index: &Index, backup_name: &str, chat: Option<i64>, l: &Labels) -> Result<String> {

@@ -31,24 +31,75 @@ pub fn adapters() -> Vec<&'static dyn oopz_model::Adapter> {
 pub use receive::{ReceiveInfo, ReceiveStatus, Receiver};
 pub use session::{BackupFile, ChatRow, MergeOutcome, MergeRequest, Missing, Session, Summary};
 
-/// An error for the UI: a stable `code` it words in the person's language, and an English detail. Never holds a key.
-#[derive(Debug, Clone, Serialize, thiserror::Error)]
-#[error("{detail}")]
+/// Every sentence the app's logic and its shell write (`data/messages.toml`, catalog `oopz_app`): `Message`, worded
+/// through msgkinds' `Note`.
+pub mod messages {
+    include!(concat!(env!("OUT_DIR"), "/messages.rs"));
+}
+
+use messages::Message as Msg;
+use msgkinds::Note;
+use msgkinds::note::Value;
+use oopz_model::messages::Message as ModelMsg;
+
+/// An error for the UI: a stable `code` it words in the person's language, and a note (`note.text(language)`) of the
+/// `oopz_app` catalog or another's. Never holds a key or message text. `Display` is the note's English, and so is
+/// `detail` when it's serialized (`{code, detail}`, the desktop app's wire until notes travel as notes).
+#[derive(Debug, Clone)]
 pub struct AppError {
     /// `key_format`, `wrong_key`, `not_crypt15`, `crypt14`, `damaged`, `unsupported`, `merge_check`, `changed`,
     /// `exists`, `io`, `not_found`, `network`, `no_space`, `update`, `cancelled`.
     pub code: &'static str,
-    pub detail: String,
+    pub note: Note,
 }
 
 impl AppError {
-    pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
-        Self { code, detail: detail.into() }
+    pub fn new(code: &'static str, note: Note) -> Self {
+        Self { code, note }
     }
 
-    /// An `io` error: what was being done, and the system's reason (never a key or message text).
-    pub fn io(context: impl std::fmt::Display, e: std::io::Error) -> Self {
-        Self::new("io", format!("{context}: {e}"))
+    /// A message of the `oopz_app` catalog with text values.
+    pub fn of(code: &'static str, message: Msg, values: impl IntoIterator<Item = String>) -> Self {
+        Self::new(code, Note::of(message, values))
+    }
+
+    /// An `io` error: what was being done (a note), and the system's reason, as the system wrote it.
+    pub fn io(doing: Note, e: std::io::Error) -> Self {
+        Self::doing("io", doing, e)
+    }
+
+    /// An `io` error doing something to `path` (oopz's `doing_reading`, `doing_making`, `doing_writing`…).
+    pub fn io_at(doing: ModelMsg, path: &std::path::Path, e: std::io::Error) -> Self {
+        Self::io(Note::of(doing, [path.display().to_string()]), e)
+    }
+
+    /// What was being done (a note) and the reason it failed, in the system's or a library's own words.
+    pub fn doing(code: &'static str, doing: Note, reason: impl std::fmt::Display) -> Self {
+        let values = vec![Value::Note(Box::new(doing)), Value::Text(reason.to_string())];
+        Self::new(code, Note::new(ModelMsg::ErrorIo, values))
+    }
+
+    /// Stopped, as asked.
+    pub fn cancelled() -> Self {
+        Self::new("cancelled", Note::of(ModelMsg::ErrorCancelled, []))
+    }
+}
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.note.fmt(f)
+    }
+}
+
+impl std::error::Error for AppError {}
+
+impl Serialize for AppError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut out = s.serialize_struct("AppError", 2)?;
+        out.serialize_field("code", self.code)?;
+        out.serialize_field("detail", &self.note.to_string())?;
+        out.end()
     }
 }
 
@@ -66,7 +117,7 @@ impl From<oopz::Error> for AppError {
             oopz::Error::Cancelled | oopz::Error::Crypt15(C::Cancelled) => "cancelled",
             _ => "io",
         };
-        Self::new(code, e.to_string())
+        Self::new(code, Note::of(ModelMsg::SystemReason, [e.to_string()]))
     }
 }
 

@@ -1,0 +1,662 @@
+# Every sentence the desktop app's logic (oopz-app) and its shell (apps/desktop/src-tauri) write, by language:
+# compiled by build.rs with msgkinds' generator into `oopz_app::messages::Message` (msgkinds' docs/messages.md has the
+# format and its checks). `name` is stable: notes are stored by it, so never rename or reuse one; add a new one
+# instead. `for = "user"`: shown to people, in every language; `"developer"`: a programming mistake's, English only.
+# `plural = "count"`: a counted message (msgkinds' docs/messages.md "Plurals"; Spanish `many` is `other`'s wording, as
+# counts are digits). Spanish follows apps/desktop/src/lib/i18n/es.ts where it has the same sentence. A value whose
+# gender isn't known (a path, a name) never stands next to a gendered word (docs/messages.md "Agreement").
+
+catalog = "oopz_app"
+languages = ["en", "es"]
+
+# Errors (`AppError`). What was being done is a `doing_…` note, of this catalog or oopz's; the system's reason is a
+# value, as the system wrote it.
+
+[[message]]
+name = "no_backups_in"
+for = "user"
+params = ["path"]
+en = "no WhatsApp backups in {path}"
+es = "no hay copias de WhatsApp en {path}"
+
+[[message]]
+name = "needs_space"
+for = "user"
+params = ["need", "path", "free"]
+en = "needs about {need} MB at {path}, {free} MB free"
+es = "hacen falta aprox. {need} MB en {path} (libre: {free} MB)"
+
+[[message]]
+name = "backup_not_open"
+for = "user"
+params = ["id"]
+en = "backup {id} isn't open; check it again"
+es = "la copia {id} no está abierta; revísala otra vez"
+
+[[message]]
+name = "no_decrypted_file"
+for = "developer"
+params = []
+en = "the backup's decrypted copy has no file"
+
+[[message]]
+name = "index_not_built"
+for = "user"
+params = []
+en = "the search index isn't built yet"
+es = "el índice de búsqueda aún no está creado"
+
+[[message]]
+name = "same_backup"
+for = "user"
+params = []
+en = "the source and the target are the same backup"
+es = "el origen y el destino son la misma copia"
+
+[[message]]
+name = "target_changed"
+for = "user"
+params = []
+en = "the target backup changed since it was checked; check it again"
+es = "la copia de destino cambió desde que se revisó; revísala otra vez"
+
+[[message]]
+name = "written_differs"
+for = "user"
+params = []
+en = "the written backup doesn't read back the same; the disk may be failing"
+es = "la copia escrita no se lee igual; puede que el disco esté fallando"
+
+[[message]]
+name = "too_many_folders"
+for = "user"
+params = ["stem"]
+en = "too many {stem} folders here; choose another folder"
+es = "hay demasiadas carpetas {stem} aquí; elige otra carpeta"
+
+[[message]]
+name = "too_many_files"
+for = "user"
+params = ["stem"]
+en = "too many {stem} files here; choose another folder"
+es = "hay demasiados archivos {stem} aquí; elige otra carpeta"
+
+[[message]]
+name = "no_network"
+for = "user"
+params = []
+en = "this computer isn't on a local network; connect it to the same Wi-Fi as the phone"
+es = "este ordenador no está en una red local; conéctalo al mismo Wi-Fi que el teléfono"
+
+[[message]]
+name = "no_randomness"
+for = "user"
+params = []
+en = "this computer gave no randomness"
+es = "este ordenador no dio datos aleatorios"
+
+[[message]]
+name = "adb_no_phone_named"
+for = "user"
+params = ["serial", "seen"]
+en = "adb doesn't see a phone named {serial} (it sees: {seen})"
+es = "adb no ve ningún teléfono llamado {serial} (ve: {seen})"
+
+[[message]]
+name = "adb_no_phone_named_none"
+for = "user"
+params = ["serial"]
+en = "adb doesn't see a phone named {serial} (it sees none)"
+es = "adb no ve ningún teléfono llamado {serial} (no ve ninguno)"
+
+[[message]]
+name = "adb_no_phone"
+for = "user"
+params = []
+en = "adb sees no phone: connect it with a USB cable and turn on USB debugging, or pair it for wireless debugging"
+es = "adb no ve ningún teléfono: conéctalo con un cable USB y activa la depuración USB, o vincúlalo con la depuración inalámbrica"
+
+[[message]]
+name = "adb_several_phones"
+for = "user"
+params = ["serials"]
+en = "several phones are connected ({serials}): choose one with --serial"
+es = "hay varios teléfonos conectados ({serials}): elige uno con --serial"
+
+[[message]]
+name = "adb_unauthorized"
+for = "user"
+params = []
+en = "the phone hasn't allowed this computer yet: unlock it and tap Allow when it asks about USB debugging"
+es = "el teléfono aún no ha permitido este ordenador: desbloquéalo y toca Permitir cuando pregunte por la depuración USB"
+
+[[message]]
+name = "adb_offline"
+for = "user"
+params = []
+en = "the phone is offline for adb: unplug it and plug it in again, or turn USB debugging off and on"
+es = "el teléfono aparece sin conexión para adb: desenchúfalo y vuelve a enchufarlo, o desactiva y activa la depuración USB"
+
+[[message]]
+name = "adb_no_permissions"
+for = "user"
+params = []
+en = "this computer doesn't let adb use the phone (on Linux, add a udev rule for Android phones)"
+es = "este ordenador no deja a adb usar el teléfono (en Linux, añade una regla udev para teléfonos Android)"
+
+[[message]]
+name = "adb_state"
+for = "user"
+params = ["state"]
+en = "the phone's adb state is {state}"
+es = "el estado adb del teléfono es {state}"
+
+[[message]]
+name = "no_adb"
+for = "user"
+params = ["url"]
+en = "adb isn't on this computer: the desktop app can download it (Add a backup › With USB or wireless debugging), or get Android's platform-tools from {url} and put its folder on PATH (or set ANDROID_HOME)"
+es = "adb no está en este ordenador: la app de escritorio puede descargarlo (Añade una copia › Con depuración USB o inalámbrica (adb)), o descarga las platform-tools de Android de {url} y pon su carpeta en el PATH (o define ANDROID_HOME)"
+
+[[message]]
+name = "adb_pairing_code"
+for = "user"
+params = []
+en = "the pairing code is the 6 digits on the phone's pairing screen"
+es = "el código de vinculación son los 6 dígitos de la pantalla de vinculación del teléfono"
+
+[[message]]
+name = "adb_pairing_failed"
+for = "user"
+params = ["said"]
+en = "pairing didn't work: {said}"
+es = "la vinculación no funcionó: {said}"
+
+[[message]]
+name = "adb_connect_check"
+for = "user"
+params = ["error"]
+en = "{error}: check the address and port, and that the phone is on this Wi-Fi"
+es = "{error}: revisa la dirección y el puerto, y que el teléfono esté en este Wi-Fi"
+
+[[message]]
+name = "adb_connect_failed"
+for = "user"
+params = ["said"]
+en = "connecting didn't work: {said}"
+es = "la conexión no funcionó: {said}"
+
+[[message]]
+name = "adb_not_host_port"
+for = "user"
+params = ["given"]
+en = "not an address and port like 192.168.1.20:37099: {given}"
+es = "no es una dirección y un puerto como 192.168.1.20:37099: {given}"
+
+[[message]]
+name = "adb_said_nothing"
+for = "user"
+params = []
+en = "adb said nothing"
+es = "adb no dijo nada"
+
+[[message]]
+name = "adb_timeout"
+for = "user"
+params = ["seconds"]
+en = "adb didn't answer within {seconds} s"
+es = "adb no respondió en {seconds} s"
+
+[[message]]
+name = "adb_said"
+for = "user"
+params = ["said"]
+en = "adb: {said}"
+es = "adb: {said}"
+
+[[message]]
+name = "phone_databases_empty"
+for = "user"
+params = ["folder"]
+en = "{folder}/Databases on the phone is empty: make a backup in WhatsApp first (Settings › Chats › Chat backup)"
+es = "la carpeta {folder}/Databases del teléfono está vacía: haz primero una copia en WhatsApp (Ajustes › Chats › Copia de seguridad)"
+
+[[message]]
+name = "phone_no_databases"
+for = "user"
+params = ["looked"]
+en = "no WhatsApp Databases folder on the phone (looked in {looked})"
+es = "no hay carpeta Databases de WhatsApp en el teléfono (se buscó en {looked})"
+
+[[message]]
+name = "phone_no_media"
+for = "user"
+params = ["folder"]
+en = "no Media folder on the phone in {folder}"
+es = "no hay carpeta Media en el teléfono, en {folder}"
+
+[[message]]
+name = "phone_listing_failed"
+for = "user"
+params = ["said"]
+en = "couldn't list the phone's folder: {said}"
+es = "no se pudo listar la carpeta del teléfono: {said}"
+
+[[message]]
+name = "phone_odd_path"
+for = "user"
+params = ["path"]
+en = "the phone listed an odd path: {path}"
+es = "el teléfono listó una ruta extraña: {path}"
+
+[[message]]
+name = "arrived_incomplete"
+for = "user"
+params = ["path", "got", "bytes"]
+plural = "bytes"
+en_one = "{path} arrived with {got} of its {bytes} byte"
+en_other = "{path} arrived with {got} of its {bytes} bytes"
+es_one = "{path}: llegó con {got} de su {bytes} byte"
+es_many = "{path}: llegó con {got} de sus {bytes} bytes"
+es_other = "{path}: llegó con {got} de sus {bytes} bytes"
+
+# What was being done, the first value of an error (oopz's catalog has reading, making, writing a path).
+
+[[message]]
+name = "doing_receive_page"
+for = "user"
+params = []
+en = "opening the receive page"
+es = "abriendo la página de recepción"
+
+[[message]]
+name = "doing_qr_code"
+for = "user"
+params = []
+en = "making the QR code"
+es = "creando el código QR"
+
+[[message]]
+name = "doing_starting"
+for = "user"
+params = ["path"]
+en = "starting {path}"
+es = "iniciando {path}"
+
+[[message]]
+name = "doing_running_adb"
+for = "user"
+params = []
+en = "running adb"
+es = "ejecutando adb"
+
+[[message]]
+name = "doing_finishing"
+for = "user"
+params = ["path"]
+en = "finishing {path}"
+es = "terminando {path}"
+
+[[message]]
+name = "doing_search_index"
+for = "user"
+params = []
+en = "creating the search index"
+es = "creando el índice de búsqueda"
+
+[[message]]
+name = "doing_thumbnail"
+for = "user"
+params = []
+en = "making a thumbnail"
+es = "creando una miniatura"
+
+# The desktop shell (apps/desktop/src-tauri): its errors.
+
+[[message]]
+name = "backup_needs_space"
+for = "user"
+params = ["free", "need"]
+en = "{free} MB free; this backup needs about {need} MB"
+es = "libre: {free} MB; esta copia necesita aprox. {need} MB"
+
+[[message]]
+name = "not_file_reference"
+for = "developer"
+params = []
+en = "not a file reference"
+
+[[message]]
+name = "pick_backup"
+for = "user"
+params = []
+en = "pick the backup file, and the contacts file if you want names"
+es = "elige el archivo de la copia, y el de contactos si quieres nombres"
+
+[[message]]
+name = "picked_empty"
+for = "user"
+params = []
+en = "the picked file is empty"
+es = "el archivo elegido está vacío"
+
+[[message]]
+name = "not_ours_folder"
+for = "user"
+params = []
+en = "not a folder oopz made"
+es = "no es una carpeta creada por oopz"
+
+[[message]]
+name = "not_ours_file"
+for = "user"
+params = []
+en = "not a file oopz made"
+es = "no es un archivo creado por oopz"
+
+[[message]]
+name = "copy_running"
+for = "user"
+params = []
+en = "a copy is running already"
+es = "ya hay una copia en curso"
+
+[[message]]
+name = "no_link"
+for = "developer"
+params = ["which"]
+en = "no link named {which}"
+
+[[message]]
+name = "no_update"
+for = "user"
+params = []
+en = "no update to install"
+es = "no hay ninguna actualización que instalar"
+
+[[message]]
+name = "no_export_format"
+for = "developer"
+params = ["format"]
+en = "no export format `{format}`"
+
+[[message]]
+name = "no_pdf"
+for = "user"
+params = []
+en = "PDF exports aren't in this build"
+es = "las exportaciones PDF no están en esta versión"
+
+[[message]]
+name = "home_unset"
+for = "user"
+params = []
+en = "HOME isn't set"
+es = "HOME no está definido"
+
+[[message]]
+name = "no_command_to_install"
+for = "user"
+params = []
+en = "this copy of oopz has no command to install"
+es = "esta copia de oopz no tiene un comando que instalar"
+
+[[message]]
+name = "no_command_to_remove"
+for = "user"
+params = []
+en = "this copy of oopz has no command to remove"
+es = "esta copia de oopz no tiene un comando que quitar"
+
+[[message]]
+name = "windows_path"
+for = "user"
+params = []
+en = "the Windows installers put oopz on PATH"
+es = "los instaladores de Windows ya ponen oopz en el PATH"
+
+[[message]]
+name = "needs_administrator"
+for = "user"
+params = ["path"]
+en = "removing {path} needs an administrator"
+es = "quitar {path} requiere un administrador"
+
+[[message]]
+name = "no_data_folder"
+for = "user"
+params = []
+en = "no folder for oopz's data on this computer"
+es = "no hay carpeta para los datos de oopz en este ordenador"
+
+[[message]]
+name = "tools_licence_first"
+for = "user"
+params = []
+en = "look at Google's licence first"
+es = "mira primero la licencia de Google"
+
+[[message]]
+name = "tools_index_none"
+for = "user"
+params = []
+en = "Google's index has no platform-tools"
+es = "el índice de Google no tiene platform-tools"
+
+[[message]]
+name = "tools_index_none_for"
+for = "user"
+params = ["system"]
+en = "Google's index has no platform-tools for {system}"
+es = "el índice de Google no tiene platform-tools para {system}"
+
+[[message]]
+name = "tools_index_no_archive"
+for = "user"
+params = []
+en = "no archive name in Google's index"
+es = "el índice de Google no da el nombre del archivo comprimido"
+
+[[message]]
+name = "tools_index_no_size"
+for = "user"
+params = []
+en = "no archive size in Google's index"
+es = "el índice de Google no da el tamaño del archivo comprimido"
+
+[[message]]
+name = "tools_index_no_checksum"
+for = "user"
+params = []
+en = "no checksum in Google's index"
+es = "el índice de Google no da la suma de comprobación"
+
+[[message]]
+name = "tools_index_odd_name"
+for = "user"
+params = ["name"]
+en = "unexpected archive name in Google's index: {name}"
+es = "nombre inesperado del archivo comprimido en el índice de Google: {name}"
+
+[[message]]
+name = "tools_index_odd_size"
+for = "user"
+params = []
+en = "unexpected size or checksum in Google's index"
+es = "tamaño o suma de comprobación inesperados en el índice de Google"
+
+[[message]]
+name = "tools_index_no_licence"
+for = "user"
+params = []
+en = "no licence in Google's index"
+es = "el índice de Google no da la licencia"
+
+[[message]]
+name = "tools_index_lacks_licence"
+for = "user"
+params = ["licence"]
+en = "Google's index doesn't include the licence {licence}"
+es = "el índice de Google no incluye la licencia {licence}"
+
+[[message]]
+name = "tools_index_large"
+for = "user"
+params = []
+en = "Google's index is unexpectedly large"
+es = "el índice de Google es inesperadamente grande"
+
+[[message]]
+name = "tools_download_bigger"
+for = "user"
+params = []
+en = "the download is bigger than Google's index says"
+es = "la descarga es más grande de lo que dice el índice de Google"
+
+[[message]]
+name = "tools_download_mismatch"
+for = "user"
+params = []
+en = "the download doesn't match Google's index (size or SHA-1): nothing was kept"
+es = "la descarga no coincide con el índice de Google (tamaño o SHA-1): no se guardó nada"
+
+[[message]]
+name = "tools_no_adb"
+for = "user"
+params = []
+en = "the archive has no adb in it"
+es = "el archivo comprimido no contiene adb"
+
+[[message]]
+name = "tools_unsafe_name"
+for = "user"
+params = ["name"]
+en = "unsafe name in the archive: {name}"
+es = "nombre inseguro en el archivo comprimido: {name}"
+
+# What the shell was doing, the first value of an error.
+
+[[message]]
+name = "doing_platform_tools"
+for = "user"
+params = []
+en = "Android's platform-tools"
+es = "platform-tools de Android"
+
+[[message]]
+name = "doing_keeping_library"
+for = "user"
+params = []
+en = "keeping the library"
+es = "conservando la biblioteca"
+
+[[message]]
+name = "doing_moving_library"
+for = "user"
+params = []
+en = "moving the library"
+es = "moviendo la biblioteca"
+
+[[message]]
+name = "doing_opening_picked"
+for = "user"
+params = []
+en = "opening the picked file"
+es = "abriendo el archivo elegido"
+
+[[message]]
+name = "doing_copying_picked"
+for = "user"
+params = []
+en = "copying the picked file"
+es = "copiando el archivo elegido"
+
+[[message]]
+name = "doing_private_copy"
+for = "user"
+params = []
+en = "making a private copy"
+es = "creando una copia privada"
+
+[[message]]
+name = "doing_private_folder"
+for = "user"
+params = []
+en = "making a private folder"
+es = "creando una carpeta privada"
+
+[[message]]
+name = "doing_contacts_file"
+for = "user"
+params = []
+en = "reading the contacts file"
+es = "leyendo el archivo de contactos"
+
+[[message]]
+name = "doing_export_options"
+for = "developer"
+params = []
+en = "reading the export options"
+
+[[message]]
+name = "doing_copying_command"
+for = "user"
+params = []
+en = "copying the oopz command"
+es = "copiando el comando oopz"
+
+[[message]]
+name = "doing_removing_command"
+for = "user"
+params = []
+en = "removing the oopz command"
+es = "quitando el comando oopz"
+
+[[message]]
+name = "doing_linking_command"
+for = "user"
+params = []
+en = "linking the oopz command"
+es = "enlazando el comando oopz"
+
+[[message]]
+name = "doing_app_cache"
+for = "user"
+params = []
+en = "creating the app's cache"
+es = "creando la caché de la app"
+
+[[message]]
+name = "doing_opening_folder"
+for = "user"
+params = []
+en = "opening the folder"
+es = "abriendo la carpeta"
+
+[[message]]
+name = "doing_opening_save"
+for = "user"
+params = []
+en = "opening where to save"
+es = "abriendo dónde guardar"
+
+[[message]]
+name = "doing_reading_result"
+for = "user"
+params = []
+en = "reading the result"
+es = "leyendo el resultado"
+
+[[message]]
+name = "doing_saving_result"
+for = "user"
+params = []
+en = "saving the result"
+es = "guardando el resultado"
+
+[[message]]
+name = "doing_opening_browser"
+for = "user"
+params = []
+en = "opening the browser"
+es = "abriendo el navegador"

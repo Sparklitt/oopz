@@ -13,7 +13,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::index::{BuildInfo, Filter, Hit, Index, Line, Stats};
+use crate::messages::Message as Msg;
 use crate::{AppError, Result};
+use msgkinds::Note;
+use oopz_model::messages::Message as ModelMsg;
 
 /// A file in the folder the person picked, and what kind of backup it looks like.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -37,7 +40,7 @@ pub fn find_backups(path: &Path) -> Result<Vec<BackupFile>> {
         for dir in [path.to_path_buf(), path.join("Databases")] {
             let Ok(entries) = fs::read_dir(&dir) else { continue };
             for entry in entries {
-                let p = entry.map_err(|e| AppError::io(format!("reading {}", dir.display()), e))?.path();
+                let p = entry.map_err(|e| AppError::io_at(ModelMsg::DoingReading, &dir, e))?.path();
                 let other = oopz::is_other_whatsapp_backup(&p.file_name().unwrap_or_default().to_string_lossy());
                 if p.is_file() && !other {
                     candidates.push(p);
@@ -55,11 +58,11 @@ pub fn find_backups(path: &Path) -> Result<Vec<BackupFile>> {
             Some("crypt12") => "crypt12",
             _ => continue,
         };
-        let bytes = fs::metadata(&p).map_err(|e| AppError::io(format!("reading {name}"), e))?.len();
+        let bytes = fs::metadata(&p).map_err(|e| AppError::io_at(ModelMsg::DoingReading, &p, e))?.len();
         found.push(BackupFile { path: p, name, bytes, kind });
     }
     if found.is_empty() {
-        return Err(AppError::new("not_found", format!("no WhatsApp backups in {}", path.display())));
+        return Err(AppError::of("not_found", Msg::NoBackupsIn, [path.display().to_string()]));
     }
     // `msgstore.db.crypt15` is the newest; `msgstore-YYYY-MM-DD.1.db.crypt15` sort by their date, newest first.
     found.sort_by(|a, b| {
@@ -77,7 +80,7 @@ fn looks_like_crypt15(path: &Path) -> bool {
 /// Bytes free for this user on the disk holding `path` (or its nearest existing parent).
 pub fn free_space(path: &Path) -> Result<u64> {
     let existing = path.ancestors().find(|p| p.exists()).unwrap_or(path);
-    fs4::available_space(existing).map_err(|e| AppError::io(format!("reading the free space at {}", path.display()), e))
+    fs4::available_space(existing).map_err(|e| AppError::io_at(ModelMsg::DoingFreeSpaceIn, path, e))
 }
 
 /// Fails with `no_space`, writing nothing, when `need` bytes don't fit at `path`.
@@ -85,10 +88,8 @@ fn ensure_space(path: &Path, need: u64) -> Result<()> {
     let free = free_space(path)?;
     if free < need {
         let mb = |b: u64| b.div_ceil(1_000_000);
-        return Err(AppError::new(
-            "no_space",
-            format!("needs about {} MB at {}, {} MB free", mb(need), path.display(), mb(free)),
-        ));
+        let values = [mb(need).to_string(), path.display().to_string(), mb(free).to_string()];
+        return Err(AppError::of("no_space", Msg::NeedsSpace, values));
     }
     Ok(())
 }
@@ -100,12 +101,12 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 
 /// [`sha256_file`], calling `progress(bytes read)` after each megabyte.
 fn sha256_file_with(path: &Path, progress: &mut dyn FnMut(u64) -> bool) -> Result<String> {
-    let mut file = fs::File::open(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
+    let mut file = fs::File::open(path).map_err(|e| AppError::io_at(ModelMsg::DoingReading, path, e))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
     let mut done = 0;
     loop {
-        let n = file.read(&mut buf).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?;
+        let n = file.read(&mut buf).map_err(|e| AppError::io_at(ModelMsg::DoingReading, path, e))?;
         if n == 0 {
             break;
         }
@@ -316,7 +317,7 @@ impl Session {
         progress: &mut dyn FnMut(u64, u64) -> bool,
     ) -> Result<Summary> {
         let key = Key::from_hex(key_text)?;
-        let bytes = fs::metadata(path).map_err(|e| AppError::io(format!("reading {}", path.display()), e))?.len();
+        let bytes = fs::metadata(path).map_err(|e| AppError::io_at(ModelMsg::DoingReading, path, e))?.len();
         // The decrypted database is larger than the compressed backup, and the search index comes next to it: about
         // four times the backup in all (an estimate; WhatsApp's databases compress about 2-3 times).
         ensure_space(tmp, 4 * bytes)?;
@@ -410,7 +411,7 @@ impl Session {
             .iter()
             .find(|(i, _)| *i == id)
             .map(|(_, c)| c)
-            .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))
+            .ok_or_else(|| AppError::of("not_found", Msg::BackupNotOpen, [id.to_string()]))
     }
 
     /// Builds the search index of a checked backup in `tmp`, once; later calls return the first build's numbers.
@@ -441,7 +442,7 @@ impl Session {
     /// meanwhile): [`IndexJob::run`], then [`Session::keep_index`].
     pub fn index_job(&self, id: u32) -> Result<IndexJob> {
         let path = self.get(id)?.backup.db().path().map(PathBuf::from);
-        let source = path.ok_or_else(|| AppError::new("not_found", "the backup's decrypted copy has no file"))?;
+        let source = path.ok_or_else(|| AppError::of("not_found", Msg::NoDecryptedFile, []))?;
         let checked = self.get(id)?;
         Ok(IndexJob { source, version: version_of(&checked.path) })
     }
@@ -454,7 +455,7 @@ impl Session {
             .iter_mut()
             .find(|(i, _)| *i == id)
             .map(|(_, c)| c)
-            .ok_or_else(|| AppError::new("not_found", format!("backup {id} isn't open; check it again")))?;
+            .ok_or_else(|| AppError::of("not_found", Msg::BackupNotOpen, [id.to_string()]))?;
         Ok(checked.index.get_or_insert(index).info)
     }
 
@@ -486,7 +487,7 @@ impl Session {
     }
 
     fn index(&self, id: u32) -> Result<&Index> {
-        self.get(id)?.index.as_ref().ok_or_else(|| AppError::new("not_found", "the search index isn't built yet"))
+        self.get(id)?.index.as_ref().ok_or_else(|| AppError::of("not_found", Msg::IndexNotBuilt, []))
     }
 
     pub fn search(&self, id: u32, query: &str, filter: &Filter, limit: u32) -> Result<Vec<Hit>> {
@@ -546,7 +547,7 @@ impl Session {
         let mut out = std::io::Cursor::new(Vec::new());
         image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
             .encode_image(&small)
-            .map_err(|e| AppError::new("io", format!("making a thumbnail: {e}")))?;
+            .map_err(|e| AppError::doing("io", Note::of(Msg::DoingThumbnail, []), e))?;
         Ok(Some(out.into_inner()))
     }
 
@@ -607,15 +608,14 @@ impl Session {
     /// originals are only read, and the target's original is hashed again afterwards.
     pub fn merge(&self, req: &MergeRequest<'_>) -> Result<MergeOutcome> {
         if req.source == req.target {
-            return Err(AppError::new("unsupported", "the source and the target are the same backup"));
+            return Err(AppError::of("unsupported", Msg::SameBackup, []));
         }
         let source = self.get(req.source)?;
         let target = self.get(req.target)?;
         let target_key = Key::from_hex(req.target_key)?;
-        let original =
-            fs::read(&target.path).map_err(|e| AppError::io(format!("reading {}", target.path.display()), e))?;
+        let original = fs::read(&target.path).map_err(|e| AppError::io_at(ModelMsg::DoingReading, &target.path, e))?;
         if hex::encode(Sha256::digest(&original)) != target.summary.sha256 {
-            return Err(AppError::new("changed", "the target backup changed since it was checked; check it again"));
+            return Err(AppError::of("changed", Msg::TargetChanged, []));
         }
         let merged = ChatMerge {
             source: &source.backup,
@@ -640,17 +640,17 @@ impl Session {
         ensure_space(req.out_parent, merged.backup.len() as u64 + media_bytes)?;
         let folder = new_folder(req.out_parent)?;
         let databases = folder.join("Databases");
-        fs::create_dir(&databases).map_err(|e| AppError::io(format!("creating {}", databases.display()), e))?;
+        fs::create_dir(&databases).map_err(|e| AppError::io_at(ModelMsg::DoingMaking, &databases, e))?;
         let backup = databases.join("msgstore.db.crypt15");
         fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&backup)
             .and_then(|mut f| std::io::Write::write_all(&mut f, &merged.backup))
-            .map_err(|e| AppError::io(format!("writing {}", backup.display()), e))?;
+            .map_err(|e| AppError::io_at(ModelMsg::DoingWriting, &backup, e))?;
         let sha256 = sha256_file(&backup)?;
         if sha256 != hex::encode(Sha256::digest(&merged.backup)) {
-            return Err(AppError::new("io", "the written backup doesn't read back the same; the disk may be failing"));
+            return Err(AppError::of("io", Msg::WrittenDiffers, []));
         }
         let (mut media_copied, mut media_missing) = (None, None);
         if let Some(media) = req.media {
@@ -720,10 +720,10 @@ fn new_folder(parent: &Path) -> Result<PathBuf> {
         match fs::create_dir(&folder) {
             Ok(()) => return Ok(folder),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(AppError::io(format!("creating {}", folder.display()), e)),
+            Err(e) => return Err(AppError::io_at(ModelMsg::DoingMaking, &folder, e)),
         }
     }
-    Err(AppError::new("exists", "too many oopz-result folders here; choose another folder"))
+    Err(AppError::of("exists", Msg::TooManyFolders, ["oopz-result".to_owned()]))
 }
 
 #[cfg(test)]
@@ -859,8 +859,8 @@ mod tests {
         let bytes = fs::read(&fx.backup).unwrap();
         fs::write(&cut, &bytes[..bytes.len() / 2]).unwrap();
         let e = err(&mut session, &cut, KEY_HEX);
-        assert_eq!(e.code, "wrong_key", "a cut-off backup fails like a wrong key: {}", e.detail);
-        assert!(!e.detail.contains(KEY_HEX));
+        assert_eq!(e.code, "wrong_key", "a cut-off backup fails like a wrong key: {e}");
+        assert!(!e.to_string().contains(KEY_HEX));
         assert!(session.summaries().is_empty());
     }
 

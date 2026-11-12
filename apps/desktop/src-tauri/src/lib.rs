@@ -6,8 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
+use msgkinds::Note;
 use oopz_app::adb::{self, Adb, Device, PullInfo, PullStatus, Puller, Wanted};
 use oopz_app::index::{BuildInfo, Hit, Line, Stats};
+use oopz_app::messages::Message as Msg;
 use oopz_app::receive::{self, Receiver};
 use oopz_app::session::{
     self, BackupFile, Fact, MergeOutcome, MergeRequest, Missing, Session, Summary, TableInfo, TypeInfo,
@@ -57,11 +59,11 @@ impl AppState {
     pub fn new(cache: &Path) -> Result<Self, AppError> {
         let dir = cache.join("decrypted");
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).map_err(|e| AppError::new("io", format!("creating the app's cache: {e}")))?;
+        std::fs::create_dir_all(&dir).map_err(|e| AppError::io(Note::of(Msg::DoingAppCache, []), e))?;
         let tmp = tempfile::Builder::new()
             .prefix("session-")
             .tempdir_in(&dir)
-            .map_err(|e| AppError::new("io", format!("creating the app's cache: {e}")))?;
+            .map_err(|e| AppError::io(Note::of(Msg::DoingAppCache, []), e))?;
         Ok(Self {
             session: Mutex::default(),
             receiver: Mutex::default(),
@@ -146,7 +148,7 @@ impl AppState {
         if lock(&self.made).iter().any(|m| m == folder) {
             Ok(())
         } else {
-            Err(AppError::new("io", "not a folder oopz made".to_owned()))
+            Err(AppError::of("io", Msg::NotOursFolder, []))
         }
     }
 
@@ -190,7 +192,7 @@ impl AppState {
     pub fn pull_start(&self, adb: &Adb, parent: &Path, serial: &str, want: &Wanted<'_>) -> Result<PullInfo, AppError> {
         let mut slot = lock(&self.puller);
         if slot.as_ref().is_some_and(|p| p.status().running) {
-            return Err(AppError::new("exists", "a copy is running already"));
+            return Err(AppError::of("exists", Msg::CopyRunning, []));
         }
         let devices = adb.devices()?;
         let device = adb::choose(&devices, Some(serial))?;
@@ -323,7 +325,7 @@ fn export_page(
 fn show_folder(state: State<'_, AppState>, folder: PathBuf) -> Result<(), AppError> {
     state.made(&folder)?;
     // `open` tries each system's launchers in turn (on Linux xdg-open, then gio, kde-open… and wslview).
-    open::that_detached(&folder).map_err(|e| AppError::new("io", format!("opening the folder: {e}")))
+    open::that_detached(&folder).map_err(|e| AppError::io(Note::of(Msg::DoingOpeningFolder, []), e))
 }
 
 /// Copies the picked files (Android `content://` references, or paths) into one new private folder (decision 0012,
@@ -337,19 +339,19 @@ fn import_backup(
 ) -> Result<Vec<PathBuf>, AppError> {
     use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
     if uris.is_empty() || uris.len() > 8 {
-        return Err(AppError::new("not_found", "pick the backup file, and the contacts file if you want names"));
+        return Err(AppError::of("not_found", Msg::PickBackup, []));
     }
     let dir = tempfile::Builder::new()
         .prefix("imported-")
         .tempdir_in(state.tmp.path())
-        .map_err(|e| AppError::io("making a private copy", e))?;
+        .map_err(|e| AppError::io(Note::of(Msg::DoingPrivateCopy, []), e))?;
     let mut copies = Vec::new();
     for (n, uri) in uris.iter().enumerate() {
-        let picked: FilePath = uri.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+        let picked: FilePath = uri.parse().map_err(|_| AppError::of("not_found", Msg::NotFileReference, []))?;
         let mut input = app
             .fs()
             .open(picked, OpenOptions::new().read(true).to_owned())
-            .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
+            .map_err(|e| AppError::doing("io", Note::of(Msg::DoingOpeningPicked, []), e))?;
         // Some providers don't know a file's size: 0, then the copy itself finds out whether it fits.
         let bytes = input.metadata().map(|m| m.len()).unwrap_or(0);
         let to = dir.path().join(format!("picked-{}.crypt15", n + 1));
@@ -360,7 +362,7 @@ fn import_backup(
     let mut paths: Vec<PathBuf> = copies.into_iter().map(|(_, p)| p).collect();
     // The backup gets WhatsApp's name, so it reads as one everywhere (lists, the key screen, the merge).
     let backup = dir.path().join("msgstore.db.crypt15");
-    std::fs::rename(&paths[0], &backup).map_err(|e| AppError::io("making a private copy", e))?;
+    std::fs::rename(&paths[0], &backup).map_err(|e| AppError::io(Note::of(Msg::DoingPrivateCopy, []), e))?;
     paths[0] = backup;
     // Kept from here on: the private folder removes it.
     let _ = dir.keep();
@@ -372,18 +374,19 @@ fn import_backup(
 fn copy_in(input: &mut impl std::io::Read, bytes: u64, to: &Path, free: u64) -> Result<(), AppError> {
     let need = bytes.saturating_mul(5);
     if free < need {
-        return Err(AppError::new(
+        return Err(AppError::of(
             "no_space",
-            format!("{} MB free; this backup needs about {} MB", free >> 20, need >> 20),
+            Msg::BackupNeedsSpace,
+            [(free >> 20).to_string(), (need >> 20).to_string()],
         ));
     }
     let result = (|| {
-        let mut out = std::fs::File::create(to).map_err(|e| AppError::io("making a private copy", e))?;
-        let n = std::io::copy(input, &mut out).map_err(|e| AppError::io("copying the picked file", e))?;
+        let mut out = std::fs::File::create(to).map_err(|e| AppError::io(Note::of(Msg::DoingPrivateCopy, []), e))?;
+        let n = std::io::copy(input, &mut out).map_err(|e| AppError::io(Note::of(Msg::DoingCopyingPicked, []), e))?;
         if n == 0 {
-            return Err(AppError::new("not_crypt15", "the picked file is empty"));
+            return Err(AppError::of("not_crypt15", Msg::PickedEmpty, []));
         }
-        out.sync_all().map_err(|e| AppError::io("copying the picked file", e))
+        out.sync_all().map_err(|e| AppError::io(Note::of(Msg::DoingCopyingPicked, []), e))
     })();
     if result.is_err() {
         let _ = std::fs::remove_file(to);
@@ -397,20 +400,20 @@ fn copy_in(input: &mut impl std::io::Read, bytes: u64, to: &Path, free: u64) -> 
 fn save_result(app: tauri::AppHandle, state: State<'_, AppState>, from: PathBuf, to: String) -> Result<u64, AppError> {
     use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
     let from = ours(&lock(&state.made), &from)?;
-    let target: FilePath = to.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+    let target: FilePath = to.parse().map_err(|_| AppError::of("not_found", Msg::NotFileReference, []))?;
     let mut out = app
         .fs()
         .open(target, OpenOptions::new().write(true).create(true).truncate(true).to_owned())
-        .map_err(|e| AppError::new("io", format!("opening where to save: {e}")))?;
-    let mut input = std::fs::File::open(&from).map_err(|e| AppError::io("reading the result", e))?;
-    let n = std::io::copy(&mut input, &mut out).map_err(|e| AppError::io("saving the result", e))?;
-    out.sync_all().map_err(|e| AppError::io("saving the result", e))?;
+        .map_err(|e| AppError::doing("io", Note::of(Msg::DoingOpeningSave, []), e))?;
+    let mut input = std::fs::File::open(&from).map_err(|e| AppError::io(Note::of(Msg::DoingReadingResult, []), e))?;
+    let n = std::io::copy(&mut input, &mut out).map_err(|e| AppError::io(Note::of(Msg::DoingSavingResult, []), e))?;
+    out.sync_all().map_err(|e| AppError::io(Note::of(Msg::DoingSavingResult, []), e))?;
     Ok(n)
 }
 
 /// `from`, resolved (links followed, `..` gone), when it's a file inside a folder this run made.
 fn ours(made: &[PathBuf], from: &Path) -> Result<PathBuf, AppError> {
-    let refused = || AppError::new("io", "not a file oopz made");
+    let refused = || AppError::of("io", Msg::NotOursFile, []);
     let from = from.canonicalize().map_err(|_| refused())?;
     let inside = made.iter().filter_map(|m| m.canonicalize().ok()).any(|m| from.starts_with(m));
     if inside && from.is_file() { Ok(from) } else { Err(refused()) }
@@ -428,7 +431,9 @@ fn open_link(app: tauri::AppHandle, which: String) -> Result<(), AppError> {
     let url = link_url(&which)?;
     // The opener plugin, from Rust only: it works on Android too, where `open` can't.
     use tauri_plugin_opener::OpenerExt;
-    app.opener().open_url(url, None::<&str>).map_err(|e| AppError::new("io", format!("opening the browser: {e}")))
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| AppError::doing("io", Note::of(Msg::DoingOpeningBrowser, []), e))
 }
 
 /// The app's own pages, by name.
@@ -439,7 +444,7 @@ fn link_url(which: &str) -> Result<&'static str, AppError> {
         "security" => "https://github.com/Sparklitt/oopz/security/advisories/new",
         "licences" => "https://github.com/Sparklitt/oopz/blob/main/LICENSE",
         "releases" => "https://github.com/Sparklitt/oopz/releases",
-        _ => return Err(AppError::new("not_found", format!("no link named {which}"))),
+        _ => return Err(AppError::of("not_found", Msg::NoLink, [which.to_owned()])),
     })
 }
 
@@ -609,7 +614,7 @@ mod update {
     }
 
     fn failed(e: tauri_plugin_updater::Error) -> AppError {
-        AppError::new("update", e.to_string())
+        AppError::new("update", msgkinds::Note::of(oopz_model::messages::Message::SystemReason, [e.to_string()]))
     }
 
     #[tauri::command]
@@ -648,7 +653,8 @@ mod update {
         pending: State<'_, Pending>,
         progress: Channel<Step>,
     ) -> Result<(), AppError> {
-        let update = lock(&pending.0).take().ok_or_else(|| AppError::new("update", "no update to install"))?;
+        let update =
+            lock(&pending.0).take().ok_or_else(|| AppError::of("update", oopz_app::messages::Message::NoUpdate, []))?;
         // A download isn't cancelled: the flag stays false.
         let never = std::sync::atomic::AtomicBool::new(false);
         let mut report = self::progress(&progress, &never, |_, _| "download");

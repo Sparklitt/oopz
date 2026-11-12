@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
+use msgkinds::Note;
 use oopz_app::AppError;
+use oopz_app::messages::Message as Msg;
 use oopz_core::{
     ContactRow, ConversationRow, Filter, Hit, Library, MessageRow, Order, PersonRow, SavedSelection, Selection,
     SourceRow, Stats, Suggestion,
@@ -26,7 +28,7 @@ const PAGE_MAX: u32 = 500;
 const WHATSAPP_BACKUP: &str = "whatsapp-android";
 
 fn fail(e: oopz_core::Error) -> AppError {
-    AppError::new(e.code, e.note.to_string())
+    AppError::new(e.code, e.note)
 }
 
 /// The library, open or not yet, and where it lives.
@@ -145,9 +147,11 @@ impl Lib {
                 }
                 if keep {
                     if let Some(parent) = self.marker.parent() {
-                        std::fs::create_dir_all(parent).map_err(|e| AppError::io("keeping the library", e))?;
+                        std::fs::create_dir_all(parent)
+                            .map_err(|e| AppError::io(Note::of(Msg::DoingKeepingLibrary, []), e))?;
                     }
-                    std::fs::write(&self.marker, b"").map_err(|e| AppError::io("keeping the library", e))?;
+                    std::fs::write(&self.marker, b"")
+                        .map_err(|e| AppError::io(Note::of(Msg::DoingKeepingLibrary, []), e))?;
                 } else {
                     let _ = std::fs::remove_file(&self.marker);
                 }
@@ -195,16 +199,16 @@ fn size_of(dir: &Path) -> u64 {
 fn move_dir(from: &Path, to: &Path) -> Result<(), AppError> {
     let _ = std::fs::remove_dir_all(to);
     if let Some(parent) = to.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| AppError::io("moving the library", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| AppError::io(Note::of(Msg::DoingMovingLibrary, []), e))?;
     }
     if std::fs::rename(from, to).is_ok() {
         return Ok(());
     }
     if let Err(e) = copy_dir(from, to) {
         let _ = std::fs::remove_dir_all(to);
-        return Err(AppError::io("moving the library", e));
+        return Err(AppError::io(Note::of(Msg::DoingMovingLibrary, []), e));
     }
-    std::fs::remove_dir_all(from).map_err(|e| AppError::io("moving the library", e))
+    std::fs::remove_dir_all(from).map_err(|e| AppError::io(Note::of(Msg::DoingMovingLibrary, []), e))
 }
 
 fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -234,26 +238,26 @@ fn picked_path(
     if !picked.starts_with("content://") {
         return Ok((PathBuf::from(picked), None));
     }
-    let uri: FilePath = picked.parse().map_err(|_| AppError::new("not_found", "not a file reference"))?;
+    let uri: FilePath = picked.parse().map_err(|_| AppError::of("not_found", Msg::NotFileReference, []))?;
     let mut input = app
         .fs()
         .open(uri, OpenOptions::new().read(true).to_owned())
-        .map_err(|e| AppError::new("io", format!("opening the picked file: {e}")))?;
+        .map_err(|e| AppError::doing("io", Note::of(Msg::DoingOpeningPicked, []), e))?;
     let bytes = input.metadata().map(|m| m.len()).unwrap_or(0);
     let dir = tempfile::Builder::new()
         .prefix("picked-")
         .tempdir_in(state.tmp.path())
-        .map_err(|e| AppError::io("making a private copy", e))?;
+        .map_err(|e| AppError::io(Note::of(Msg::DoingPrivateCopy, []), e))?;
     let copy = dir.path().join("picked");
     super::copy_in(&mut input, bytes, &copy, oopz_app::session::free_space(state.tmp.path())?)
-        .map_err(|e| if e.code == "not_crypt15" { AppError::new("unsupported_file", e.detail) } else { e })?;
+        .map_err(|e| if e.code == "not_crypt15" { AppError::new("unsupported_file", e.note) } else { e })?;
     let mut head = Vec::new();
     if let Ok(f) = std::fs::File::open(&copy) {
         use std::io::Read;
         let _ = f.take(512).read_to_end(&mut head);
     }
     let named = dir.path().join(picked_name(picked, adapter, &head));
-    std::fs::rename(&copy, &named).map_err(|e| AppError::io("making a private copy", e))?;
+    std::fs::rename(&copy, &named).map_err(|e| AppError::io(Note::of(Msg::DoingPrivateCopy, []), e))?;
     Ok((named, Some(dir)))
 }
 
@@ -330,7 +334,7 @@ fn export_folder(state: &AppState, folder: Option<PathBuf>) -> Result<PathBuf, A
         None => tempfile::Builder::new()
             .prefix("export-")
             .tempdir_in(state.tmp.path())
-            .map_err(|e| AppError::io("making a private folder", e))?
+            .map_err(|e| AppError::io(Note::of(Msg::DoingPrivateFolder, []), e))?
             .keep(),
     };
     lock(&state.made).push(folder.clone());
@@ -371,7 +375,7 @@ pub fn lib_import(
     if secret.is_none() {
         let picked = oopz_core::pick_adapter(&adapters, &path, adapter.as_deref()).map_err(fail)?;
         if let Some(code) = secret_needed(picked.secret_for(&path)) {
-            return Err(AppError::new(code, "this file needs its owner's secret"));
+            return Err(AppError::new(code, Note::of(oopz_model::messages::Message::ErrorNeedsSecret, [])));
         }
     }
     let (_work, mut second) = lib.second()?;
@@ -548,7 +552,7 @@ pub fn lib_import_vcards(
     path: String,
 ) -> Result<usize, AppError> {
     let (path, _copy) = picked_path(&app, &state, &path, None)?;
-    let bytes = std::fs::read(&path).map_err(|e| AppError::io("reading the contacts file", e))?;
+    let bytes = std::fs::read(&path).map_err(|e| AppError::io(Note::of(Msg::DoingContactsFile, []), e))?;
     let text = String::from_utf8_lossy(&bytes);
     lib.with(|l| l.import_vcards(&text))
 }
@@ -583,7 +587,7 @@ pub fn lib_export(
     progress: Channel<Step>,
 ) -> Result<Exported, AppError> {
     state.cancel.store(false, Ordering::SeqCst);
-    let bad = |e: serde_json::Error| AppError::new("not_found", format!("export options: {e}"));
+    let bad = |e: serde_json::Error| AppError::doing("not_found", Note::of(Msg::DoingExportOptions, []), e);
     let (_work, second) = lib.second()?;
     let folder = export_folder(&state, folder)?;
     let mut report = self::progress(&progress, &state.cancel, |_, _| "export");
@@ -593,7 +597,7 @@ pub fn lib_export(
         return export_pdf(&second, &selection, options, &folder, &mut report);
     }
     let format = oopz_export::Format::from_code(&format)
-        .ok_or_else(|| AppError::new("unsupported", format!("no export format `{format}`")))?;
+        .ok_or_else(|| AppError::of("unsupported", Msg::NoExportFormat, [format.clone()]))?;
     let options: oopz_export::Options = serde_json::from_value(options).map_err(bad)?;
     let w = oopz_export::export(&second, &selection, format, &options, &folder, &mut report).map_err(fail)?;
     Ok(Exported {
@@ -615,8 +619,8 @@ fn export_pdf(
     folder: &Path,
     report: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<Exported, AppError> {
-    let mut options: oopz_export_pdf::PdfOptions =
-        serde_json::from_value(options).map_err(|e| AppError::new("not_found", format!("export options: {e}")))?;
+    let mut options: oopz_export_pdf::PdfOptions = serde_json::from_value(options)
+        .map_err(|e| AppError::doing("not_found", Note::of(Msg::DoingExportOptions, []), e))?;
     // The system's fonts only: the page doesn't name files for Rust to read.
     options.fonts.clear();
     let w = oopz_export_pdf::export_pdf(lib, selection, &options, folder, report).map_err(fail)?;
@@ -639,7 +643,7 @@ fn export_pdf(
     _: &Path,
     _: &mut dyn FnMut(u64, u64) -> bool,
 ) -> Result<Exported, AppError> {
-    Err(AppError::new("unsupported", "PDF exports aren't in this build"))
+    Err(AppError::of("unsupported", Msg::NoPdf, []))
 }
 
 /// Writes the picked contacts as one .vcf file in `folder` (none: a private folder to save from).
@@ -670,6 +674,29 @@ mod tests {
     fn import(lib: &Lib, path: &Path, secret: Option<&str>) -> oopz_core::Result<SourceRow> {
         let (_work, mut second) = lib.second().unwrap();
         second.import_path(&oopz_app::adapters(), path, None, secret, &mut |_, _| true)
+    }
+
+    /// docs/messages.md, errors row 5: the app's wire is `{code, detail}`, the detail in English, until notes go on it.
+    #[test]
+    fn errors_5_the_apps_wire_is_code_and_english_detail() {
+        let e = AppError::io_at(oopz_model::messages::Message::DoingReading, Path::new("/x/a.txt"), io_error("gone"));
+        let json = serde_json::to_value(&e).unwrap();
+        assert_eq!(json, serde_json::json!({"code": "io", "detail": "reading /x/a.txt: gone"}));
+        assert_eq!(e.note.text("es"), "leyendo /x/a.txt: gone");
+    }
+
+    /// Errors row 7: an app error made from the library's keeps its note, so it's worded in one language throughout.
+    #[test]
+    fn errors_7_an_app_error_keeps_the_librarys_note() {
+        let core = oopz_core::Error::io(Note::of(oopz_model::messages::Message::DoingFreeSpace, []), io_error("x"));
+        let note = core.note.clone();
+        let app = fail(core);
+        assert_eq!((app.code, &app.note), ("io", &note));
+        assert_eq!(app.note.text("es"), "leyendo el espacio libre: x");
+    }
+
+    fn io_error(text: &str) -> std::io::Error {
+        std::io::Error::other(text.to_owned())
     }
 
     #[test]

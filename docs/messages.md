@@ -8,6 +8,7 @@ the person's language at the last moment.
 |---|---|---|
 | `oopz` | `crates/oopz-model/data/messages.toml` | an import's notes (what an adapter kept as unknown or read around), the export's words and labels |
 | `oopz_cli` | `crates/oopz-cli/data/messages.toml` | what the `oopz` command prints: sentences, field labels, table headers, prompts |
+| `oopz_app` | `crates/oopz-app/data/messages.toml` | the desktop app's logic and its shell (`apps/desktop/src-tauri`): their errors and what they say |
 
 A sentence with a count is a counted message: each language gives its CLDR plural forms (English `one`, `other`;
 Spanish `one`, `many`, `other`, its `many` the same as `other` since oopz shows digits), so "1 file" and "2 files"
@@ -62,3 +63,21 @@ A Spanish participle or article agrees with its noun, so a wording agrees with a
 | 1 | A value whose gender we don't know (`saved`, `saved_bytes`, `saved_contacts`, `saved_export`, `received_file`) | "se guardó", "se recibió": no gendered word |
 | 2 | The review of `oopz_cli`'s Spanish (2026-11-12) | `copied_folder` "carpeta {name} copiada" (was "copiado", wrong for a folder), `linked_into` "personas unidas" (the people of a suggestion); the rest agree with their own nouns |
 
+## Errors
+
+Every error is a stable `code` and a note: `oopz_model::Error::note()`, `oopz_core::Error.note`, `oopz_app::AppError.note`,
+worded in the person's language at the last moment; `Display` is the English. What was being done is a `doing_…`
+note and the system's reason a value. The desktop's wire stays `{code, detail}`, the detail English, until notes go
+on it (roadmap item 6). Rows (owner, 2026-11-12), a test each:
+
+| # | Case | What happens | Test |
+|---|---|---|---|
+| 1 | An OS error's text (`io::Error`) | a value, as the system wrote it (on Windows in its own language), never translated by oopz | `oopz_model` `errors_1_a_systems_reason_is_a_value_as_given` |
+| 2 | A path; a key, password, number or message text | a path is a value, never a message; the others never appear in an error | to come |
+| 3 | Cancelled, needs a secret, wrong secret | no values | `oopz_model` `errors_3_a_refusal_with_no_values` |
+| 4 | The CLI's `anyhow` chain | an oopz error inside is worded by its note in the command's language, never English mixed in | to come |
+| 5 | The desktop's wire | `{code, detail}`, English detail, codes unchanged (stored names) | `oopz_core` `errors_5_the_wire_is_code_and_english_detail`; the shell's `errors_5_the_apps_wire_is_code_and_english_detail` |
+| 6 | Conversions (SQLite, JSON, crypt15) | keep their codes | `oopz_core` `errors_6_conversions_keep_their_codes` |
+| 7 | An error wrapped by another crate's | keeps its note (a `Value::Note`, or the same note): one language throughout | `oopz_model` `errors_7_a_note_inside_is_worded_in_the_same_language`; the shell's `errors_7_an_app_error_keeps_the_librarys_note` |
+| 8 | Developer-only texts (a programming mistake's) | `for = "developer"`, English only | to come |
+| 9 | ios-backup's and whatsapp-android's damaged-file diagnostics | user or developer per message, said in their commit | to come |

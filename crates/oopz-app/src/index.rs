@@ -166,7 +166,7 @@ impl Index {
         let file = tempfile::Builder::new()
             .prefix("index-")
             .tempfile_in(dir)
-            .map_err(|e| crate::AppError::io("creating the search index", e))?;
+            .map_err(|e| crate::AppError::io(msgkinds::Note::of(crate::messages::Message::DoingSearchIndex, []), e))?;
         let mut db = Connection::open(file.path()).map_err(oopz::Error::from)?;
         build_into(source, &mut db, progress)?;
         let (messages, with_text) = db

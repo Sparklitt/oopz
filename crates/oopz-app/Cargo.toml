@@ -32,6 +32,10 @@ tempfile.workspace = true
 tiny_http.workspace = true
 zeroize.workspace = true
 
+[build-dependencies]
+# Compiles data/messages.toml with msgkinds' generator: one mechanism for every sentence (msgkinds' docs/messages.md).
+msgkinds = { workspace = true, features = ["build-support"] }
+
 [dev-dependencies]
 msgkinds = { workspace = true, features = ["test-support"] }
 oopz = { workspace = true, features = ["fixtures"] }
