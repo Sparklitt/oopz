@@ -107,8 +107,8 @@ mod tests {
     #[test]
     fn agreement_2_a_participle_agrees_with_its_own_noun() {
         assert_eq!(
-            spanish(Message::CopiedFolder, &["WhatsApp", "3 archivos", "9 bytes"]),
-            "carpeta WhatsApp copiada: \
+            spanish(Message::CopiedFolder, &["Viaje", "3 archivos", "9 bytes"]),
+            "carpeta Viaje copiada: \
                     3 archivos, 9 bytes, cada tamaño comprobado"
         );
         assert_eq!(spanish(Message::LinkedInto, &["7"]), "personas unidas en el contacto 7");
