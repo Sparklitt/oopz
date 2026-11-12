@@ -126,7 +126,7 @@ fn odd_lines_are_kept_and_counted() {
     assert_eq!(m[5].text(), "out of order\ncontinued");
     assert!(m[6].edited);
     let notes = loaded.info.notes.join("\n");
-    assert!(notes.contains("1 lines before the first message"), "{notes}");
+    assert!(notes.contains("1 line before the first message"), "{notes}");
     assert!(notes.contains("doesn't exist"), "{notes}");
     assert!(notes.contains("pick yourself"), "{notes}");
     let undecided = read("x.txt", b"01/02/2024, 10:00 - Ana: hola\n").expect("read");
@@ -213,5 +213,5 @@ fn an_export_is_read_in_its_own_language() {
     assert!(matches!(&loaded.messages[2].parts[..], [Part::Text { .. }]), "a person's English words");
     assert!(loaded.messages[5].edited);
     let notes = loaded.info.notes.join("\n");
-    assert!(notes.contains("1 lines in whatsapp_export (read as es)"), "{notes}");
+    assert!(notes.contains("1 line in whatsapp_export (read as es)"), "{notes}");
 }

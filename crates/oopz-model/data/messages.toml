@@ -1,7 +1,9 @@
 # Every sentence oopz writes, by language: compiled by build.rs with msgkinds' generator into
 # `oopz_model::messages::Message` (msgkinds' docs/messages.md has the format and its checks). `name` is stable: notes
 # are stored by it, so never rename or reuse one; add a new one instead. `for = "user"`: shown to people, in every
-# language; `"developer"`: a programming mistake's, English only.
+# language; `"developer"`: a programming mistake's, English only. `plural = "count"`: a counted message, each
+# language giving its CLDR forms (`en_one`, `en_other`, `es_one`, `es_many`, `es_other`; Spanish `many` is `other`'s
+# wording, as counts are digits; msgkinds' docs/messages.md "Plurals").
 
 catalog = "oopz"
 languages = ["en", "es"]
@@ -40,15 +42,23 @@ es = "los archivos multimedia están dentro del zip"
 name = "unsafe_zip_entries"
 for = "user"
 params = ["count"]
-en = "{count} zip entries with unsafe paths ignored"
-es = "{count} entradas del zip con rutas inseguras ignoradas"
+plural = "count"
+en_one = "{count} zip entry with an unsafe path ignored"
+en_other = "{count} zip entries with unsafe paths ignored"
+es_one = "{count} entrada del zip con una ruta insegura ignorada"
+es_many = "{count} entradas del zip con rutas inseguras ignoradas"
+es_other = "{count} entradas del zip con rutas inseguras ignoradas"
 
 [[message]]
 name = "lines_before_first_message"
 for = "user"
 params = ["count"]
-en = "{count} lines before the first message kept as unknown"
-es = "{count} líneas antes del primer mensaje conservadas como desconocidas"
+plural = "count"
+en_one = "{count} line before the first message kept as unknown"
+en_other = "{count} lines before the first message kept as unknown"
+es_one = "{count} línea antes del primer mensaje conservada como desconocida"
+es_many = "{count} líneas antes del primer mensaje conservadas como desconocidas"
+es_other = "{count} líneas antes del primer mensaje conservadas como desconocidas"
 
 [[message]]
 name = "day_month_undecided_day_first"
@@ -68,22 +78,34 @@ es = "las fechas no coinciden en el orden día/mes: leídas con el día primero"
 name = "lines_bad_date"
 for = "user"
 params = ["count"]
-en = "{count} lines with a date or time that doesn't exist: kept without a time"
-es = "{count} líneas con una fecha u hora que no existe: conservadas sin hora"
+plural = "count"
+en_one = "{count} line with a date or time that doesn't exist: kept without a time"
+en_other = "{count} lines with a date or time that doesn't exist: kept without a time"
+es_one = "{count} línea con una fecha u hora que no existe: conservada sin hora"
+es_many = "{count} líneas con una fecha u hora que no existe: conservadas sin hora"
+es_other = "{count} líneas con una fecha u hora que no existe: conservadas sin hora"
 
 [[message]]
 name = "media_kindless"
 for = "user"
 params = ["count"]
-en = "{count} media left out of the export without saying what they were: counted as documents"
-es = "{count} archivos multimedia que la exportación dejó fuera sin decir qué eran: contados como documentos"
+plural = "count"
+en_one = "{count} media file left out of the export without saying what it was: counted as a document"
+en_other = "{count} media left out of the export without saying what they were: counted as documents"
+es_one = "{count} archivo multimedia que la exportación dejó fuera sin decir qué era: contado como documento"
+es_many = "{count} archivos multimedia que la exportación dejó fuera sin decir qué eran: contados como documentos"
+es_other = "{count} archivos multimedia que la exportación dejó fuera sin decir qué eran: contados como documentos"
 
 [[message]]
 name = "files_named_missing"
 for = "user"
 params = ["count"]
-en = "{count} files named in the chat aren't in the export"
-es = "{count} archivos nombrados en el chat no están en la exportación"
+plural = "count"
+en_one = "{count} file named in the chat isn't in the export"
+en_other = "{count} files named in the chat aren't in the export"
+es_one = "{count} archivo nombrado en el chat no está en la exportación"
+es_many = "{count} archivos nombrados en el chat no están en la exportación"
+es_other = "{count} archivos nombrados en el chat no están en la exportación"
 
 # LINE.
 
@@ -98,22 +120,34 @@ es = "ninguna fecha decide el orden día/mes de las líneas `Mon, 01/02/2024`: l
 name = "messages_before_date_line"
 for = "user"
 params = ["count"]
-en = "{count} messages before any date line: kept without a time"
-es = "{count} mensajes antes de cualquier línea de fecha: conservados sin hora"
+plural = "count"
+en_one = "{count} message before any date line: kept without a time"
+en_other = "{count} messages before any date line: kept without a time"
+es_one = "{count} mensaje antes de cualquier línea de fecha: conservado sin hora"
+es_many = "{count} mensajes antes de cualquier línea de fecha: conservados sin hora"
+es_other = "{count} mensajes antes de cualquier línea de fecha: conservados sin hora"
 
 [[message]]
 name = "messages_bad_date"
 for = "user"
 params = ["count"]
-en = "{count} messages with a date or time that doesn't exist: kept without a time"
-es = "{count} mensajes con una fecha u hora que no existe: conservados sin hora"
+plural = "count"
+en_one = "{count} message with a date or time that doesn't exist: kept without a time"
+en_other = "{count} messages with a date or time that doesn't exist: kept without a time"
+es_one = "{count} mensaje con una fecha u hora que no existe: conservado sin hora"
+es_many = "{count} mensajes con una fecha u hora que no existe: conservados sin hora"
+es_other = "{count} mensajes con una fecha u hora que no existe: conservados sin hora"
 
 [[message]]
 name = "quotes_unclosed"
 for = "user"
 params = ["count"]
-en = "{count} quotes never closed: read as plain text"
-es = "{count} comillas nunca cerradas: leídas como texto normal"
+plural = "count"
+en_one = "{count} quote never closed: read as plain text"
+en_other = "{count} quotes never closed: read as plain text"
+es_one = "{count} comilla nunca cerrada: leída como texto normal"
+es_many = "{count} comillas nunca cerradas: leídas como texto normal"
+es_other = "{count} comillas nunca cerradas: leídas como texto normal"
 
 [[message]]
 name = "owner_not_in_header"
@@ -142,22 +176,34 @@ es = "WhatsApp guarda las reacciones, respuestas, ediciones y votos de encuestas
 name = "message_type_unknown"
 for = "user"
 params = ["count", "code"]
-en = "{count} × message type {code} kept as unknown"
-es = "{count} × tipo de mensaje {code} conservados como desconocidos"
+plural = "count"
+en_one = "{count} × message type {code} kept as unknown"
+en_other = "{count} × message type {code} kept as unknown"
+es_one = "{count} × tipo de mensaje {code} conservado como desconocido"
+es_many = "{count} × tipo de mensaje {code} conservados como desconocidos"
+es_other = "{count} × tipo de mensaje {code} conservados como desconocidos"
 
 [[message]]
 name = "media_not_in_backup"
 for = "user"
 params = ["count"]
-en = "{count} media files aren't in the backup"
-es = "{count} archivos multimedia no están en la copia"
+plural = "count"
+en_one = "{count} media file isn't in the backup"
+en_other = "{count} media files aren't in the backup"
+es_one = "{count} archivo multimedia no está en la copia"
+es_many = "{count} archivos multimedia no están en la copia"
+es_other = "{count} archivos multimedia no están en la copia"
 
 [[message]]
 name = "media_too_large"
 for = "user"
 params = ["count", "megabytes"]
-en = "{count} media files larger than {megabytes} MB left in the backup"
-es = "{count} archivos multimedia de más de {megabytes} MB dejados en la copia"
+plural = "count"
+en_one = "{count} media file larger than {megabytes} MB left in the backup"
+en_other = "{count} media files larger than {megabytes} MB left in the backup"
+es_one = "{count} archivo multimedia de más de {megabytes} MB dejado en la copia"
+es_many = "{count} archivos multimedia de más de {megabytes} MB dejados en la copia"
+es_other = "{count} archivos multimedia de más de {megabytes} MB dejados en la copia"
 
 [[message]]
 name = "sqlite_check"
@@ -172,36 +218,56 @@ es = "la comprobación de SQLite encontró: {problems}"
 name = "telegram_wall_times"
 for = "user"
 params = ["count"]
-en = "{count} times have no zone (no date_unixtime): the computer's wall clock, read as UTC"
-es = "{count} horas sin zona (sin date_unixtime): el reloj del ordenador, leídas como UTC"
+plural = "count"
+en_one = "{count} time has no zone (no date_unixtime): the computer's wall clock, read as UTC"
+en_other = "{count} times have no zone (no date_unixtime): the computer's wall clock, read as UTC"
+es_one = "{count} hora sin zona (sin date_unixtime): el reloj del ordenador, leída como UTC"
+es_many = "{count} horas sin zona (sin date_unixtime): el reloj del ordenador, leídas como UTC"
+es_other = "{count} horas sin zona (sin date_unixtime): el reloj del ordenador, leídas como UTC"
 
 [[message]]
 name = "messages_no_date"
 for = "user"
 params = ["count"]
-en = "{count} messages without a date"
-es = "{count} mensajes sin fecha"
+plural = "count"
+en_one = "{count} message without a date"
+en_other = "{count} messages without a date"
+es_one = "{count} mensaje sin fecha"
+es_many = "{count} mensajes sin fecha"
+es_other = "{count} mensajes sin fecha"
 
 [[message]]
 name = "code_unknown"
 for = "user"
 params = ["count", "code"]
-en = "{count} × `{code}` kept as unknown"
-es = "{count} × `{code}` conservados como desconocidos"
+plural = "count"
+en_one = "{count} × `{code}` kept as unknown"
+en_other = "{count} × `{code}` kept as unknown"
+es_one = "{count} × `{code}` conservado como desconocido"
+es_many = "{count} × `{code}` conservados como desconocidos"
+es_other = "{count} × `{code}` conservados como desconocidos"
 
 [[message]]
 name = "ids_repeated"
 for = "user"
 params = ["count"]
-en = "{count} repeated message ids made unique with #2, #3…"
-es = "{count} ids de mensaje repetidos hechos únicos con #2, #3…"
+plural = "count"
+en_one = "{count} repeated message id made unique with #2, #3…"
+en_other = "{count} repeated message ids made unique with #2, #3…"
+es_one = "{count} id de mensaje repetido hecho único con #2, #3…"
+es_many = "{count} ids de mensaje repetidos hechos únicos con #2, #3…"
+es_other = "{count} ids de mensaje repetidos hechos únicos con #2, #3…"
 
 [[message]]
 name = "not_objects"
 for = "user"
 params = ["count"]
-en = "{count} chats or messages that weren't objects skipped"
-es = "{count} chats o mensajes que no eran objetos omitidos"
+plural = "count"
+en_one = "{count} chat or message that wasn't an object skipped"
+en_other = "{count} chats or messages that weren't objects skipped"
+es_one = "{count} chat o mensaje que no era un objeto omitido"
+es_many = "{count} chats o mensajes que no eran objetos omitidos"
+es_other = "{count} chats o mensajes que no eran objetos omitidos"
 
 [[message]]
 name = "owner_inferred"
@@ -216,50 +282,78 @@ es = "el dueño se deduce del chat individual (el otro lado es el id del chat)"
 name = "file_damaged_after"
 for = "user"
 params = ["records"]
-en = "the file is cut short or damaged after {records} records: those are kept"
-es = "el archivo está cortado o dañado tras {records} registros: esos se conservan"
+plural = "records"
+en_one = "the file is cut short or damaged after {records} record: it is kept"
+en_other = "the file is cut short or damaged after {records} records: those are kept"
+es_one = "el archivo está cortado o dañado tras {records} registro: ese se conserva"
+es_many = "el archivo está cortado o dañado tras {records} registros: esos se conservan"
+es_other = "el archivo está cortado o dañado tras {records} registros: esos se conservan"
 
 [[message]]
 name = "records_stated"
 for = "user"
 params = ["stated", "records"]
-en = "the file says it holds {stated} records; {records} were read"
-es = "el archivo dice que tiene {stated} registros; se leyeron {records}"
+plural = "stated"
+en_one = "the file says it holds {stated} record; oopz read {records}"
+en_other = "the file says it holds {stated} records; oopz read {records}"
+es_one = "el archivo dice que tiene {stated} registro; oopz leyó {records}"
+es_many = "el archivo dice que tiene {stated} registros; oopz leyó {records}"
+es_other = "el archivo dice que tiene {stated} registros; oopz leyó {records}"
 
 [[message]]
 name = "records_type_unknown"
 for = "user"
 params = ["count"]
-en = "{count} records with a type oopz doesn't know: read as received"
-es = "{count} registros con un tipo que oopz no conoce: leídos como recibidos"
+plural = "count"
+en_one = "{count} record with a type oopz doesn't know: read as received"
+en_other = "{count} records with a type oopz doesn't know: read as received"
+es_one = "{count} registro con un tipo que oopz no conoce: leído como recibido"
+es_many = "{count} registros con un tipo que oopz no conoce: leídos como recibidos"
+es_other = "{count} registros con un tipo que oopz no conoce: leídos como recibidos"
 
 [[message]]
 name = "records_no_date"
 for = "user"
 params = ["count"]
-en = "{count} records without a date"
-es = "{count} registros sin fecha"
+plural = "count"
+en_one = "{count} record without a date"
+en_other = "{count} records without a date"
+es_one = "{count} registro sin fecha"
+es_many = "{count} registros sin fecha"
+es_other = "{count} registros sin fecha"
 
 [[message]]
 name = "element_unknown"
 for = "user"
 params = ["count", "name"]
-en = "{count} × element `{name}` oopz doesn't know, skipped"
-es = "{count} × elemento `{name}` que oopz no conoce, omitidos"
+plural = "count"
+en_one = "{count} × element `{name}` oopz doesn't know, skipped"
+en_other = "{count} × element `{name}` oopz doesn't know, skipped"
+es_one = "{count} × elemento `{name}` que oopz no conoce, omitido"
+es_many = "{count} × elemento `{name}` que oopz no conoce, omitidos"
+es_other = "{count} × elemento `{name}` que oopz no conoce, omitidos"
 
 [[message]]
 name = "mms_bad_base64"
 for = "user"
 params = ["count"]
-en = "{count} MMS parts whose data isn't valid base64"
-es = "{count} partes de MMS cuyos datos no son base64 válido"
+plural = "count"
+en_one = "{count} MMS part whose data isn't valid base64"
+en_other = "{count} MMS parts whose data isn't valid base64"
+es_one = "{count} parte de MMS cuyos datos no son base64 válido"
+es_many = "{count} partes de MMS cuyos datos no son base64 válido"
+es_other = "{count} partes de MMS cuyos datos no son base64 válido"
 
 [[message]]
 name = "mms_empty"
 for = "user"
 params = ["count"]
-en = "{count} MMS with no part oopz reads kept as unknown"
-es = "{count} MMS sin ninguna parte que oopz lea conservados como desconocidos"
+plural = "count"
+en_one = "{count} MMS with no part oopz reads kept as unknown"
+en_other = "{count} MMS with no part oopz reads kept as unknown"
+es_one = "{count} MMS sin ninguna parte que oopz lea conservado como desconocido"
+es_many = "{count} MMS sin ninguna parte que oopz lea conservados como desconocidos"
+es_other = "{count} MMS sin ninguna parte que oopz lea conservados como desconocidos"
 
 # Viber.
 
@@ -267,8 +361,12 @@ es = "{count} MMS sin ninguna parte que oopz lea conservados como desconocidos"
 name = "viber_not_csv"
 for = "user"
 params = ["count"]
-en = "{count} files in the zip aren't Viber CSV: skipped"
-es = "{count} archivos del zip no son CSV de Viber: omitidos"
+plural = "count"
+en_one = "{count} file in the zip isn't Viber CSV: skipped"
+en_other = "{count} files in the zip aren't Viber CSV: skipped"
+es_one = "{count} archivo del zip no es CSV de Viber: omitido"
+es_many = "{count} archivos del zip no son CSV de Viber: omitidos"
+es_other = "{count} archivos del zip no son CSV de Viber: omitidos"
 
 [[message]]
 name = "in_chat"
@@ -281,22 +379,34 @@ es = "{chat}: {note}"
 name = "rows_too_short"
 for = "user"
 params = ["count"]
-en = "{count} rows too short to be a message kept as unknown"
-es = "{count} filas demasiado cortas para ser un mensaje conservadas como desconocidas"
+plural = "count"
+en_one = "{count} row too short to be a message kept as unknown"
+en_other = "{count} rows too short to be a message kept as unknown"
+es_one = "{count} fila demasiado corta para ser un mensaje conservada como desconocida"
+es_many = "{count} filas demasiado cortas para ser un mensaje conservadas como desconocidas"
+es_other = "{count} filas demasiado cortas para ser un mensaje conservadas como desconocidas"
 
 [[message]]
 name = "rows_bad_date"
 for = "user"
 params = ["count"]
-en = "{count} rows with a date or time oopz can't read: kept without a time"
-es = "{count} filas con una fecha u hora que oopz no puede leer: conservadas sin hora"
+plural = "count"
+en_one = "{count} row with a date or time oopz can't read: kept without a time"
+en_other = "{count} rows with a date or time oopz can't read: kept without a time"
+es_one = "{count} fila con una fecha u hora que oopz no puede leer: conservada sin hora"
+es_many = "{count} filas con una fecha u hora que oopz no puede leer: conservadas sin hora"
+es_other = "{count} filas con una fecha u hora que oopz no puede leer: conservadas sin hora"
 
 [[message]]
 name = "rows_unsplit"
 for = "user"
 params = ["count"]
-en = "{count} rows the CSV reader couldn't split"
-es = "{count} filas que el lector de CSV no pudo separar"
+plural = "count"
+en_one = "{count} row the CSV reader couldn't split"
+en_other = "{count} rows the CSV reader couldn't split"
+es_one = "{count} fila que el lector de CSV no pudo separar"
+es_many = "{count} filas que el lector de CSV no pudo separar"
+es_other = "{count} filas que el lector de CSV no pudo separar"
 
 [[message]]
 name = "viber_no_me"

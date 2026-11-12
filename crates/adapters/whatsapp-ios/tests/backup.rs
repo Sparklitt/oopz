@@ -80,7 +80,7 @@ fn check(dir: &std::path::Path, password: Option<&str>, manifest: &oopz_gen::ios
     );
     let notes = s.info().notes.join("\n");
     assert!(
-        notes.contains("1 media files aren't in the backup")
+        notes.contains("1 media file isn't in the backup")
             && notes.contains("unknown type 999 in whatsapp_ios 2.99.1.1"),
         "{notes}"
     );

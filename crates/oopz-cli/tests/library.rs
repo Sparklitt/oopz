@@ -223,7 +223,12 @@ fn an_encrypted_iphone_backup_with_its_password_and_its_photos() {
     assert!(right.status.success(), "{}", String::from_utf8_lossy(&right.stderr));
     assert!(String::from_utf8_lossy(&right.stderr).contains("as whatsapp-ios"));
     assert_eq!(number(&out, "people, ") as usize, m.messages, "{out}");
-    assert!(out.contains("media files aren't in the backup"));
+    // One file or several: the wording follows the count (the plural forms in oopz's messages).
+    let missing = match m.missing_media {
+        1 => "1 media file isn't in the backup".to_owned(),
+        n => format!("{n} media files aren't in the backup"),
+    };
+    assert!(out.contains(&missing), "{out}");
     // The photos came out of the backup into the library's own folder.
     let media: Vec<_> = std::fs::read_dir(lib.join("media").join("1")).unwrap().collect();
     assert_eq!(media.len(), m.media_files);

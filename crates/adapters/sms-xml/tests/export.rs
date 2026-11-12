@@ -47,9 +47,9 @@ fn messages_and_calls_read_as_the_manifest_says() {
     });
     assert_eq!(contact, Some((Some("Carla Inventado".into()), vec!["+99990000003".into()])));
     let notes = sms.info.notes.join("\n");
-    assert!(notes.contains("1 records with a type"), "{notes}");
+    assert!(notes.contains("1 record with a type"), "{notes}");
     // The registry's report, at the version the file's comment names.
-    assert!(notes.contains("in sms_xml_sms 10.20.002: 1 messages"), "{notes}");
+    assert!(notes.contains("in sms_xml_sms 10.20.002: 1 message,"), "{notes}");
 
     let outcomes: Vec<CallOutcome> = calls
         .messages

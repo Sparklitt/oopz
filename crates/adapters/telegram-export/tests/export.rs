@@ -80,7 +80,9 @@ fn the_full_export_reads_as_its_manifest_says() {
     assert!(notes.contains("`message type something_new`"), "{notes}");
     // msgkinds' report: the export names no version, so it says so.
     assert!(
-        notes.contains("unknown type something_newer in telegram_json_action (version not recorded): 1 messages"),
+        notes.contains(
+            "unknown type something_newer in telegram_json_action (version not recorded): 1 message, kept with its type"
+        ),
         "{notes}"
     );
     assert!(notes.contains(msgkinds::HOW_TO_ADD), "{notes}");
@@ -121,7 +123,7 @@ fn a_single_chat_export_with_wall_clock_times_only() {
     assert!(loaded.messages[1].from_me, "the one who isn't the chat's id");
     assert_eq!(loaded.messages[2].time_ms, None);
     let notes = loaded.info.notes.join("\n");
-    assert!(notes.contains("inferred") && notes.contains("repeated") && notes.contains("weren't objects"), "{notes}");
+    assert!(notes.contains("inferred") && notes.contains("repeated") && notes.contains("wasn't an object"), "{notes}");
 }
 
 #[test]

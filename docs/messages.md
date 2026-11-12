@@ -9,6 +9,10 @@ the person's language at the last moment.
 | `oopz` | `crates/oopz-model/data/messages.toml` | an import's notes (what an adapter kept as unknown or read around), the export's words and labels |
 | `oopz_cli` | `crates/oopz-cli/data/messages.toml` | what the `oopz` command prints: sentences, field labels, table headers, prompts |
 
+A sentence with a count is a counted message: each language gives its CLDR plural forms (English `one`, `other`;
+Spanish `one`, `many`, `other`, its `many` the same as `other` since oopz shows digits), so "1 file" and "2 files"
+are both right. A sentence with two counts words the second as a label (`oopz read: 3`) or splits.
+
 Names are stable: notes are stored by catalog and name, so a name is never renamed or reused. Every user message
 has English and Spanish; Spanish follows the desktop app's `apps/desktop/src/lib/i18n/es.ts` where it has the same
 sentence, so the app and the command say the same.
