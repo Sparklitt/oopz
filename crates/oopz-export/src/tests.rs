@@ -17,7 +17,7 @@ fn setup() -> (tempfile::TempDir, Library) {
     let media_root = dir.path().join("media-src");
     fs::create_dir_all(media_root.join("sub")).unwrap();
     fs::write(media_root.join("IMG-1.jpg"), b"jpeg!").unwrap();
-    fs::write(media_root.join("sub/IMG-1.jpg"), b"other").unwrap();
+    fs::write(media_root.join("sub/IMG-1.jpg"), b"synthetic bytes").unwrap();
     fs::write(dir.path().join("secret.txt"), b"outside").unwrap();
     let c = "chat";
     let msg = |id: &str, me: bool, t: i64, parts: Vec<Part>| Message {
@@ -91,7 +91,7 @@ fn setup() -> (tempfile::TempDir, Library) {
                 "7",
                 false,
                 T0 + 360_000,
-                vec![Part::System { event: m::Event::GroupCreated, text: Some("created".into()) }],
+                vec![Part::System { event: m::Event::GroupCreated, text: Some("made the group".into()) }],
             ),
         ],
     };
@@ -126,7 +126,7 @@ fn html_is_escaped_offline_and_never_shows_view_once() {
     assert!(html.contains("&lt;script&gt;") && !html.contains("<script>"));
     assert!(!html.contains('\u{202E}'), "bidi overrides are dropped");
     assert!(html.contains("שלום") && html.contains("dir=\"auto\""));
-    assert!(html.contains("Content-Security-Policy") && !html.contains("http://") && !html.contains("https://"));
+    assert!(html.contains("Content-Security-Policy") && !html.contains("://"));
     assert!(!html.contains("never shown"));
     assert!(html.contains("Ana &lt;b&gt;") && html.contains("Ana &amp; co"));
     assert!(html.contains("2024-01-01 00:01"), "times in the zone asked for");
@@ -146,7 +146,7 @@ fn json_parses_back_with_only_what_the_selection_touches() {
     assert_eq!(v["oopz"]["format"], "oopz-export");
     assert!(!read(&w.path).contains("never shown"));
     let first = &v["messages"][0];
-    assert_eq!(first["app"], "whatsapp");
+    assert_eq!(first["app"], m::App::WhatsApp.code());
     assert_eq!(first["message"]["parts"][0]["type"], "text");
 }
 
@@ -160,7 +160,7 @@ fn csv_rows_parse_and_formulas_stay_text() {
     assert_eq!(&rows[1][6], "'=HYPERLINK(\"x\")");
     assert_eq!(&rows[0][2], "2024-01-01T00:00:00+00:00");
     assert!(!rows[1][7].is_empty() && rows[0][7].is_empty(), "the reply points at the first message");
-    assert_eq!(&rows[5][9], "1", "deleted");
+    assert_eq!(&rows[5][9], "1", "the deleted column");
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn txt_reads_like_a_chat() {
     assert!(txt.contains("[Photo · 5 B]"));
     assert!(!txt.contains("never shown"));
     let skip = Options { skip_system: true, ..utc() };
-    assert!(!read(&run(&lib, dir.path(), Format::Txt, &skip).path).contains("created"));
+    assert!(!read(&run(&lib, dir.path(), Format::Txt, &skip).path).contains("made the group"));
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn any_language_works() {
         edited: "zorbed".into(),
         photo: "Pikka".into(),
         outcomes: [("missed".to_owned(), "zipped".to_owned())].into(),
-        events: [("group_created".to_owned(), "Bloop".to_owned())].into(),
+        events: [(m::Event::GroupCreated.code().to_owned(), "Bloop".to_owned())].into(),
         ..Default::default()
     };
     let o = Options { words: words.clone(), ..utc() };

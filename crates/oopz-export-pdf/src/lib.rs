@@ -419,10 +419,12 @@ fn thumbnail(root: Option<&Path>, rel: &str) -> Option<(krilla::image::Image, f3
     }
     let bytes = fs::read(&path).ok()?;
     let data = krilla::Data::from(bytes.clone());
-    let image = match bytes.get(..4)? {
-        [0xFF, 0xD8, ..] => krilla::image::Image::from_jpeg(data, true).ok()?,
-        [0x89, b'P', b'N', b'G'] => krilla::image::Image::from_png(data, true).ok()?,
-        [b'R', b'I', b'F', b'F'] => krilla::image::Image::from_webp(data, true).ok()?,
+    // What the file is, by msgkinds' signatures: only the pictures a PDF can hold.
+    use msgkinds::media_type::{Hint, formats, sniff};
+    let image = match sniff(&bytes, Hint::None).map(|s| s.format.mime) {
+        Some(formats::JPEG) => krilla::image::Image::from_jpeg(data, true).ok()?,
+        Some(formats::PNG) => krilla::image::Image::from_png(data, true).ok()?,
+        Some(formats::WEBP) => krilla::image::Image::from_webp(data, true).ok()?,
         _ => return None,
     };
     let (w, h) = image.size();
@@ -677,7 +679,13 @@ pub fn export_pdf(
         krilla::metadata::Metadata::new().title(title).creator("oopz".into()).language(opts.base.words.lang.clone()),
     );
     let bytes = doc.finish().map_err(|e| Error::new("io", format!("making the PDF: {e:?}")))?;
-    let (path, written) = oopz_export::write_new_file(out_dir, "pdf", "pdf", &bytes)?;
+    let (path, written) = {
+        // The file is named after what it is: its format's extension, as its name and its extension.
+        let ext = msgkinds::media_type::by_mime(msgkinds::media_type::formats::PDF)
+            .and_then(|f| f.extension())
+            .unwrap_or_default();
+        oopz_export::write_new_file(out_dir, ext, ext, &bytes)?
+    };
     Ok(PdfWritten {
         path,
         messages: done,

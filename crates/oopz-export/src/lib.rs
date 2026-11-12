@@ -32,10 +32,8 @@ impl Format {
 
     pub fn code(self) -> &'static str {
         match self {
-            Format::Html => "html",
-            Format::Json => "json",
-            Format::Csv => "csv",
-            Format::Txt => "txt",
+            // The CLI names a file's format by its extension; contacts and the media zip by what they hold.
+            Format::Html | Format::Json | Format::Csv | Format::Txt => self.extension(),
             Format::Vcard => "vcard",
             Format::MediaZip => "media-zip",
         }
@@ -45,15 +43,21 @@ impl Format {
         Format::ALL.into_iter().find(|f| f.code() == code)
     }
 
-    fn extension(self) -> &'static str {
+    /// What its file is (msgkinds' format).
+    fn mime(self) -> &'static str {
+        use msgkinds::media_type::formats::{CSV, HTML, JSON, PLAIN_TEXT, VCARD, ZIP};
         match self {
-            Format::Html => "html",
-            Format::Json => "json",
-            Format::Csv => "csv",
-            Format::Txt => "txt",
-            Format::Vcard => "vcf",
-            Format::MediaZip => "zip",
+            Format::Html => HTML,
+            Format::Json => JSON,
+            Format::Csv => CSV,
+            Format::Txt => PLAIN_TEXT,
+            Format::Vcard => VCARD,
+            Format::MediaZip => ZIP,
         }
+    }
+
+    fn extension(self) -> &'static str {
+        msgkinds::media_type::by_mime(self.mime()).and_then(|f| f.extension()).unwrap_or_default()
     }
 }
 
@@ -175,61 +179,74 @@ impl Default for Words {
                 ("failed", "failed"),
                 ("unknown", "result unknown"),
             ]),
-            events: owned(&[
-                ("encryption", "Messages are end-to-end encrypted"),
-                ("security_code_changed", "Security code changed"),
-                ("number_changed", "Changed their number"),
-                ("device_changed", "A device was added or removed"),
-                ("account_deleted", "Deleted their account"),
-                ("contact_joined", "Joined the app"),
-                ("business_notice", "Business account notice"),
-                ("group_created", "Group created"),
-                ("topic_created", "Topic created"),
-                ("renamed", "Name changed"),
-                ("description_changed", "Description changed"),
-                ("picture_changed", "Picture changed"),
-                ("picture_removed", "Picture removed"),
-                ("settings_changed", "Settings changed"),
-                ("member_added", "Someone was added"),
-                ("member_joined", "Someone joined"),
-                ("member_left", "Someone left"),
-                ("member_removed", "Someone was removed"),
-                ("join_requested", "Someone asked to join"),
-                ("admin_added", "Someone was made admin"),
-                ("admin_removed", "Someone is no longer admin"),
-                ("admin_changed", "Admins changed"),
-                ("owner_changed", "Owner changed"),
-                ("community_changed", "Community changed"),
-                ("invite_link_reset", "Invite link reset"),
-                ("disappearing", "Disappearing messages changed"),
-                ("kept_in_chat", "A message was kept in the chat"),
-                ("chat_locked", "Chat locked"),
-                ("screenshot", "A screenshot was taken"),
-                ("pinned", "A message was pinned"),
-                ("unpinned", "A message was unpinned"),
-                ("blocked", "Blocked or unblocked"),
-                ("unblocked", "Unblocked"),
-                ("message_deleted", "A message was deleted"),
-                ("history_cleared", "History cleared"),
-                ("group_call", "Group call"),
-                ("poll_closed", "Poll closed"),
-                ("payment_status", "Payment status changed"),
-                ("missed_messages", "Missed messages"),
-                ("theme_changed", "Theme changed"),
-                ("profile_changed", "Profile name changed"),
-                ("other", "Notice"),
-            ]),
-            cards: owned(&[
-                ("album", "Album"),
-                ("sticker_pack", "Sticker pack"),
-                ("event", "Event"),
-                ("payment", "Payment"),
-                ("game", "Game"),
-                ("business", "Business message"),
-                ("story", "Status update"),
-                ("reaction", "Reaction"),
-            ]),
+            events: m::Event::ALL.into_iter().map(|e| (e.code().to_owned(), event_word(e).to_owned())).collect(),
+            cards: m::CardKind::ALL
+                .into_iter()
+                .map(|c| (Kind::from(c).code().to_owned(), card_word(c).to_owned()))
+                .collect(),
         }
+    }
+}
+
+/// An event's words in English (the desktop app gives its own language's).
+fn event_word(e: m::Event) -> &'static str {
+    match e {
+        m::Event::Encryption => "Messages are end-to-end encrypted",
+        m::Event::SecurityCodeChanged => "Security code changed",
+        m::Event::NumberChanged => "Changed their number",
+        m::Event::DeviceChanged => "A device was added or removed",
+        m::Event::AccountDeleted => "Deleted their account",
+        m::Event::ContactJoined => "Joined the app",
+        m::Event::BusinessNotice => "Business account notice",
+        m::Event::GroupCreated => "Group created",
+        m::Event::TopicCreated => "Topic created",
+        m::Event::Renamed => "Name changed",
+        m::Event::DescriptionChanged => "Description changed",
+        m::Event::PictureChanged => "Picture changed",
+        m::Event::PictureRemoved => "Picture removed",
+        m::Event::SettingsChanged => "Settings changed",
+        m::Event::MemberAdded => "Someone was added",
+        m::Event::MemberJoined => "Someone joined",
+        m::Event::MemberLeft => "Someone left",
+        m::Event::MemberRemoved => "Someone was removed",
+        m::Event::JoinRequested => "Someone asked to join",
+        m::Event::AdminAdded => "Someone was made admin",
+        m::Event::AdminRemoved => "Someone is no longer admin",
+        m::Event::AdminChanged => "Admins changed",
+        m::Event::OwnerChanged => "Owner changed",
+        m::Event::CommunityChanged => "Community changed",
+        m::Event::InviteLinkReset => "Invite link reset",
+        m::Event::Disappearing => "Disappearing messages changed",
+        m::Event::KeptInChat => "A message was kept in the chat",
+        m::Event::ChatLocked => "Chat locked",
+        m::Event::Screenshot => "A screenshot was taken",
+        m::Event::Pinned => "A message was pinned",
+        m::Event::Unpinned => "A message was unpinned",
+        m::Event::Blocked => "Blocked or unblocked",
+        m::Event::Unblocked => "Unblocked",
+        m::Event::MessageDeleted => "A message was deleted",
+        m::Event::HistoryCleared => "History cleared",
+        m::Event::GroupCall => "Group call",
+        m::Event::PollClosed => "Poll closed",
+        m::Event::PaymentStatus => "Payment status changed",
+        m::Event::MissedMessages => "Missed messages",
+        m::Event::ThemeChanged => "Theme changed",
+        m::Event::ProfileChanged => "Profile name changed",
+        m::Event::Other => "Notice",
+    }
+}
+
+/// A card's words in English.
+fn card_word(c: m::CardKind) -> &'static str {
+    match c {
+        m::CardKind::Album => "Album",
+        m::CardKind::StickerPack => "Sticker pack",
+        m::CardKind::Event => "Event",
+        m::CardKind::Payment => "Payment",
+        m::CardKind::Game => "Game",
+        m::CardKind::Business => "Business message",
+        m::CardKind::Story => "Status update",
+        m::CardKind::Reaction => "Reaction",
     }
 }
 
@@ -915,7 +932,7 @@ pub fn export_contacts(lib: &Library, contact_ids: &[i64], out_dir: &Path) -> Re
 
 fn write_cards(cards: &[oopz_core::vcard::Card], out_dir: &Path, messages: u64) -> Result<Written> {
     let text = oopz_core::vcard::write(cards);
-    let mut out = Out::new(out_dir, "contacts", "vcf", text.len() as u64)?;
+    let mut out = Out::new(out_dir, "contacts", Format::Vcard.extension(), text.len() as u64)?;
     {
         let mut f = out.writer();
         f.write_all(text.as_bytes()).map_err(write_err)?;
@@ -1009,7 +1026,7 @@ fn media_zip(
     if files.is_empty() && missing.is_empty() {
         return Err(Error::new("not_found", "the selection has no media files"));
     }
-    let mut out = Out::new(out_dir, "media", "zip", need)?;
+    let mut out = Out::new(out_dir, "media", Format::MediaZip.extension(), need)?;
     let total = files.len() as u64;
     {
         let mut zip = zip::ZipWriter::new(BufWriter::new(out.file.as_file_mut()));

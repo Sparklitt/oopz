@@ -1093,6 +1093,7 @@ dependencies = [
  "csv",
  "fs4",
  "jiff",
+ "msgkinds",
  "oopz-core",
  "oopz-gen",
  "oopz-model",
@@ -1107,6 +1108,7 @@ name = "oopz-export-pdf"
 version = "0.1.1"
 dependencies = [
  "krilla",
+ "msgkinds",
  "oopz-core",
  "oopz-export",
  "oopz-gen",

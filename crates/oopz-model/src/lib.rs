@@ -11,18 +11,16 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// The apps oopz has an adapter for.
+/// The apps oopz has an adapter for. Codes and names are msgkinds' ([`App::msgkinds`]); stored by code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(into = "&'static str", try_from = "String")]
 pub enum App {
-    #[serde(rename = "whatsapp")]
     WhatsApp,
     Telegram,
     Sms,
     Line,
     Viber,
     Signal,
-    #[serde(rename = "imessage")]
     IMessage,
 }
 
@@ -30,34 +28,45 @@ impl App {
     pub const ALL: [App; 7] =
         [App::WhatsApp, App::Telegram, App::Sms, App::Line, App::Viber, App::Signal, App::IMessage];
 
-    /// The stable code used in files, URLs and the CLI (`whatsapp`, `telegram`, …).
-    pub fn code(self) -> &'static str {
+    /// The same app in msgkinds.
+    pub fn msgkinds(self) -> msgkinds::App {
         match self {
-            App::WhatsApp => "whatsapp",
-            App::Telegram => "telegram",
-            App::Sms => "sms",
-            App::Line => "line",
-            App::Viber => "viber",
-            App::Signal => "signal",
-            App::IMessage => "imessage",
+            App::WhatsApp => msgkinds::App::WhatsApp,
+            App::Telegram => msgkinds::App::Telegram,
+            App::Sms => msgkinds::App::Sms,
+            App::Line => msgkinds::App::Line,
+            App::Viber => msgkinds::App::Viber,
+            App::Signal => msgkinds::App::Signal,
+            App::IMessage => msgkinds::App::IMessage,
         }
     }
 
-    /// The name people know the app by.
+    /// The stable code used in files, URLs and the CLI (msgkinds' `App::as_str`).
+    pub fn code(self) -> &'static str {
+        self.msgkinds().as_str()
+    }
+
+    /// The name people know the app by (msgkinds' `App::name`).
     pub fn name(self) -> &'static str {
-        match self {
-            App::WhatsApp => "WhatsApp",
-            App::Telegram => "Telegram",
-            App::Sms => "SMS",
-            App::Line => "LINE",
-            App::Viber => "Viber",
-            App::Signal => "Signal",
-            App::IMessage => "iMessage",
-        }
+        self.msgkinds().name()
     }
 
     pub fn from_code(code: &str) -> Option<App> {
         App::ALL.into_iter().find(|a| a.code() == code)
+    }
+}
+
+impl From<App> for &'static str {
+    fn from(app: App) -> Self {
+        app.code()
+    }
+}
+
+/// A stored code this build doesn't know is an error that names it.
+impl TryFrom<String> for App {
+    type Error = String;
+    fn try_from(code: String) -> std::result::Result<Self, String> {
+        App::from_code(&code).ok_or(code)
     }
 }
 
@@ -369,45 +378,57 @@ pub enum MediaKind {
 }
 
 impl MediaKind {
-    /// From a file name's extension, for exports that only give a name.
+    /// From a file name's extension, for exports that only give a name: the kind msgkinds gives the format, but in a
+    /// chat an Ogg or AMR sound is a voice note and a WebP a sticker (what chat apps send them as).
     pub fn from_file_name(name: &str) -> Self {
-        let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
-        match ext.as_str() {
-            "jpg" | "jpeg" | "png" | "heic" | "heif" | "avif" | "bmp" => MediaKind::Photo,
-            "webp" | "tgs" => MediaKind::Sticker,
-            "gif" => MediaKind::Gif,
-            "mp4" | "mov" | "3gp" | "mkv" | "webm" | "avi" => MediaKind::Video,
-            "opus" | "ogg" | "oga" | "amr" => MediaKind::Voice,
-            "mp3" | "m4a" | "aac" | "wav" | "flac" => MediaKind::Audio,
-            _ => MediaKind::Document,
+        use msgkinds::media_type::formats::{AMR, OGG_AUDIO, WEBP};
+        let Some(format) =
+            msgkinds::media_type::name::extension(name).and_then(|e| msgkinds::media_type::by_extension(&e))
+        else {
+            return MediaKind::Document;
+        };
+        match format.kind {
+            msgkinds::Kind::Audio if [OGG_AUDIO, AMR].contains(&format.mime) => MediaKind::Voice,
+            msgkinds::Kind::Photo if format.mime == WEBP => MediaKind::Sticker,
+            k => MediaKind::from_msgkinds(k),
         }
     }
 
-    /// A mime type guessed from a file name, for exports that give none.
+    /// A media kind for msgkinds' kind of a file; any kind that isn't a file's is a document.
+    pub fn from_msgkinds(kind: msgkinds::Kind) -> Self {
+        use msgkinds::Kind as K;
+        match kind {
+            K::Photo => MediaKind::Photo,
+            K::Video => MediaKind::Video,
+            K::VideoNote => MediaKind::VideoNote,
+            K::Gif => MediaKind::Gif,
+            K::Sticker => MediaKind::Sticker,
+            K::Voice => MediaKind::Voice,
+            K::Audio => MediaKind::Audio,
+            K::Text
+            | K::Link
+            | K::Document
+            | K::Location
+            | K::Contact
+            | K::Poll
+            | K::Call
+            | K::Album
+            | K::StickerPack
+            | K::Event
+            | K::Payment
+            | K::Game
+            | K::Business
+            | K::Story
+            | K::Reaction
+            | K::System
+            | K::Deleted
+            | K::Unknown => MediaKind::Document,
+        }
+    }
+
+    /// A mime type from a file name, for exports that give none: msgkinds' format for its extension.
     pub fn mime_for(name: &str) -> Option<&'static str> {
-        let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase())?;
-        Some(match ext.as_str() {
-            "jpg" | "jpeg" => "image/jpeg",
-            "png" => "image/png",
-            "webp" => "image/webp",
-            "gif" => "image/gif",
-            "heic" => "image/heic",
-            "mp4" => "video/mp4",
-            "mov" => "video/quicktime",
-            "3gp" => "video/3gpp",
-            "webm" => "video/webm",
-            "opus" | "ogg" | "oga" => "audio/ogg",
-            "amr" => "audio/amr",
-            "mp3" => "audio/mpeg",
-            "m4a" => "audio/mp4",
-            "aac" => "audio/aac",
-            "pdf" => "application/pdf",
-            "vcf" => "text/vcard",
-            "txt" => "text/plain",
-            "zip" => "application/zip",
-            "apk" => "application/vnd.android.package-archive",
-            _ => return None,
-        })
+        msgkinds::media_type::name::extension(name).and_then(|e| msgkinds::media_type::by_extension(&e)).map(|f| f.mime)
     }
 }
 
@@ -1138,8 +1159,8 @@ mod tests {
             assert_eq!(serde_json::to_string(&k).unwrap(), format!("{:?}", shared.as_str()));
             assert_eq!(k.has_duration(), shared.has_duration());
         }
-        for name in ["text", "link", "photo", "video", "gif", "sticker", "voice", "audio", "document", "location"] {
-            assert!(Kind::from_code(name).is_some(), "{name}");
+        for k in msgkinds::Kind::ALL {
+            assert_eq!(Kind::from_code(k.as_str()), Some(Kind::from(k)), "{k}");
         }
         assert!(!Kind::Sticker.has_duration() && !Kind::Photo.has_duration() && !Kind::Album.has_duration());
         for c in CardKind::ALL {
@@ -1221,7 +1242,7 @@ mod tests {
         assert_eq!(MediaKind::from_file_name("IMG-1.JPG"), MediaKind::Photo);
         assert_eq!(MediaKind::from_file_name("STK-1.webp"), MediaKind::Sticker);
         assert_eq!(MediaKind::from_file_name("noext"), MediaKind::Document);
-        assert_eq!(MediaKind::mime_for("a.PDF"), Some("application/pdf"));
+        assert_eq!(MediaKind::mime_for("a.PDF"), Some(msgkinds::media_type::formats::PDF));
     }
 }
 
