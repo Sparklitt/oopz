@@ -238,6 +238,14 @@ struct Checked {
     index: Option<Index>,
 }
 
+/// The WhatsApp version that wrote a backup, from its unencrypted header (decision 0020); `None` when it doesn't say.
+pub fn version_of(path: &Path) -> Option<String> {
+    use std::io::Read as _;
+    let mut head = Vec::new();
+    std::fs::File::open(path).and_then(|f| f.take(4096).read_to_end(&mut head)).ok()?;
+    oopz::crypt15::app_version(&head)
+}
+
 /// The most search results returned, newest first (the app and the CLI alike).
 pub const SEARCH_LIMIT: u32 = 200;
 /// The most chat lines one call returns.
@@ -271,13 +279,15 @@ pub struct Fact {
 /// Builds a backup's search index on its own read-only connection to the decrypted copy.
 pub struct IndexJob {
     source: PathBuf,
+    /// The WhatsApp version that wrote the backup, for msgkinds' lookups.
+    version: Option<String>,
 }
 
 impl IndexJob {
     pub fn run(&self, tmp: &Path, progress: &mut dyn FnMut(u64, u64) -> bool) -> Result<Index> {
         let db = rusqlite::Connection::open_with_flags(&self.source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(oopz::Error::from)?;
-        Index::build_with(&db, tmp, progress)
+        Ok(Index::build_with(&db, tmp, progress)?.at_version(self.version.clone()))
     }
 }
 
@@ -432,7 +442,8 @@ impl Session {
     pub fn index_job(&self, id: u32) -> Result<IndexJob> {
         let path = self.get(id)?.backup.db().path().map(PathBuf::from);
         let source = path.ok_or_else(|| AppError::new("not_found", "the backup's decrypted copy has no file"))?;
-        Ok(IndexJob { source })
+        let checked = self.get(id)?;
+        Ok(IndexJob { source, version: version_of(&checked.path) })
     }
 
     /// Keeps an index built by an [`IndexJob`]. If one was kept meanwhile, that one stays and this one is removed;

@@ -98,12 +98,7 @@ impl WhatsAppSource {
             .tempdir()
             .map_err(|e| Error::io("making a private folder", e))?;
         // The WhatsApp version that wrote it, from the unencrypted header (decision 0020).
-        let version = {
-            use std::io::Read as _;
-            let mut head = Vec::new();
-            std::fs::File::open(path).and_then(|f| f.take(4096).read_to_end(&mut head)).ok();
-            oopz::crypt15::app_version(&head)
-        };
+        let version = crate::session::version_of(path);
         let mut session = Session::default();
         let summary = session.check(path, key, tmp.path()).map_err(model_error)?;
         session.build_index(summary.id, tmp.path()).map_err(model_error)?;

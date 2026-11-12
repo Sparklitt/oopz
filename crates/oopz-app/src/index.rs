@@ -149,6 +149,8 @@ pub struct Index {
     db: Connection,
     _file: tempfile::NamedTempFile,
     pub info: BuildInfo,
+    /// The WhatsApp version that wrote the backup (msgkinds' lookups are at it); `None`: not known.
+    version: Option<String>,
 }
 
 impl Index {
@@ -171,7 +173,13 @@ impl Index {
             .query_row("SELECT count(*), count(text) FROM msg", [], |r| Ok((r.get(0)?, r.get(1)?)))
             .map_err(oopz::Error::from)?;
         let info = BuildInfo { messages, with_text, millis: started.elapsed().as_millis() as u64 };
-        Ok(Self { db, _file: file, info })
+        Ok(Self { db, _file: file, info, version: None })
+    }
+
+    /// The same index, its lookups at the WhatsApp `version` that wrote the backup.
+    pub fn at_version(mut self, version: Option<String>) -> Self {
+        self.version = version;
+        self
     }
 
     /// Messages matching every word of `query` (the last word as a prefix: `pla` finds `playa`), newest first, in
@@ -298,9 +306,13 @@ impl Index {
             // A sticker, a photo or a document has no duration, whatever WhatsApp wrote (it writes 0): msgkinds says
             // which kinds play.
             if let Some(media) = &mut line.media
-                && !msgkinds::lookup(msgkinds::Source::WhatsAppAndroid, msgkinds::Code::Int(line.kind), None)
-                    .kind()
-                    .has_duration()
+                && !msgkinds::lookup(
+                    msgkinds::Source::WhatsAppAndroid,
+                    msgkinds::Code::Int(line.kind),
+                    self.version.as_deref(),
+                )
+                .kind()
+                .has_duration()
             {
                 media.secs = None;
             }
