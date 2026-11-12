@@ -68,7 +68,7 @@ quick_project() { :; } # the project's own fast checks
 # The desktop app's own scripts (as CI runs them): types, the build, notes and commands in step with Rust.
 full_project() {
   local s
-  for s in check build check:notes check:commands; do
+  for s in check build check:notes check:commands check:receive-page; do
     step "pnpm $s (apps/desktop)"
     (cd apps/desktop && pnpm -s "$s") || fail "pnpm $s in apps/desktop"
   done

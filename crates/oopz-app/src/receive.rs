@@ -21,10 +21,13 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tiny_http::{Header, Method, Request, Response, Server};
 
+mod page;
+
 use crate::messages::Message as Msg;
 use crate::{AppError, Result};
 use msgkinds::Note;
 use oopz_model::messages::Message as ModelMsg;
+use page::Refusal;
 
 /// Wrong-token requests after which the server stops: the token can't be guessed, so many means someone is trying.
 const MAX_REFUSED: u64 = 50;
@@ -342,14 +345,17 @@ fn handle(mut request: Request, token: &str, dest: &Path, shared: &Shared) -> bo
     let rest = url.strip_prefix('/').and_then(|u| u.split_once('/')).filter(|(t, _)| same(t, token));
     let (Some((_, rest)), true) = (rest, from_lan) else {
         shared.status().refused += 1;
-        let _ = request.respond(Response::from_string("not found").with_status_code(404));
+        refuse(request, Refusal::NotFound);
         return false;
     };
     shared.status().opened = true;
     match (request.method(), rest) {
         (Method::Get, "") => {
+            let accept =
+                request.headers().iter().filter(|h| h.field.equiv("Accept-Language")).map(|h| h.value.as_str());
+            let page = page::page(page::language(accept));
             let html = Header::from_bytes("Content-Type", "text/html; charset=utf-8").expect("a valid header");
-            let _ = request.respond(Response::from_string(PAGE).with_header(html));
+            let _ = request.respond(Response::from_string(page).with_header(html));
             false
         }
         (Method::Post, "done") => {
@@ -357,18 +363,24 @@ fn handle(mut request: Request, token: &str, dest: &Path, shared: &Shared) -> bo
             true
         }
         (Method::Put, name) if name.starts_with("files/") => {
-            let (code, body) = match receive_file(&mut request, &name["files/".len()..], dest, shared) {
-                Ok(r) => (200, format!("{} {}", r.bytes, r.sha256)),
-                Err((code, why)) => (code, why.to_owned()),
-            };
-            let _ = request.respond(Response::from_string(body).with_status_code(code));
+            match receive_file(&mut request, &name["files/".len()..], dest, shared) {
+                Ok(r) => {
+                    let _ = request.respond(Response::from_string(format!("{} {}", r.bytes, r.sha256)));
+                }
+                Err(why) => refuse(request, why),
+            }
             false
         }
         _ => {
-            let _ = request.respond(Response::from_string("not found").with_status_code(404));
+            refuse(request, Refusal::NotFound);
             false
         }
     }
+}
+
+/// Answers with a refusal's status and code (docs/messages.md, the receive page, row 13: nothing the phone sent).
+fn refuse(request: Request, why: Refusal) {
+    let _ = request.respond(Response::from_string(why.code()).with_status_code(why.status()));
 }
 
 /// The token compared without stopping at the first difference.
@@ -383,15 +395,15 @@ fn receive_file(
     encoded: &str,
     dest: &Path,
     shared: &Shared,
-) -> std::result::Result<Received, (u16, &'static str)> {
-    let name = safe_name(encoded).ok_or((400, "not an allowed file name"))?;
-    let total = request.body_length().ok_or((411, "the size of the file is needed"))? as u64;
+) -> std::result::Result<Received, Refusal> {
+    let name = safe_name(encoded).ok_or(Refusal::Name)?;
+    let total = request.body_length().ok_or(Refusal::SizeNeeded)? as u64;
     let target = dest.join(&name);
     if target.exists() {
-        return Err((409, "a file with this name was already received"));
+        return Err(Refusal::Exists);
     }
     let part = dest.join(format!(".{name}.part"));
-    let mut out = fs::OpenOptions::new().write(true).create_new(true).open(&part).map_err(|_| (409, "busy"))?;
+    let mut out = fs::OpenOptions::new().write(true).create_new(true).open(&part).map_err(|_| Refusal::Busy)?;
     shared.status().current = Some(Progress { name: name.clone(), done: 0, total, bytes_per_sec: 0, secs_left: None });
     let started = Instant::now();
     let mut hasher = Sha256::new();
@@ -400,13 +412,13 @@ fn receive_file(
     let reader = request.as_reader();
     let result = loop {
         if shared.stop.load(Ordering::SeqCst) {
-            break Err((503, "the computer stopped receiving"));
+            break Err(Refusal::Stopped);
         }
         match reader.read(&mut buf) {
             Ok(0) => break Ok(()),
             Ok(n) => {
                 if out.write_all(&buf[..n]).is_err() {
-                    break Err((507, "the computer couldn't write the file (is its disk full?)"));
+                    break Err(Refusal::Disk);
                 }
                 hasher.update(&buf[..n]);
                 done += n as u64;
@@ -419,15 +431,15 @@ fn receive_file(
                     }
                 }
             }
-            Err(_) => break Err((400, "the transfer was cut off")),
+            Err(_) => break Err(Refusal::CutOff),
         }
     };
     shared.status().current = None;
     let result = result
-        .and(if done == total { Ok(()) } else { Err((400, "the transfer was cut off")) })
-        .and_then(|()| out.sync_all().map_err(|_| (507, "the computer couldn't write the file")))
-        .and_then(|()| if target.exists() { Err((409, "already received")) } else { Ok(()) })
-        .and_then(|()| fs::rename(&part, &target).map_err(|_| (507, "the computer couldn't write the file")));
+        .and(if done == total { Ok(()) } else { Err(Refusal::CutOff) })
+        .and_then(|()| out.sync_all().map_err(|_| Refusal::Write))
+        .and_then(|()| if target.exists() { Err(Refusal::Exists) } else { Ok(()) })
+        .and_then(|()| fs::rename(&part, &target).map_err(|_| Refusal::Write));
     if let Err(e) = result {
         let _ = fs::remove_file(&part);
         return Err(e);
@@ -460,9 +472,6 @@ fn safe_name(encoded: &str) -> Option<String> {
     ok.then_some(name)
 }
 
-/// The phone's page: English or Spanish by the phone's language; no outside resources.
-const PAGE: &str = include_str!("receive_page.html");
-
 #[cfg(test)]
 mod tests {
     use std::io::{BufRead, BufReader, Read};
@@ -493,10 +502,15 @@ mod tests {
 
     /// One HTTP request, `Connection: close`: (status, body).
     fn http(url: &str, method: &str, path: &str, body: &[u8]) -> (u16, String) {
+        http_with(url, method, path, "", body)
+    }
+
+    /// With `headers`, each line ending in `\r\n`.
+    fn http_with(url: &str, method: &str, path: &str, headers: &str, body: &[u8]) -> (u16, String) {
         let addr = addr_of(url);
         let mut stream = TcpStream::connect(&addr).unwrap();
         let head = format!(
-            "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            "{method} {path} HTTP/1.1\r\nHost: {addr}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()
         );
         stream.write_all(head.as_bytes()).unwrap();
@@ -532,6 +546,12 @@ mod tests {
         assert_eq!(code, 200);
         assert!(rx.status().opened, "the phone opened the page");
         assert!(page.contains("oopz") && page.contains("<input"));
+        // docs/messages.md, the receive page, rows 8, 9 and 14: in the phone's language, the token only in the URL.
+        assert!(page.contains(r#"<html lang="en">"#) && page.contains(r#""receive_page_send":"Send""#));
+        let token = base.trim_matches('/');
+        assert!(!page.contains(token));
+        let (_, spanish) = http_with(&url, "GET", &base, "Accept-Language: es-419,es;q=0.9\r\n", b"");
+        assert!(spanish.contains(r#"<html lang="es">"#) && spanish.contains(r#""receive_page_send":"Enviar""#));
 
         let backup = b"synthetic backup bytes, not a real one".repeat(1000);
         let name = "msgstore-2026-10-30.1.db.crypt15";
@@ -546,10 +566,12 @@ mod tests {
 
         // Never over a received file, never outside the folder, never without the token.
         assert_eq!(http(&url, "PUT", &format!("{base}files/{name}"), b"x").0, 409);
+        // Row 13: an answer is a code, never the name or bytes the phone sent.
+        assert_eq!(http(&url, "PUT", &format!("{base}files/{name}"), b"x").1, "receive_refused_exists");
         for bad in ["..%2Fescape", "%2Fetc%2Fpasswd", ".hidden", "a%5Cb", ""] {
-            assert_eq!(http(&url, "PUT", &format!("{base}files/{bad}"), b"x").0, 400, "{bad}");
+            assert_eq!(http(&url, "PUT", &format!("{base}files/{bad}"), b"x"), (400, "receive_refused_name".into()));
         }
-        assert_eq!(http(&url, "GET", "/", b"").0, 404);
+        assert_eq!(http(&url, "GET", "/", b""), (404, "receive_refused_not_found".into()));
         assert_eq!(http(&url, "GET", &format!("/{}/", "0".repeat(32)), b"").0, 404);
 
         let status = rx.status();

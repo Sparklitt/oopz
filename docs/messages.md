@@ -79,6 +79,31 @@ SQLite write it, in every language. Rows (owner, 2026-11-12), a test each:
 | 5 | The desktop's wire (`MergeOutcome.checks`) | each check's English text until notes travel as notes (roadmap item 6) | `oopz_app` `merge_writes_a_new_folder_and_leaves_the_originals` |
 | 6 | The CLI in Spanish | every check in Spanish, no English line (no check is a developer's) | the binary's `checks_6_restore_words_its_checks_in_the_commands_language` |
 
+## The receive page
+
+The phone's receive page (`crates/oopz-app/src/receive_page.html`) keeps no words of its own: the computer serves it
+with every `receive_page_…` and `receive_refused_…` message of the `oopz_app` catalog worded in the phone's language,
+as a JSON object in a `<script type="application/json">`, and the page shows each element's words by message name
+(`data-t`). The phone's language is read by the computer from its `Accept-Language` (msgkinds' `Catalog::find`, in
+the order the phone lists its languages; weights aren't read), so the rule is msgkinds' and tested in Rust. A
+refused file is answered with its HTTP status (unchanged) and a stable code, the message's name
+(`receive_refused_exists`); a received one with its bytes and SHA-256, as before. Rows (owner, 2026-11-12), a test
+each (`oopz_app` `receive::page::tests`, the HTTP test `a_phone_sends_files_with_the_token_and_they_arrive_whole`,
+and `pnpm check:receive-page` in `apps/desktop` for the page's own `answer`):
+
+| # | Case | What happens | Test |
+|---|---|---|---|
+| 7 | A code the computer answers | has a message the page is sent, in every language; every `receive_refused_…` message is a code it can answer; statuses unchanged | `page_7_every_code_has_its_words_in_every_language`, `page_7_the_statuses_are_unchanged` |
+| 8 | A phone language oopz lacks (`fr`, `pt-BR`), none, `*` | the catalog's default (English), never a blank | `page_8_a_language_oopz_lacks_is_the_default`; the HTTP test |
+| 9 | `es-419`, `es-MX`, `ES-es`; several languages listed | Spanish; the first listed that oopz has | `page_9_regional_spanish_is_spanish`; the HTTP test |
+| 10 | A code the page doesn't know (a newer computer) | the generic "not received" words and the code | `check:receive-page` |
+| 11 | A wording holding `</script>`, `<!--`, quotes, backslashes, U+2028 | escaped in the embedded JSON (`<`, `>`, `&`, U+2028, U+2029 as `\u` escapes): it can't end the script | `page_11_the_words_cant_break_the_page` |
+| 12 | A body that isn't a code (a proxy's error page), or none | "not received" and the HTTP status, never the body | `check:receive-page` |
+| 13 | What an answer holds | a code, or bytes and SHA-256: never a file's name, its content or the token; the receiver logs nothing | `page_13_an_answer_is_a_code_only`; the HTTP test |
+| 14 | The token | only in the page's URL (and its QR code), never in the served page | the HTTP test |
+
+Rows 1–6 are a merge's checks (above).
+
 ## Errors
 
 Every error is a stable `code` and a note: `oopz_model::Error::note()`, `oopz_core::Error.note`, `oopz_app::AppError.note`,

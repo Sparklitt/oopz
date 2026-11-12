@@ -666,3 +666,142 @@ name = "window_failed"
 for = "developer"
 params = []
 en = "oopz couldn't start its window"
+
+# The phone's receive page (`receive.rs`, `receive_page.html`): its words, served in the phone's language with the
+# page. Every `receive_page_…` message is sent to the page, which shows them by name (`data-t`).
+
+[[message]]
+name = "receive_page_tab"
+for = "user"
+params = []
+en = "oopz: send your backup"
+es = "oopz: envía tu copia"
+
+[[message]]
+name = "receive_page_title"
+for = "user"
+params = []
+en = "Send your backup to oopz"
+es = "Envía tu copia a oopz"
+
+[[message]]
+name = "receive_page_where"
+for = "user"
+params = []
+en = "Pick the files from Android/media/com.whatsapp/WhatsApp/Databases (WhatsApp Business: com.whatsapp.w4b). For photos and videos, zip the Media folder in your file manager and send the zip."
+es = "Elige los archivos de Android/media/com.whatsapp/WhatsApp/Databases (WhatsApp Business: com.whatsapp.w4b). Para fotos y vídeos, comprime la carpeta Media en tu gestor de archivos y envía el zip."
+
+[[message]]
+name = "receive_page_pick"
+for = "user"
+params = []
+en = "Choose files"
+es = "Elegir archivos"
+
+[[message]]
+name = "receive_page_send"
+for = "user"
+params = []
+en = "Send"
+es = "Enviar"
+
+[[message]]
+name = "receive_page_done"
+for = "user"
+params = []
+en = "I'm done"
+es = "He terminado"
+
+[[message]]
+name = "receive_page_privacy"
+for = "user"
+params = []
+en = "The files go only to the computer on your Wi-Fi that showed the QR code. This page stops working when you tap \"I'm done\"."
+es = "Los archivos van solo al ordenador de tu Wi-Fi que mostró el código QR. Esta página deja de funcionar cuando tocas \"He terminado\"."
+
+[[message]]
+name = "receive_page_ok"
+for = "user"
+params = []
+en = "received, size matches"
+es = "recibido, tamaño correcto"
+
+[[message]]
+name = "receive_page_bad"
+for = "user"
+params = []
+en = "not received"
+es = "no se recibió"
+
+[[message]]
+name = "receive_page_closed"
+for = "user"
+params = []
+en = "Done. You can close this page."
+es = "Listo. Ya puedes cerrar esta página."
+
+# Why the computer refused a file: the answer's body is the message's name (a stable code), the page words it. Every
+# `receive_refused_…` message is sent to the page.
+
+[[message]]
+name = "receive_refused_name"
+for = "user"
+params = []
+en = "not an allowed file name"
+es = "nombre de archivo no permitido"
+
+[[message]]
+name = "receive_refused_size_needed"
+for = "user"
+params = []
+en = "the size of the file is needed"
+es = "hace falta el tamaño del archivo"
+
+[[message]]
+name = "receive_refused_exists"
+for = "user"
+params = []
+en = "a file with this name was already received"
+es = "ya se recibió un archivo con este nombre"
+
+[[message]]
+name = "receive_refused_busy"
+for = "user"
+params = []
+en = "a file with this name is being received"
+es = "ya se está recibiendo un archivo con este nombre"
+
+[[message]]
+name = "receive_refused_stopped"
+for = "user"
+params = []
+en = "the computer stopped receiving"
+es = "el ordenador dejó de recibir"
+
+[[message]]
+name = "receive_refused_disk"
+for = "user"
+params = []
+en = "the computer couldn't write the file (is its disk full?)"
+es = "el ordenador no pudo escribir el archivo (¿tiene el disco lleno?)"
+
+[[message]]
+name = "receive_refused_write"
+for = "user"
+params = []
+en = "the computer couldn't write the file"
+es = "el ordenador no pudo escribir el archivo"
+
+[[message]]
+name = "receive_refused_cut_off"
+for = "user"
+params = []
+en = "the transfer was cut off"
+es = "la transferencia se cortó"
+
+[[message]]
+name = "receive_refused_not_found"
+for = "user"
+params = []
+en = "not found"
+es = "no encontrado"

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{language}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>oopz: send your backup</title>
+<title data-t="receive_page_tab"></title>
 <style>
   :root { --bg: #FFF7EE; --card: #FFFFFF; --ink: #23244F; --soft: #6B6C8F; --line: #E4D9CC; --coral: #F2604F; --ok: #2E8B57; }
   @media (prefers-color-scheme: dark) {
@@ -30,30 +30,37 @@
 </head>
 <body>
 <main>
-  <h1 data-t="title">Send your backup to oopz</h1>
+  <h1 data-t="receive_page_title"></h1>
   <div class="card">
-    <p data-t="where">Pick the files from <code>Android/media/com.whatsapp/WhatsApp/Databases</code> (WhatsApp Business: <code>com.whatsapp.w4b</code>). For photos and videos, zip the <code>Media</code> folder in your file manager and send the zip.</p>
-    <label class="pick"><span data-t="pick">Choose files</span><input id="files" type="file" multiple></label>
+    <p data-t="receive_page_where"></p>
+    <label class="pick"><span data-t="receive_page_pick"></span><input id="files" type="file" multiple></label>
     <div id="list"></div>
-    <button id="send" disabled data-t="send">Send</button>
-    <button id="done" data-t="done">I'm done</button>
+    <button id="send" disabled data-t="receive_page_send"></button>
+    <button id="done" data-t="receive_page_done"></button>
   </div>
-  <p data-t="privacy">The files go only to the computer on your Wi-Fi that showed the QR code. This page stops working when you tap "I'm done".</p>
+  <p data-t="receive_page_privacy"></p>
 </main>
+<!-- The page's words in the phone's language, message name → wording, put in by the computer (receive/page.rs). -->
+<script id="words" type="application/json">{{words}}</script>
 <script>
 "use strict";
-const es = (navigator.language || "").toLowerCase().startsWith("es");
-const T = es ? {
-  title: "Envía tu copia a oopz",
-  where: "Elige los archivos de Android/media/com.whatsapp/WhatsApp/Databases (WhatsApp Business: com.whatsapp.w4b). Para fotos y vídeos, comprime la carpeta Media en tu gestor de archivos y envía el zip.",
-  pick: "Elegir archivos", send: "Enviar", done: "He terminado",
-  privacy: "Los archivos van solo al ordenador de tu Wi-Fi que mostró el código QR. Esta página deja de funcionar cuando tocas \"He terminado\".",
-  ok: "recibido, tamaño correcto", bad: "no se recibió", closed: "Listo. Ya puedes cerrar esta página."
-} : {
-  ok: "received, size matches", bad: "not received", closed: "Done. You can close this page."
-};
-for (const el of document.querySelectorAll("[data-t]")) { const t = T[el.dataset.t]; if (t) el.textContent = t; }
-if (es) document.documentElement.lang = "es";
+const W = JSON.parse(document.getElementById("words").textContent);
+for (const el of document.querySelectorAll("[data-t]")) el.textContent = W[el.dataset.t];
+
+// answer: begin (scripts/check-receive-page.mjs tests this function on its own)
+// What a file's row says after the computer answered: received when it says so with the file's size; else why, by
+// its code (`receive_refused_…`), or the code itself when this page doesn't know it (a newer computer), or the HTTP
+// status when the body isn't a code (a proxy's error page): never the body as it came.
+function answer(status, body, size, W) {
+  const text = String(body || "").trim();
+  const bytes = Number(text.split(" ")[0]);
+  if (status === 200 && bytes === size) return { ok: true, text: W.receive_page_ok };
+  const known = /^[a-z_]{1,64}$/.test(text);
+  const why = known && Object.prototype.hasOwnProperty.call(W, text) && text.startsWith("receive_refused_") ? W[text]
+    : known ? text : "HTTP " + status;
+  return { ok: false, text: W.receive_page_bad + " (" + why + ")" };
+}
+// answer: end
 
 const input = document.getElementById("files"), list = document.getElementById("list");
 const send = document.getElementById("send"), done = document.getElementById("done");
@@ -77,13 +84,12 @@ function upload(r) {
     xhr.open("PUT", "files/" + encodeURIComponent(r.file.name));
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) r.bar.value = e.loaded / e.total; };
     xhr.onload = () => {
-      const bytes = Number((xhr.responseText || "").split(" ")[0]);
-      const ok = xhr.status === 200 && bytes === r.file.size;
-      r.state.textContent = ok ? T.ok : T.bad + " (" + xhr.responseText + ")";
-      r.state.className = ok ? "ok" : "bad";
+      const a = answer(xhr.status, xhr.responseText, r.file.size, W);
+      r.state.textContent = a.text;
+      r.state.className = a.ok ? "ok" : "bad";
       resolve();
     };
-    xhr.onerror = () => { r.state.textContent = T.bad; r.state.className = "bad"; resolve(); };
+    xhr.onerror = () => { r.state.textContent = W.receive_page_bad; r.state.className = "bad"; resolve(); };
     xhr.send(r.file);
   });
 }
@@ -94,7 +100,7 @@ send.addEventListener("click", async () => {
 });
 done.addEventListener("click", async () => {
   try { await fetch("done", { method: "POST" }); } catch (e) {}
-  document.querySelector("main").textContent = T.closed;
+  document.querySelector("main").textContent = W.receive_page_closed;
 });
 </script>
 </body>
