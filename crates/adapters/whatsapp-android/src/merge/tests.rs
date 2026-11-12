@@ -35,10 +35,10 @@ fn adds_the_missing_messages_mirrored_before_the_targets_own() {
     assert_eq!((report.target_before, report.already_there, report.added, report.moved), (4, 2, 8, 4));
     assert_eq!((report.added_after_target_start, report.source_without_key, report.triggers), (0, 0, 1));
     assert_eq!((report.media_new_paths, report.media_reused, report.calls_reused), (2, 1, 1));
-    let left: Vec<_> = report.left_behind.iter().map(|(t, n)| (t.as_str(), *n)).collect();
-    assert_eq!(left, [("receipt_user", 1)]);
+    let left: Vec<_> = report.left_behind.iter().map(|((t, why), n)| (t.as_str(), *why, *n)).collect();
+    assert_eq!(left, [("receipt_user", LeftBehind::NotCopied, 1)]);
     assert_eq!(report.copied["message_add_on"], 2);
-    assert_eq!(report.checks.len(), 9, "{report}");
+    assert_eq!(report.checks.len(), 9, "{report:?}");
 
     let (db, _file) = open(&sealed);
     // Rows 1..8 were used and 10 is still referred to: the added ones take 11..18 in Ana's order, Ben's chat moves

@@ -3,7 +3,6 @@
 //! they're returned. Reports hold counts and table names only.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
@@ -72,6 +71,19 @@ pub struct ChatMerge<'a> {
     pub target_chat: i64,
 }
 
+/// Why source rows about added messages weren't copied (a [`MergeReport`]'s `left_behind`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LeftBehind {
+    /// A table the merge doesn't copy (receipts, reporting…).
+    NotCopied,
+    /// A table the target's WhatsApp doesn't have.
+    NotInTarget,
+    /// Rows that refer to a message that wasn't merged.
+    RefersToUnmerged,
+    /// `message_add_on` rows that aren't reactions.
+    NotAReaction,
+}
+
 /// What a merge did and what it checked, in counts and table names only.
 #[derive(Debug, Default)]
 pub struct MergeReport {
@@ -87,8 +99,8 @@ pub struct MergeReport {
     pub moved: u64,
     /// Rows written, per table.
     pub copied: BTreeMap<String, u64>,
-    /// Source rows about added messages that weren't copied, per table.
-    pub left_behind: BTreeMap<String, u64>,
+    /// Source rows about added messages that weren't copied, per table and why.
+    pub left_behind: BTreeMap<(String, LeftBehind), u64>,
     pub media_new_paths: u64,
     /// Media rows pointing at a file the target already has (same `file_hash`).
     pub media_reused: u64,
@@ -98,36 +110,6 @@ pub struct MergeReport {
     pub triggers: u64,
     /// The checks the result passed, in the order they ran, each with what it measured (`passed_…` notes).
     pub checks: Vec<Note>,
-}
-
-impl fmt::Display for MergeReport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "target chat: {} messages before", self.target_before)?;
-        writeln!(f, "source chat: {} already there, {} added", self.already_there, self.added)?;
-        if self.added_after_target_start > 0 {
-            writeln!(f, "  added but newer than the target chat's first message: {}", self.added_after_target_start)?;
-        }
-        if self.source_without_key > 0 {
-            writeln!(f, "  without a message id, not added: {}", self.source_without_key)?;
-        }
-        writeln!(f, "target chat messages moved above the added ones: {}", self.moved)?;
-        writeln!(
-            f,
-            "media: {} new paths, {} reuse a file the target has, {} unsafe paths dropped; calls reused: {}",
-            self.media_new_paths, self.media_reused, self.media_unsafe_paths, self.calls_reused
-        )?;
-        writeln!(f, "triggers set aside and restored: {}", self.triggers)?;
-        for (table, n) in &self.copied {
-            writeln!(f, "  copied {table}: {n}")?;
-        }
-        for (table, n) in &self.left_behind {
-            writeln!(f, "  left behind {table}: {n}")?;
-        }
-        for check in &self.checks {
-            writeln!(f, "check {check}")?;
-        }
-        Ok(())
-    }
 }
 
 /// What a merge made: the target's new backup, its report, and the media files it expects that the target lacks.
@@ -182,12 +164,6 @@ pub struct MediaReport {
     pub bytes: u64,
     /// Expected files the source's folder doesn't have (never downloaded, or deleted).
     pub missing: u64,
-}
-
-impl fmt::Display for MediaReport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "media files: {} copied ({} bytes), {} missing", self.copied, self.bytes, self.missing)
-    }
 }
 
 /// Copies each file from the source phone's `Media/` folder (`from_dir`, only read) into `to_dir`, laid out like the
@@ -492,7 +468,7 @@ impl<'c, 'r> Merger<'c, 'r> {
         if target.is_empty() {
             let n: u64 = db.query_row(&format!("SELECT count(*) FROM src.{t} WHERE {filter}"), [], |r| r.get(0))?;
             if n > 0 {
-                *self.report.left_behind.entry(format!("{table} (not in the target)")).or_default() += n;
+                *self.report.left_behind.entry((table.to_owned(), LeftBehind::NotInTarget)).or_default() += n;
             }
             return Ok(Vec::new());
         }
@@ -545,7 +521,7 @@ impl<'c, 'r> Merger<'c, 'r> {
             *self.report.copied.entry(table.to_owned()).or_default() += ids.len() as u64;
         }
         if skipped > 0 {
-            *self.report.left_behind.entry(format!("{table} (refers to a message not merged)")).or_default() += skipped;
+            *self.report.left_behind.entry((table.to_owned(), LeftBehind::RefersToUnmerged)).or_default() += skipped;
         }
         Ok(ids)
     }
@@ -756,7 +732,7 @@ impl<'c, 'r> Merger<'c, 'r> {
             |r| r.get(0),
         )?;
         if others > 0 {
-            *self.report.left_behind.entry("message_add_on (not a reaction)".into()).or_default() += others;
+            *self.report.left_behind.entry(("message_add_on".into(), LeftBehind::NotAReaction)).or_default() += others;
         }
         let ids = self.copy(
             "message_add_on",
@@ -815,7 +791,7 @@ impl<'c, 'r> Merger<'c, 'r> {
             let n: u64 =
                 db.query_row(&format!("SELECT count(*) FROM src.{} WHERE {cond}", quote(&table)), [], |r| r.get(0))?;
             if n > 0 {
-                *self.report.left_behind.entry(table).or_default() += n;
+                *self.report.left_behind.entry((table, LeftBehind::NotCopied)).or_default() += n;
             }
         }
         Ok(())

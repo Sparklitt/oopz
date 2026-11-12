@@ -20,7 +20,7 @@ pub mod merge;
 pub mod schema;
 
 pub use crypt15::Key;
-pub use merge::{ChatMerge, MediaFile, MediaReport, MergeReport, Merged, copy_media};
+pub use merge::{ChatMerge, LeftBehind, MediaFile, MediaReport, MergeReport, Merged, copy_media};
 
 /// Why a backup didn't open, read or merge, worded by [`Error::note`] in the person's language (the `oopz` catalog);
 /// `Display` is the English. Never holds the key or message text.
