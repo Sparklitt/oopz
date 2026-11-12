@@ -338,3 +338,38 @@ fn pull_refuses_without_adb_a_phone_or_a_clear_choice() {
     }
     assert_eq!(std::fs::read_dir(out.path()).unwrap().count(), 0, "nothing written");
 }
+
+/// docs/messages.md, merge checks row 6: in Spanish, every check is Spanish; no English check is mixed in (none is a
+/// developer's).
+#[test]
+fn checks_6_restore_words_its_checks_in_the_commands_language() {
+    let fx = fixture::two_phones();
+    let out = fx.dir.path().join("out");
+    std::fs::create_dir(&out).unwrap();
+    let (source_chat, target_chat) = (fixture::SOURCE_CHAT.to_string(), fixture::TARGET_CHAT.to_string());
+    let args = [
+        "restore",
+        "--source",
+        fx.source.to_str().unwrap(),
+        "--source-chat",
+        &source_chat,
+        "--target",
+        fx.target.to_str().unwrap(),
+        "--target-chat",
+        &target_chat,
+        "--out-dir",
+        out.to_str().unwrap(),
+    ];
+    let merged = oopz_in("es_ES.UTF-8", &args, Some(&format!("{KEY_HEX}\n{}", fixture::TARGET_KEY_HEX)));
+    assert!(merged.status.success(), "{}", text(&merged));
+    let checks: Vec<String> =
+        text(&merged).lines().filter_map(|l| l.strip_prefix("comprobación ")).map(String::from).collect();
+    assert_eq!(checks.len(), 9, "{}", text(&merged));
+    assert_eq!(checks[0], "se descifra con la clave del destino: sí");
+    assert_eq!(checks[3], "mensajes del chat: 4 + 8 = 12");
+    assert!(checks[8].starts_with("tablas: número de filas como se esperaba; "), "{checks:?}");
+    assert!(!text(&merged).lines().any(|l| l.starts_with("check ")), "{}", text(&merged));
+    for english in ["yes", "unchanged", "as before", "untouched", "identical,"] {
+        assert!(!text(&merged).contains(english), "{english:?} in {}", text(&merged));
+    }
+}

@@ -96,8 +96,8 @@ pub struct MergeReport {
     pub calls_reused: u64,
     /// Triggers dropped during the merge and recreated exactly after it.
     pub triggers: u64,
-    /// The checks the result passed, each with what it measured.
-    pub checks: Vec<(&'static str, String)>,
+    /// The checks the result passed, in the order they ran, each with what it measured (`passed_…` notes).
+    pub checks: Vec<Note>,
 }
 
 impl fmt::Display for MergeReport {
@@ -123,8 +123,8 @@ impl fmt::Display for MergeReport {
         for (table, n) in &self.left_behind {
             writeln!(f, "  left behind {table}: {n}")?;
         }
-        for (check, value) in &self.checks {
-            writeln!(f, "check {check}: {value}")?;
+        for check in &self.checks {
+            writeln!(f, "check {check}")?;
         }
         Ok(())
     }
@@ -849,7 +849,7 @@ fn verify(
     chat: i64,
     last_added: i64,
     report: &MergeReport,
-) -> Result<Vec<(&'static str, String)>> {
+) -> Result<Vec<Note>> {
     let fail = |which: Msg, values: Vec<String>| Err(Error::check(which, values));
     let merged = crypt15::decrypt(sealed, key).map_err(|e| {
         Error::MergeCheck(Note::new(Msg::CheckDecrypt, vec![msgkinds::note::Value::Note(Box::new(e.note()))]))
@@ -861,13 +861,13 @@ fn verify(
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
     db.execute("ATTACH DATABASE ?1 AS orig", [format!("file:{}?mode=ro", original_file.path().display())])?;
-    let mut checks = vec![("decrypts with the target's key", "yes".to_owned())];
+    let mut checks = vec![Note::of(Msg::PassedDecrypts, [])];
 
     let integrity: String = db.query_row("PRAGMA main.integrity_check", [], |r| r.get(0))?;
     if integrity != "ok" {
         return fail(Msg::CheckIntegrity, vec![]);
     }
-    checks.push(("integrity_check", integrity));
+    checks.push(Note::of(Msg::PassedIntegrity, []));
 
     let version = |schema: &str| db.query_row(&format!("PRAGMA {schema}.user_version"), [], |r| r.get::<_, i64>(0));
     if version("main")? != version("orig")? {
@@ -879,7 +879,7 @@ fn verify(
     if schema_sql("main")? != schema_sql("orig")? {
         return fail(Msg::CheckSchema, vec![]);
     }
-    checks.push(("schema and user_version", "unchanged".into()));
+    checks.push(Note::of(Msg::PassedSchema, []));
 
     let count = |sql: &str| db.query_row(sql, [chat], |r| r.get::<_, u64>(0));
     let after = count("SELECT count(*) FROM main.message WHERE chat_row_id = ?1")?;
@@ -889,7 +889,7 @@ fn verify(
             vec![after.to_string(), report.target_before.to_string(), report.added.to_string()],
         );
     }
-    checks.push(("chat messages", format!("{} + {} = {after}", report.target_before, report.added)));
+    checks.push(Note::of(Msg::PassedCount, [report.target_before, report.added, after].map(|n| n.to_string())));
 
     let unsorted = |schema: &str| {
         db.query_row(&format!("SELECT count(*) FROM {schema}.message WHERE sort_id IS NOT _id"), [], |r| {
@@ -900,7 +900,7 @@ fn verify(
     if now != before {
         return fail(Msg::CheckSortId, vec![now.to_string(), before.to_string()]);
     }
-    checks.push(("sort_id = _id", format!("every message (exceptions: {now}, as before)")));
+    checks.push(Note::of(Msg::PassedSortId, [now.to_string()]));
 
     let mut dangling = 0;
     for (table, column) in reference_columns(&db, "main")? {
@@ -925,7 +925,7 @@ fn verify(
         }
         dangling += now;
     }
-    checks.push(("references to missing messages", format!("none new ({dangling}, as before)")));
+    checks.push(Note::of(Msg::PassedReferences, [dangling.to_string()]));
 
     let others = "SELECT * FROM {s}.message WHERE chat_row_id IS NOT ?1 ORDER BY _id";
     if digest(&db, &others.replace("{s}", "main"), &[&chat], true)?
@@ -945,7 +945,7 @@ fn verify(
     if digest(&db, &theirs_now, &[&chat], true)? != digest(&db, &theirs_before, &[&chat], true)? {
         return fail(Msg::CheckOwnOrder, vec![]);
     }
-    checks.push(("other chats and the chat's own messages", "identical, in order".into()));
+    checks.push(Note::of(Msg::PassedOtherChats, []));
 
     let referencing: HashSet<String> = reference_columns(&db, "main")?.into_iter().map(|(t, _)| t).collect();
     let mut identical = 0;
@@ -997,9 +997,9 @@ fn verify(
         if late > 0 {
             return fail(Msg::CheckCreatedAfter, vec![]);
         }
-        checks.push(("chat created_timestamp", "not after its first message".into()));
+        checks.push(Note::of(Msg::PassedCreated, []));
     }
-    checks.push(("tables", format!("row counts as expected; {identical} untouched tables identical")));
+    checks.push(Note::of(Msg::PassedTables, [identical.to_string()]));
     Ok(checks)
 }
 

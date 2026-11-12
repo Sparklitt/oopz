@@ -1882,6 +1882,77 @@ plural = "now"
 en_one = "`{table}.{column}` refers to {now} missing message (before: {before})"
 en_other = "`{table}.{column}` refers to {now} missing messages (before: {before})"
 
+# The checks a merge passed (whatsapp-android `merge.rs` `verify`), in the order they ran: shown to the person as
+# the proof the result is safe, so user messages. A column or pragma name (`sort_id`, `integrity_check`) is written
+# as WhatsApp's and SQLite's own, in every language.
+
+[[message]]
+name = "passed_decrypts"
+for = "user"
+params = []
+en = "decrypts with the target's key: yes"
+es = "se descifra con la clave del destino: sí"
+
+[[message]]
+name = "passed_integrity"
+for = "user"
+params = []
+en = "integrity_check: ok"
+es = "integrity_check de SQLite: ok"
+
+[[message]]
+name = "passed_schema"
+for = "user"
+params = []
+en = "schema and user_version: unchanged"
+es = "esquema y user_version: sin cambios"
+
+[[message]]
+name = "passed_count"
+for = "user"
+params = ["before", "added", "after"]
+en = "chat messages: {before} + {added} = {after}"
+es = "mensajes del chat: {before} + {added} = {after}"
+
+[[message]]
+name = "passed_sort_id"
+for = "user"
+params = ["exceptions"]
+en = "sort_id = _id: every message (exceptions: {exceptions}, as before)"
+es = "sort_id = _id: todos los mensajes (excepciones: {exceptions}, como antes)"
+
+[[message]]
+name = "passed_references"
+for = "user"
+params = ["dangling"]
+en = "references to missing messages: none new ({dangling}, as before)"
+es = "referencias a mensajes que faltan: ninguna nueva ({dangling}, como antes)"
+
+[[message]]
+name = "passed_other_chats"
+for = "user"
+params = []
+en = "other chats and the chat's own messages: identical, in order"
+es = "los otros chats y los mensajes propios del chat: idénticos, en orden"
+
+[[message]]
+name = "passed_created"
+for = "user"
+params = []
+en = "chat created_timestamp: not after its first message"
+es = "created_timestamp del chat: no es posterior a su primer mensaje"
+
+[[message]]
+name = "passed_tables"
+for = "user"
+params = ["identical"]
+plural = "identical"
+en_one = "tables: row counts as expected; {identical} untouched table identical"
+en_other = "tables: row counts as expected; {identical} untouched tables identical"
+es_one = "tablas: número de filas como se esperaba; {identical} tabla sin tocar idéntica"
+es_many = "tablas: número de filas como se esperaba; {identical} tablas sin tocar idénticas"
+es_other = "tablas: número de filas como se esperaba; {identical} tablas sin tocar idénticas"
+
 # iPhone backups (crate `oopz-ios-backup`): a damaged backup's diagnostics are a developer's (the keybag, a file
 # record), inside a user message; what was being done is a user's.
 

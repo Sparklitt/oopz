@@ -63,6 +63,22 @@ A Spanish participle or article agrees with its noun, so a wording agrees with a
 | 1 | A value whose gender we don't know (`saved`, `saved_bytes`, `saved_contacts`, `saved_export`, `received_file`) | "se guardó", "se recibió": no gendered word |
 | 2 | The review of `oopz_cli`'s Spanish (2026-11-12) | `copied_folder` "carpeta {name} copiada" (was "copiado", wrong for a folder), `linked_into` "personas unidas" (the people of a suggestion); the rest agree with their own nouns |
 
+## A merge's checks
+
+A merge's checks (whatsapp-android `merge.rs` `verify`) are `passed_…` notes of the `oopz` catalog, user messages:
+the person reads them as the proof the result is safe. A failed check is an error (`merge_check`) whose note is a
+developer's `check_…` inside a user's. A column or pragma name (`sort_id`, `integrity_check`) stays as WhatsApp and
+SQLite write it, in every language. Rows (owner, 2026-11-12), a test each:
+
+| # | Case | What happens | Test |
+|---|---|---|---|
+| 1 | A counted value in a check | its form: "1 untouched table", "2 untouched tables"; Spanish one, many, other | `oopz` `checks_1_a_counted_value_takes_its_form` |
+| 2 | A table or column name holding braces or `{name}` | a value, put in as it is (msgkinds row 19) | `oopz` `checks_2_a_table_name_stays_text` |
+| 3 | The checks' order | the order they ran, kept from the merge to the CLI and the wire | `oopz` `checks_3_the_checks_keep_their_order` |
+| 4 | A merge refused before its checks | an error and no checks, never a sentence standing in for them | `oopz` `checks_4_a_refused_merge_has_no_checks` |
+| 5 | The desktop's wire (`MergeOutcome.checks`) | each check's English text until notes travel as notes (roadmap item 6) | `oopz_app` `merge_writes_a_new_folder_and_leaves_the_originals` |
+| 6 | The CLI in Spanish | every check in Spanish, no English line (no check is a developer's) | the binary's `checks_6_restore_words_its_checks_in_the_commands_language` |
+
 ## Errors
 
 Every error is a stable `code` and a note: `oopz_model::Error::note()`, `oopz_core::Error.note`, `oopz_app::AppError.note`,

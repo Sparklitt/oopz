@@ -223,12 +223,20 @@ pub struct MergeOutcome {
     pub target_before: u64,
     pub already_there: u64,
     pub added: u64,
-    /// The checks the result passed before it was written (decision 0006).
-    pub checks: Vec<String>,
+    /// The checks the result passed before it was written (decision 0006), in the order they ran. Sent as their
+    /// English text, the desktop app's wire until notes travel as notes (roadmap item 6).
+    #[serde(serialize_with = "english")]
+    pub checks: Vec<Note>,
     pub media_copied: Option<u64>,
     pub media_missing: Option<u64>,
     /// The target's original file hashes the same as when it was checked, after the merge.
     pub original_untouched: bool,
+}
+
+/// Notes as their English text: the desktop app's wire until notes travel as notes (docs/messages.md, merge checks
+/// row 5).
+fn english<S: serde::Serializer>(notes: &[Note], s: S) -> std::result::Result<S::Ok, S::Error> {
+    s.collect_seq(notes.iter().map(Note::to_string))
 }
 
 struct Checked {
@@ -666,7 +674,7 @@ impl Session {
             target_before: r.target_before,
             already_there: r.already_there,
             added: r.added,
-            checks: r.checks.iter().map(|(name, value)| format!("{name}: {value}")).collect(),
+            checks: r.checks.clone(),
             media_copied,
             media_missing,
             original_untouched: sha256_file(&target.path)? == target.summary.sha256,
@@ -890,7 +898,20 @@ mod tests {
         assert!(before.only_a_first_ms <= before.only_a_last_ms && before.only_a_first_ms.is_some());
         assert!(done.original_untouched);
         assert!(done.added > 0 && done.already_there > 0, "{done:?}");
-        assert!(!done.checks.is_empty());
+        // docs/messages.md, merge checks row 5: the desktop's wire is each check's English text until item 6.
+        let wire = serde_json::to_value(&done).unwrap();
+        let checks: Vec<&str> = wire["checks"].as_array().unwrap().iter().map(|c| c.as_str().unwrap()).collect();
+        assert_eq!(checks.len(), 9, "{checks:?}");
+        assert_eq!(
+            checks[..4],
+            [
+                "decrypts with the target's key: yes",
+                "integrity_check: ok",
+                "schema and user_version: unchanged",
+                "chat messages: 4 + 8 = 12",
+            ]
+        );
+        assert!(checks[8].starts_with("tables: row counts as expected; "), "{checks:?}");
         assert_eq!(done.folder, out.path().join("oopz-result-1"));
         assert_eq!(done.backup, done.folder.join("Databases/msgstore.db.crypt15"));
         assert!(done.media_copied.unwrap() > 0);

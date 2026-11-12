@@ -38,6 +38,7 @@ msgkinds = { workspace = true, features = ["build-support"] }
 [dev-dependencies]
 msgkinds = { workspace = true, features = ["test-support"] }
 oopz = { workspace = true, features = ["fixtures"] }
+serde_json.workspace = true
 
 [lints]
 workspace = true

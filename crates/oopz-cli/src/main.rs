@@ -464,7 +464,7 @@ fn run(cli: Cli) -> Result<()> {
             })?;
             println!("{}", say!(RestoreCounts, done.target_before, done.already_there, done.added));
             for check in &done.checks {
-                println!("{}", say!(CheckLine, check));
+                println!("{}", say!(CheckLine, check.text(say::language())));
             }
             if let (Some(copied), Some(missing)) = (done.media_copied, done.media_missing) {
                 println!("{}", say!(MediaCopiedMissing, copied, missing));

@@ -262,3 +262,51 @@ fn media_paths_mirror_sent_and_received() {
     assert_eq!(mirror_path("Media/x.jpg"), None);
     assert_eq!(mirror_path("elsewhere/x.jpg"), None);
 }
+
+/// docs/messages.md, merge checks row 1: a counted value in a check takes its count's form, in each language.
+#[test]
+fn checks_1_a_counted_value_takes_its_form() {
+    let tables = |n: &str, language: &str| Note::of(Msg::PassedTables, [n.to_owned()]).text(language);
+    assert_eq!(tables("1", "en"), "tables: row counts as expected; 1 untouched table identical");
+    assert_eq!(tables("2", "en"), "tables: row counts as expected; 2 untouched tables identical");
+    assert_eq!(tables("1", "es"), "tablas: número de filas como se esperaba; 1 tabla sin tocar idéntica");
+    assert_eq!(tables("0", "es"), "tablas: número de filas como se esperaba; 0 tablas sin tocar idénticas");
+    assert_eq!(tables("1000000", "es"), "tablas: número de filas como se esperaba; 1000000 tablas sin tocar idénticas");
+}
+
+/// Row 2: a table or column name is a value, put in as it is, even holding braces or a placeholder's shape.
+#[test]
+fn checks_2_a_table_name_stays_text() {
+    let note = Note::of(Msg::CheckRefersMissing, ["{name}", "a}{b", "2", "1"].map(String::from));
+    assert_eq!(note.text("en"), "`{name}.a}{b` refers to 2 missing messages (before: 1)");
+}
+
+/// Rows 3 and 1: every check the merge passed, in the order it ran them.
+#[test]
+fn checks_3_the_checks_keep_their_order() {
+    let fx = fixture::two_phones();
+    let Merged { report, .. } = merge(&fx, &fs::read(&fx.target).unwrap()).unwrap();
+    let names: Vec<_> = report.checks.iter().map(|c| c.message.name).collect();
+    let expected = [
+        "passed_decrypts",
+        "passed_integrity",
+        "passed_schema",
+        "passed_count",
+        "passed_sort_id",
+        "passed_references",
+        "passed_other_chats",
+        "passed_created",
+        "passed_tables",
+    ];
+    assert_eq!(names, expected);
+    assert_eq!(report.checks[3].text("en"), "chat messages: 4 + 8 = 12");
+    assert_eq!(report.checks[3].text("es"), "mensajes del chat: 4 + 8 = 12");
+}
+
+/// Row 4: a merge refused before its checks has none, never a sentence standing in for them.
+#[test]
+fn checks_4_a_refused_merge_has_no_checks() {
+    assert!(MergeReport::default().checks.is_empty());
+    // A target that isn't a backup at all: refused before anything is checked.
+    assert!(merge(&fixture::two_phones(), b"").is_err());
+}
