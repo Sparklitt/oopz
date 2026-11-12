@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use msgkinds::media_type::formats::{JSON, VCARD, ZIP};
 use msgkinds::media_type::name::has_format;
+use msgkinds::media_type::sources::telegram::{EXPORT, NOT_INCLUDED, left_out};
 use msgkinds::registry::codes::telegram_json as tg;
 use msgkinds::registry::codes::telegram_json_action as action;
 use msgkinds::registry::codes::telegram_json_entity as entity;
@@ -51,7 +52,7 @@ impl Adapter for TelegramExportAdapter {
         if has_format(&name, ZIP) {
             let Ok(file) = std::fs::File::open(path) else { return false };
             let Ok(zip) = zip::ZipArchive::new(file) else { return false };
-            return zip.file_names().flatten().any(|n| n.ends_with("result.json"));
+            return zip.file_names().flatten().any(|n| n.ends_with(EXPORT));
         }
         if !has_format(&name, JSON) {
             return false;
@@ -89,12 +90,12 @@ impl Adapter for TelegramExportAdapter {
 }
 
 fn result_in(dir: &Path) -> Option<PathBuf> {
-    let direct = dir.join("result.json");
+    let direct = dir.join(EXPORT);
     if direct.is_file() {
         return Some(direct);
     }
     // Telegram writes `ChatExport_2024-01-01/result.json` or `DataExport_…/result.json`.
-    std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path().join("result.json")).find(|p| p.is_file())
+    std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path().join(EXPORT)).find(|p| p.is_file())
 }
 
 /// `result.json` from a zip (the shallowest one).
@@ -104,7 +105,7 @@ pub fn from_zip(bytes: &[u8]) -> Result<Vec<u8>> {
     for i in 0..zip.len() {
         let Ok(entry) = zip.by_index(i) else { continue };
         let Some(path) = entry.enclosed_name() else { continue };
-        if path.file_name().is_some_and(|n| n == "result.json") {
+        if path.file_name().is_some_and(|n| n == EXPORT) {
             let depth = path.components().count();
             if best.is_none_or(|(d, _)| depth < d) {
                 best = Some((depth, i));
@@ -114,7 +115,7 @@ pub fn from_zip(bytes: &[u8]) -> Result<Vec<u8>> {
     let (_, i) = best.ok_or(Error::NotThisFormat(FORMAT))?;
     let entry = zip.by_index(i).map_err(|e| Error::Damaged(e.to_string()))?;
     let mut out = Vec::new();
-    entry.take(MAX_ENTRY).read_to_end(&mut out).map_err(|e| Error::io("result.json in the zip", e))?;
+    entry.take(MAX_ENTRY).read_to_end(&mut out).map_err(|e| Error::io(format_args!("{EXPORT} in the zip"), e))?;
     Ok(out)
 }
 
@@ -400,7 +401,7 @@ impl Reader {
                     return vec![Part::Unknown { code: other.to_string(), text: Some(text).filter(|t| !t.is_empty()) }];
                 }
             };
-            let file = m.get(tg::FILE).and_then(Value::as_str).unwrap_or("(File not included.)");
+            let file = m.get(tg::FILE).and_then(Value::as_str).unwrap_or(NOT_INCLUDED);
             let mut x = Media { kind, ..file_facts(m, file) };
             if x.name.is_none() && kind == MediaKind::Audio {
                 // A song's `performer` and `title` stand in for its file name.
@@ -630,7 +631,7 @@ fn civil_of(ms: i64) -> Option<(i64, u32, u32, u32, u32)> {
 /// The facts of a `photo` or `file`: its path, or `omitted` when Telegram didn't include it.
 fn file_facts(m: &Map<String, Value>, file: &str) -> Media {
     let num = |k: &str| m.get(k).and_then(int_of);
-    let omitted = file.starts_with('(');
+    let omitted = left_out(file);
     Media {
         file: (!omitted && !file.is_empty()).then(|| file.to_string()),
         name: m.get("file_name").and_then(Value::as_str).map(str::to_string),

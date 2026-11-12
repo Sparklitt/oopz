@@ -3,6 +3,7 @@
 //! channel and the Replies feed), with media that was and wasn't included.
 
 use msgkinds::media_type::formats;
+use msgkinds::media_type::sources::telegram::{EXPORT, NOT_INCLUDED};
 use msgkinds::registry::codes::telegram_json as tg;
 use msgkinds::registry::codes::telegram_json_action as action;
 use msgkinds::registry::codes::telegram_json_entity as entity;
@@ -17,7 +18,6 @@ use crate::rng::Rng;
 pub const OWNER_ID: u64 = 1_000_001;
 const BEN: u64 = 1_000_002;
 const CARLA: u64 = 1_000_003;
-const NOT_INCLUDED: &str = "(File not included. Change data exporting settings to download.)";
 
 struct Chat {
     messages: Vec<Value>,
@@ -354,5 +354,5 @@ pub fn generate(seed: u64) -> Export {
         }
     });
     let text = serde_json::to_string_pretty(&export).unwrap_or_default();
-    Export { files: vec![("result.json".into(), text.into_bytes())], manifest }
+    Export { files: vec![(EXPORT.into(), text.into_bytes())], manifest }
 }
