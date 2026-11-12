@@ -4,6 +4,7 @@
 //! numbers only, all starting [`NUMBERS`] (`99990000…` for numbers, `88880000…` for `lid`s), so a test can grep for
 //! them. Never real data.
 
+use msgkinds::media_type::formats::{PNG, WEBP};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -36,7 +37,14 @@ pub const FAY: &str = "999900000066@s.whatsapp.net";
 pub const ZED: &str = "999900000099@s.whatsapp.net";
 pub const PACK_ID: &str = "pack.synthetic.one";
 /// Bytes of a sticker sent in the group and also in [`PACK_ID`]'s zip: stored once.
-pub const SHARED_STICKER: &[u8] = b"RIFF synthetic shared sticker WEBP";
+pub fn shared_sticker() -> Vec<u8> {
+    synthetic(WEBP, "shared sticker")
+}
+
+/// A synthetic file of format `mime`: its first bytes as msgkinds' signature has them, then `tag` to tell it apart.
+fn synthetic(mime: &str, tag: &str) -> Vec<u8> {
+    [msgkinds::media_type::fixtures::of(mime, 0), tag.as_bytes().to_vec()].concat()
+}
 pub const T0: i64 = 1_700_100_000_000;
 
 /// The action codes the fixture writes, as WhatsApp's `message_system.action_type` (the importer's mapping), and one
@@ -169,7 +177,7 @@ pub fn build() -> GroupFixture {
     let media = dir.path().join("Media");
     let sticker = media.join("WhatsApp Stickers/STK-00000001-WA0001.webp");
     fs::create_dir_all(sticker.parent().expect("has parent")).expect("fixture media dir");
-    fs::write(sticker, SHARED_STICKER).expect("fixture sticker");
+    fs::write(sticker, shared_sticker()).expect("fixture sticker");
     packs(&media.join("WhatsApp Sticker Packs"));
 
     let bens = dir.path().join("ben").join("msgstore.db.crypt15");
@@ -243,14 +251,10 @@ fn bens_backup() -> Connection {
 /// with a sticker over the size cap.
 fn packs(dir: &Path) {
     fs::create_dir_all(dir).expect("packs dir");
+    let (two, three, tray) = (synthetic(WEBP, "sticker two"), synthetic(WEBP, "sticker three"), synthetic(PNG, "tray"));
     zip(
         &dir.join(format!("{PACK_ID}.zip")),
-        &[
-            ("1.webp", SHARED_STICKER),
-            ("2.webp", b"RIFF synthetic sticker two WEBP"),
-            ("3.webp", b"RIFF synthetic sticker three WEBP"),
-            ("tray.png", b"\x89PNG synthetic tray"),
-        ],
+        &[("1.webp", &shared_sticker()), ("2.webp", &two), ("3.webp", &three), ("tray.png", &tray)],
     );
     let contents = br#"{"name": "Json pack", "publisher": "Someone", "tray_image_file": "tray.png",
         "stickers": [{"image_file": "a.webp", "emojis": ["\ud83d\ude00"]}, {"image_file": "b.webp", "emojis": []}]}"#;
@@ -258,13 +262,13 @@ fn packs(dir: &Path) {
         &dir.join("third.party.zip"),
         &[
             ("contents.json", contents),
-            ("a.webp", b"RIFF synthetic third a WEBP"),
-            ("b.webp", b"RIFF synthetic third b WEBP"),
-            ("tray.png", b"\x89PNG synthetic tray two"),
+            ("a.webp", &synthetic(WEBP, "third a")),
+            ("b.webp", &synthetic(WEBP, "third b")),
+            ("tray.png", &synthetic(PNG, "tray two")),
         ],
     );
     fs::write(dir.join("locked.enc"), b"not a zip at all").expect("fixture file");
-    zip(&dir.join("escape.zip"), &[("../outside.webp", b"RIFF escape WEBP")]);
+    zip(&dir.join("escape.zip"), &[("../outside.webp", &synthetic(WEBP, "escape"))]);
     let big = vec![b'x'; (1 << 20) + 1];
     zip(&dir.join("big.zip"), &[("big.webp", &big)]);
 }

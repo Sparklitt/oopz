@@ -2967,6 +2967,7 @@ dependencies = [
  "hex",
  "hkdf",
  "md-5",
+ "msgkinds",
  "prost",
  "rusqlite",
  "sha2 0.11.1",
@@ -3011,6 +3012,7 @@ version = "0.1.1"
 dependencies = [
  "fs4",
  "hex",
+ "msgkinds",
  "oopz-model",
  "rusqlite",
  "serde",
@@ -3023,6 +3025,7 @@ dependencies = [
 name = "oopz-desktop"
 version = "0.1.1"
 dependencies = [
+ "msgkinds",
  "oopz",
  "oopz-app",
  "oopz-core",
@@ -3054,6 +3057,7 @@ dependencies = [
  "csv",
  "fs4",
  "jiff",
+ "msgkinds",
  "oopz-core",
  "oopz-model",
  "serde",
@@ -3067,6 +3071,7 @@ name = "oopz-export-pdf"
 version = "0.1.1"
 dependencies = [
  "krilla",
+ "msgkinds",
  "oopz-core",
  "oopz-export",
  "oopz-model",

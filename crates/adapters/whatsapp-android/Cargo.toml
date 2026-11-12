@@ -9,7 +9,7 @@ publish.workspace = true
 
 [features]
 # Synthetic WhatsApp backups for tests in this and other crates. Never real data.
-fixtures = ["dep:zip"]
+fixtures = ["dep:zip", "msgkinds/test-support"]
 
 [dependencies]
 msgkinds.workspace = true
@@ -30,6 +30,7 @@ zip = { workspace = true, optional = true }
 [dev-dependencies]
 # The fixtures are compiled for this crate's own tests too, without the feature (`cargo test -p oopz`).
 zip.workspace = true
+msgkinds = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

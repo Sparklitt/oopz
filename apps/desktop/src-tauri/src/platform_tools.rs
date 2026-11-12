@@ -94,7 +94,10 @@ fn parse_offer(index: &str, host_os: &str) -> Result<Offer, AppError> {
         field("size").and_then(|s| s.parse().ok()).ok_or_else(|| failed("no archive size in Google's index"))?;
     let sha1 = field("checksum").ok_or_else(|| failed("no checksum in Google's index"))?.to_ascii_lowercase();
     // Only a plain file name in Google's folder: never another host, never a path.
-    if file.is_empty() || file.contains(['/', '\\', ':']) || !file.ends_with(".zip") {
+    if file.is_empty()
+        || file.contains(['/', '\\', ':'])
+        || !msgkinds::media_type::name::has_format(&file, msgkinds::media_type::formats::ZIP)
+    {
         return Err(failed(format!("unexpected archive name in Google's index: {file}")));
     }
     if sha1.len() != 40 || !sha1.bytes().all(|b| b.is_ascii_hexdigit()) || bytes == 0 || bytes > MAX_ARCHIVE {

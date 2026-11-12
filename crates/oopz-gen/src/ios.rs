@@ -4,6 +4,9 @@
 //! columns' real names; every odd row the adapter must survive is here (a missing media file, a type it doesn't know,
 //! an empty text, a member who left, a message before 2001).
 
+use std::sync::LazyLock;
+
+use msgkinds::media_type::{fixtures, formats};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -31,7 +34,14 @@ pub struct Manifest {
 /// backup.
 type Row = (i64, bool, Option<&'static str>, Option<(&'static str, Option<&'static str>, Option<&'static [u8]>)>);
 
-const PNG: &[u8] = b"\x89PNG\r\n\x1a\n invented picture";
+/// The backup's files: each starts as its format's files do (msgkinds' fixtures), then says it's invented.
+fn synthetic(head: Vec<u8>, tag: &str) -> Vec<u8> {
+    [head, tag.as_bytes().to_vec()].concat()
+}
+static PICTURE: LazyLock<Vec<u8>> = LazyLock::new(|| synthetic(fixtures::of(formats::PNG, 0), " invented picture"));
+static VOICE: LazyLock<Vec<u8>> = LazyLock::new(|| synthetic(fixtures::opus(), " invented"));
+static REPORT: LazyLock<Vec<u8>> = LazyLock::new(|| synthetic(fixtures::of(formats::PDF, 0), " invented"));
+static STICKER: LazyLock<Vec<u8>> = LazyLock::new(|| synthetic(fixtures::of(formats::WEBP, 0), " invented"));
 
 fn chat_storage(path: &Path, m: &mut Manifest) -> Result<()> {
     let db = Connection::open(path)?;
@@ -68,21 +78,30 @@ fn chat_storage(path: &Path, m: &mut Manifest) -> Result<()> {
     let direct: Vec<Row> = vec![
         (0, false, Some("Hola, ¿qué tal? Invented text"), None),
         (0, true, Some("Bien 👍🏽 https://example.invalid/x"), None),
-        (1, false, Some("a caption"), Some(("Media/99990000001@s.whatsapp.net/a/b/photo.jpg", None, Some(PNG)))),
+        (
+            1,
+            false,
+            Some("a caption"),
+            Some(("Media/99990000001@s.whatsapp.net/a/b/photo.jpg", None, Some(PICTURE.as_slice()))),
+        ),
         (2, true, None, Some(("Media/99990000001@s.whatsapp.net/c/d/video.mp4", None, None))),
-        (3, false, None, Some(("Media/99990000001@s.whatsapp.net/e/f/voice.opus", None, Some(b"OggS invented")))),
+        (3, false, None, Some(("Media/99990000001@s.whatsapp.net/e/f/voice.opus", None, Some(VOICE.as_slice())))),
         (
             8,
             true,
             None,
-            Some(("Media/99990000001@s.whatsapp.net/g/h/doc.pdf", Some("Invented report.pdf"), Some(b"%PDF-1.4"))),
+            Some((
+                "Media/99990000001@s.whatsapp.net/g/h/doc.pdf",
+                Some("Invented report.pdf"),
+                Some(REPORT.as_slice()),
+            )),
         ),
         (4, false, None, None),
         (5, true, None, None),
         (7, false, Some("https://example.invalid/page"), None),
         (11, false, None, Some(("Media/99990000001@s.whatsapp.net/i/j/anim.mp4", None, Some(b"gif-ish")))),
         (14, false, None, None),
-        (15, true, None, Some(("Media/99990000001@s.whatsapp.net/k/l/sticker.webp", None, Some(b"RIFF webp")))),
+        (15, true, None, Some(("Media/99990000001@s.whatsapp.net/k/l/sticker.webp", None, Some(STICKER.as_slice())))),
         (0, false, Some(""), None),
         (999, false, Some("from a future version"), None),
     ];
@@ -197,11 +216,11 @@ pub fn generate(out: &Path, password: Option<&str>, business: bool) -> Result<Ma
     let book = std::fs::read(scratch.join("ContactsV2.sqlite"))?;
     std::fs::remove_dir_all(&scratch)?;
     let media: Vec<(String, &[u8])> = [
-        ("Message/Media/99990000001@s.whatsapp.net/a/b/photo.jpg", PNG),
-        ("Message/Media/99990000001@s.whatsapp.net/e/f/voice.opus", b"OggS invented".as_slice()),
-        ("Message/Media/99990000001@s.whatsapp.net/g/h/doc.pdf", b"%PDF-1.4".as_slice()),
+        ("Message/Media/99990000001@s.whatsapp.net/a/b/photo.jpg", PICTURE.as_slice()),
+        ("Message/Media/99990000001@s.whatsapp.net/e/f/voice.opus", VOICE.as_slice()),
+        ("Message/Media/99990000001@s.whatsapp.net/g/h/doc.pdf", REPORT.as_slice()),
         ("Message/Media/99990000001@s.whatsapp.net/i/j/anim.mp4", b"gif-ish".as_slice()),
-        ("Message/Media/99990000001@s.whatsapp.net/k/l/sticker.webp", b"RIFF webp".as_slice()),
+        ("Message/Media/99990000001@s.whatsapp.net/k/l/sticker.webp", STICKER.as_slice()),
     ]
     .into_iter()
     .map(|(p, b)| (p.to_owned(), b))

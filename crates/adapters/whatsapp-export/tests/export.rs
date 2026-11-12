@@ -138,7 +138,9 @@ fn odd_lines_are_kept_and_counted() {
 
 #[test]
 fn other_files_are_refused() {
-    for bytes in [&b""[..], b"hello\nworld\n", b"\x00\x01\x02", b"PK\x03\x04broken", b"{\"chats\": []}"] {
+    let broken_zip =
+        [msgkinds::media_type::fixtures::of(msgkinds::media_type::formats::ZIP, 0), b"broken".to_vec()].concat();
+    for bytes in [&b""[..], b"hello\nworld\n", b"\x00\x01\x02", &broken_zip, b"{\"chats\": []}"] {
         assert!(matches!(read("x.txt", bytes), Err(Error::NotThisFormat(_))), "{bytes:?}");
     }
 }

@@ -33,6 +33,7 @@ tiny_http.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+msgkinds = { workspace = true, features = ["test-support"] }
 oopz = { workspace = true, features = ["fixtures"] }
 
 [lints]

@@ -381,7 +381,7 @@ fn inline_files_are_kept_in_the_librarys_media_folder() {
         Part::Media(Media {
             kind: MediaKind::Photo,
             name: name.map(Into::into),
-            data: Some(b"\x89PNG bytes".to_vec()),
+            data: Some([msgkinds::media_type::fixtures::png(), b" bytes".to_vec()].concat()),
             view_once,
             ..Default::default()
         })
@@ -410,7 +410,10 @@ fn inline_files_are_kept_in_the_librarys_media_folder() {
         fs::read_dir(&root).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
     files.sort();
     assert_eq!(files, ["000001-pic_1.png", "000002-photo"], "the view-once part is never kept");
-    assert_eq!(fs::read(root.join("000001-pic_1.png")).unwrap(), b"\x89PNG bytes");
+    assert_eq!(
+        fs::read(root.join("000001-pic_1.png")).unwrap(),
+        [msgkinds::media_type::fixtures::png(), b" bytes".to_vec()].concat()
+    );
     let first = lib
         .conversations(&Filter::default())
         .unwrap()

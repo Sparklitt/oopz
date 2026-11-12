@@ -18,6 +18,7 @@ unicode-bidi.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+msgkinds = { workspace = true, features = ["test-support"] }
 oopz-gen.workspace = true
 tempfile.workspace = true
 

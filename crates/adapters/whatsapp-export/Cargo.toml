@@ -13,6 +13,7 @@ oopz-model.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+msgkinds = { workspace = true, features = ["test-support"] }
 oopz-gen = { path = "../../oopz-gen" }
 tempfile.workspace = true
 

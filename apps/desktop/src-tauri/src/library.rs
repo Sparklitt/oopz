@@ -586,7 +586,9 @@ pub fn lib_export(
     let (_work, second) = lib.second()?;
     let folder = export_folder(&state, folder)?;
     let mut report = self::progress(&progress, &state.cancel, |_, _| "export");
-    if format == "pdf" {
+    // The PDF is its own crate's (named by its extension); the rest are oopz-export's formats.
+    let pdf = msgkinds::media_type::by_mime(msgkinds::media_type::formats::PDF).and_then(|f| f.extension());
+    if Some(format.as_str()) == pdf {
         return export_pdf(&second, &selection, options, &folder, &mut report);
     }
     let format = oopz_export::Format::from_code(&format)
@@ -754,7 +756,10 @@ mod tests {
         let doc = "content://com.android.externalstorage.documents/document/primary%3ADownload%2Fresult.json";
         assert_eq!(picked_name(doc, None, b""), "result.json");
         let opaque = "content://com.android.providers.downloads.documents/document/msf%3A1234";
-        assert_eq!(picked_name(opaque, None, b"PK\x03\x04"), "picked.zip");
+        assert_eq!(
+            picked_name(opaque, None, &msgkinds::media_type::fixtures::of(msgkinds::media_type::formats::ZIP, 0)),
+            "picked.zip"
+        );
         assert_eq!(picked_name(opaque, None, b"\xef\xbb\xbf <?xml"), "sms.xml");
         assert_eq!(picked_name(opaque, Some("viber-csv"), b"a,b"), "Viber.csv");
         assert_eq!(picked_name(opaque, Some(WHATSAPP_BACKUP), b""), "msgstore.db.crypt15");

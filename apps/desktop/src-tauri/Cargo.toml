@@ -24,6 +24,8 @@ oopz-app = { path = "../../../crates/oopz-app" }
 oopz-core = { path = "../../../crates/oopz-core" }
 oopz-export = { path = "../../../crates/oopz-export" }
 oopz-model = { path = "../../../crates/oopz-model" }
+# The shared registry of message and file types, by path as the main workspace has it.
+msgkinds = { path = "../../../../msgkinds/crates/msgkinds" }
 # PDF exports (decision 0017): a PDF writer with text shaping is a large dependency, so it's a feature.
 oopz-export-pdf = { path = "../../../crates/oopz-export-pdf", optional = true }
 serde = { version = "1", features = ["derive"] }
@@ -44,6 +46,7 @@ default = ["pdf"]
 pdf = ["dep:oopz-export-pdf"]
 
 [dev-dependencies]
+msgkinds = { path = "../../../../msgkinds/crates/msgkinds", features = ["test-support"] }
 oopz = { path = "../../../crates/adapters/whatsapp-android", features = ["fixtures"] }
 
 [lints.rust]

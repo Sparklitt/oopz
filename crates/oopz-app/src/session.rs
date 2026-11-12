@@ -971,7 +971,10 @@ mod tests {
         let media = tempfile::tempdir().unwrap();
         let file = media.path().join("Media/WhatsApp Images/IMG-00000001-WA0001.jpg");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(&file, b"RIFF\0\0\0\0WEBPVP8X animated").unwrap();
+        // An animated WebP: the chunk whose flags can say it moves, with them saying so (msgkinds' fixtures).
+        let (moving, _) =
+            msgkinds::media_type::signatures::WEBP_CHUNKS.into_iter().find(|(_, bit)| bit.is_some()).unwrap();
+        fs::write(&file, msgkinds::media_type::fixtures::webp(moving, true)).unwrap();
         assert_eq!(session.media_file(s.id, 3, media.path(), 1 << 20).unwrap().unwrap(), fs::read(&file).unwrap());
         assert_eq!(session.media_file(s.id, 3, media.path(), 4).unwrap(), None, "larger than asked");
         assert_eq!(session.media_file(s.id, 1, media.path(), 1 << 20).unwrap(), None, "no file named");

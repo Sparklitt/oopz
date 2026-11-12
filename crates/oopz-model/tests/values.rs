@@ -1,5 +1,5 @@
 //! oopz's Rust spells none of msgkinds' values (MIME types, extensions, magic bytes, registry codes, wording,
-//! messages): it names msgkinds' constants or looks them up. `msgkinds::scan::spelled_in_reader` reads every crate.
+//! messages): it names msgkinds' constants or looks them up. `msgkinds::scan::spelled_in_reader` reads every crate and the desktop app's Rust.
 //!
 //! `OWN` lists oopz's own words that only happen to equal one of msgkinds' (a field of oopz's stored JSON named
 //! `text`): each with the file and why it's oopz's, not a copy.
@@ -24,12 +24,14 @@ const OWN: &[(&str, &str, &str)] = &[
     ("crates/oopz-app/src/index.rs", "\"video_call\"", "a column of WhatsApp's msgstore.db"),
     ("crates/oopz-app/src/receive.rs", "\"http://\"", "the scheme of oopz's own local page, in its tests"),
     ("crates/oopz-cli/src/library.rs", "\"pdf\"", "the name of oopz-cli's Cargo feature"),
+    ("apps/desktop/src-tauri/src/lib.rs", "\"http://\"", "the scheme of oopz's own local page, in its tests"),
+    ("apps/desktop/src-tauri/src/library.rs", "\"pdf\"", "the name of the desktop app's Cargo feature"),
 ];
 
 #[test]
 fn no_value_of_msgkinds_is_spelled_in_oopz() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let all = msgkinds::scan::spelled_in_reader(&root, &["crates"], &|_| false);
+    let all = msgkinds::scan::spelled_in_reader(&root, &["crates", "apps/desktop/src-tauri/src"], &|_| false);
     let own = |line: &str, (file, lit, _): &(&str, &str, &str)| line.starts_with(&format!("{file}: {lit} is "));
     // Each entry of OWN still names a literal there: the list says only what's true.
     for entry in OWN {

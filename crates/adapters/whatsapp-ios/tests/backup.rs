@@ -37,7 +37,12 @@ fn check(dir: &std::path::Path, password: Option<&str>, manifest: &oopz_gen::ios
             .collect::<Vec<_>>()
     };
     let photo = &by_kind(MediaKind::Photo)[0];
-    assert!(photo.data.as_ref().unwrap().starts_with(b"\x89PNG"), "the photo's bytes come out of the backup");
+    let sniffed = msgkinds::media_type::sniff(photo.data.as_ref().unwrap(), msgkinds::media_type::Hint::None);
+    assert_eq!(
+        sniffed.map(|s| s.format.mime),
+        Some(msgkinds::media_type::formats::PNG),
+        "the photo's bytes come out of the backup"
+    );
     assert_eq!(photo.caption.as_deref(), Some("a caption"));
     assert!(by_kind(MediaKind::Video)[0].omitted, "the video isn't in the backup");
     assert_eq!(by_kind(MediaKind::Voice).len(), 1);

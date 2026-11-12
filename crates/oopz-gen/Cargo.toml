@@ -12,7 +12,8 @@ name = "oopz-gen"
 path = "src/main.rs"
 
 [dependencies]
-msgkinds.workspace = true
+# Its synthetic files start as real ones do: msgkinds' fixtures (the generator is never a release build).
+msgkinds = { workspace = true, features = ["test-support"] }
 # The `fixtures` feature gives `crypt15::encrypt`: test data only, never for a real backup.
 oopz = { workspace = true, features = ["fixtures"] }
 anyhow.workspace = true

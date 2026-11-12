@@ -19,6 +19,7 @@ hex.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+msgkinds = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 
 [lints]

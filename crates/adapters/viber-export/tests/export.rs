@@ -87,7 +87,9 @@ fn odd_rows() {
 
 #[test]
 fn other_files_are_refused() {
-    for bytes in [&b""[..], b"hello,world\n", b"item,price\napple,1\n", b"PK\x03\x04junk"] {
+    let junk_zip =
+        [msgkinds::media_type::fixtures::of(msgkinds::media_type::formats::ZIP, 0), b"junk".to_vec()].concat();
+    for bytes in [&b""[..], b"hello,world\n", b"item,price\napple,1\n", &junk_zip] {
         assert!(matches!(read("x.csv", bytes), Err(Error::NotThisFormat(_))), "{bytes:?}");
     }
     let not_viber = oopz_gen::exports::zip(&[("../a.csv".into(), b"01/02/2024,10:00,Ana,,hi\n".to_vec())]);

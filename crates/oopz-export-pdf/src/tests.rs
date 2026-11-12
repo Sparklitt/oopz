@@ -36,7 +36,9 @@ fn setup() -> (tempfile::TempDir, Library) {
     let media_root = dir.path().join("media");
     fs::create_dir_all(&media_root).unwrap();
     fs::write(media_root.join("IMG-1.png"), PNG).unwrap();
-    fs::write(media_root.join("broken.jpg"), b"\xFF\xD8not a jpeg").unwrap();
+    let broken =
+        [msgkinds::media_type::fixtures::of(msgkinds::media_type::formats::JPEG, 0), b"not a jpeg".to_vec()].concat();
+    fs::write(media_root.join("broken.jpg"), broken).unwrap();
     let msg = |conv: &str, id: &str, me: bool, t: i64, parts: Vec<Part>| Message {
         id: id.into(),
         conversation: conv.into(),
@@ -130,7 +132,7 @@ fn a_pdf_with_every_script_cover_contents_and_a_thumbnail() {
     assert_eq!(w.path.file_name().unwrap(), "oopz-pdf-1.pdf");
     assert_eq!(w.messages, 128);
     let bytes = fs::read(&w.path).unwrap();
-    assert!(bytes.starts_with(b"%PDF-") && bytes.windows(5).any(|x| x == b"%%EOF"));
+    assert!(is_pdf(&bytes) && bytes.windows(5).any(|x| x == b"%%EOF"));
     assert!(w.pages >= 5, "cover, contents, two chapters, the long text: {}", w.pages);
     assert!(images(&bytes) > 0, "the photo is drawn");
     if !fonts().is_empty() {
@@ -223,5 +225,11 @@ fn every_kind_and_event_lays_out() {
     let w = export_pdf(&lib, &all(), &opts(), dir.path(), &mut |_, _| true).unwrap();
     assert_eq!(w.messages, total as u64);
     let bytes = fs::read(&w.path).unwrap();
-    assert!(bytes.starts_with(b"%PDF-") && bytes.len() > 1000);
+    assert!(is_pdf(&bytes) && bytes.len() > 1000);
+}
+
+/// A PDF by its first bytes (msgkinds' signatures).
+fn is_pdf(bytes: &[u8]) -> bool {
+    msgkinds::media_type::sniff(bytes, msgkinds::media_type::Hint::None)
+        .is_some_and(|s| s.format.mime == msgkinds::media_type::formats::PDF)
 }
