@@ -7,6 +7,8 @@
 //! (`&#55357;&#56842;`), which no XML reader accepts as they are: attribute values are decoded here, pairing them.
 //! A file cut short keeps what was read before the cut, and the notes say so.
 
+use msgkinds::media_type::sources::sms as mms;
+use msgkinds::media_type::{formats, mime};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
@@ -80,7 +82,7 @@ struct Book {
 
 /// Reads one file's bytes: `<smses>` or `<calls>`.
 pub fn read(bytes: &[u8]) -> Result<Loaded> {
-    let text = String::from_utf8_lossy(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes));
+    let text = String::from_utf8_lossy(bytes.strip_prefix(msgkinds::media_type::signatures::UTF8_BOM).unwrap_or(bytes));
     let mut reader = quick_xml::Reader::from_str(&text);
     reader.config_mut().check_end_names = false;
     let mut book = Book::default();
@@ -304,15 +306,10 @@ fn key(address: &str) -> String {
 }
 
 fn links(text: &str) -> Vec<Part> {
-    let mut out: Vec<Part> = Vec::new();
-    for word in text.split(char::is_whitespace) {
-        let Some(at) = word.find("https://").or_else(|| word.find("http://")) else { continue };
-        let url = word[at..].trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\'']);
-        if url.len() > 8 && !out.iter().any(|p| matches!(p, Part::Link { url: u, .. } if u == url)) {
-            out.push(Part::Link { url: url.to_string(), title: None });
-        }
-    }
-    out
+    msgkinds::media_type::sources::whatsapp_export::links(text)
+        .into_iter()
+        .map(|url| Part::Link { url: url.to_string(), title: None })
+        .collect()
 }
 
 impl Book {
@@ -452,9 +449,12 @@ impl Book {
         }
         for p in sorted {
             let ct = value(p, "ct").unwrap_or("").to_ascii_lowercase();
-            if ct == "application/smil" {
+            // What the part is, by msgkinds (`sources::sms::mms_part`): the layout, text, or a file of a kind.
+            let part = mms::mms_part(&ct);
+            if part == mms::Part::Layout {
                 continue;
             }
+            let format = mime::clean(&ct).and_then(|m| formats::by_mime(&m));
             let data = match value(p, "data") {
                 Some(d) => match base64::engine::general_purpose::STANDARD.decode(d.as_bytes()) {
                     Ok(bytes) => Some(bytes),
@@ -466,7 +466,7 @@ impl Book {
                 None => None,
             };
             let name = value(p, "cl").or_else(|| value(p, "name")).map(str::to_string);
-            if ct == "text/plain" {
+            if part == mms::Part::Text {
                 let text = value(p, "text")
                     .map(str::to_string)
                     .or_else(|| data.as_ref().map(|d| String::from_utf8_lossy(d).into_owned()))
@@ -476,7 +476,7 @@ impl Book {
                 out.extend(found);
                 continue;
             }
-            if ct == "text/x-vcard" || ct == "text/vcard" || ct == "text/directory" {
+            if format.is_some_and(|f| f.mime == formats::VCARD) {
                 let card = data
                     .as_ref()
                     .map(|d| String::from_utf8_lossy(d).into_owned())
@@ -486,13 +486,12 @@ impl Book {
                 out.push(Part::Contact { name: fn_name, phones, vcard: Some(card).filter(|c| !c.is_empty()) });
                 continue;
             }
-            let kind = match ct.split('/').next().unwrap_or("") {
-                "image" if ct == "image/gif" => MediaKind::Gif,
-                "image" => MediaKind::Photo,
-                "video" => MediaKind::Video,
-                "audio" if ct.contains("amr") || ct.contains("3gpp") => MediaKind::Voice,
-                "audio" => MediaKind::Audio,
-                _ => MediaKind::Document,
+            // A phone records voice in AMR or 3GPP: in a message, that's a voice note.
+            let recorded = format.is_some_and(|f| [formats::AMR, formats::AMR_WB, formats::THREE_GPP].contains(&f.mime));
+            let kind = match part {
+                mms::Part::File(msgkinds::Kind::Audio) if recorded => MediaKind::Voice,
+                mms::Part::File(kind) => MediaKind::from_msgkinds(kind),
+                mms::Part::Layout | mms::Part::Text => MediaKind::Document,
             };
             out.push(Part::Media(Media {
                 kind,

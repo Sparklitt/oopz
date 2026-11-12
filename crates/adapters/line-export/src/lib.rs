@@ -7,6 +7,9 @@
 //! header names the other side, so the one other sender is the owner; otherwise the library lets the owner pick. A
 //! line that fits nothing continues the message before it, or, before any message, is kept as an `Unknown` part.
 
+use msgkinds::media_type::formats::PLAIN_TEXT;
+use msgkinds::media_type::name::has_format;
+use msgkinds::registry::codes::line_txt as code;
 use std::io::Read;
 use std::path::Path;
 
@@ -34,7 +37,7 @@ impl Adapter for LineExportAdapter {
     }
 
     fn detect(&self, path: &Path) -> bool {
-        if !path.to_string_lossy().to_lowercase().ends_with(".txt") {
+        if !has_format(&path.to_string_lossy(), PLAIN_TEXT) {
             return false;
         }
         let Ok(file) = std::fs::File::open(path) else { return false };
@@ -43,7 +46,7 @@ impl Adapter for LineExportAdapter {
             return false;
         }
         let head = decode(&head);
-        head.trim_start().starts_with("[LINE]") || looks_like_line(&head)
+        head.trim_start().starts_with(export_mark()) || looks_like_line(&head)
     }
 
     fn open(&self, path: &Path, _secret: Option<&str>) -> Result<Box<dyn Source>> {
@@ -54,11 +57,21 @@ impl Adapter for LineExportAdapter {
 }
 
 fn decode(bytes: &[u8]) -> String {
-    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|&c| u16::from_le_bytes(c)).collect();
-        return String::from_utf16_lossy(&units);
-    }
-    String::from_utf8_lossy(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)).into_owned()
+    msgkinds::media_type::text::decode(bytes)
+}
+
+/// LINE's shapes, from msgkinds' wording (`data/wording/line.toml`'s `[shape]`).
+fn export_mark() -> &'static str {
+    msgkinds::wording::shape(msgkinds::Source::LineTxt, "export_mark")[0]
+}
+
+fn call_prefix() -> &'static str {
+    msgkinds::wording::shape(msgkinds::Source::LineTxt, "call_prefix")[0]
+}
+
+/// The call prefix's symbol alone (`☎`), as a line may start with it before any space.
+fn phone() -> &'static str {
+    call_prefix().trim_end()
 }
 
 /// No `[LINE]` header (cut off, or an old version): a date line followed by a message line in the first lines.
@@ -200,7 +213,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
     let text = decode(bytes);
     let lines: Vec<&str> = text.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
     let first = lines.iter().position(|l| !l.trim().is_empty());
-    let header = first.and_then(|i| lines[i].trim().strip_prefix("[LINE]")).map(str::trim);
+    let header = first.and_then(|i| lines[i].trim().strip_prefix(export_mark())).map(str::trim);
     if header.is_none() && !looks_like_line(&text) {
         return Err(Error::NotThisFormat(FORMAT));
     }
@@ -229,8 +242,8 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
             let t = r.text.trim();
             if r.notice {
                 (Section::Notice, t.to_string())
-            } else if let Some(call) = t.strip_prefix('☎') {
-                (Section::Call, format!("☎ {}", call.trim()))
+            } else if let Some(call) = t.strip_prefix(phone()) {
+                (Section::Call, format!("{}{}", call_prefix(), call.trim()))
             } else {
                 (Section::Body, t.to_string())
             }
@@ -387,8 +400,8 @@ fn title(header: &str) -> (Option<String>, Option<String>) {
 }
 
 fn stem(name: &str) -> Option<String> {
-    let s = name.strip_suffix(".txt").unwrap_or(name).trim();
-    let s = s.strip_prefix("[LINE]").unwrap_or(s).trim();
+    let s = msgkinds::media_type::name::stem(name).trim();
+    let s = s.strip_prefix(export_mark()).unwrap_or(s).trim();
     Some(s.to_string()).filter(|s| !s.is_empty())
 }
 
@@ -414,7 +427,9 @@ fn parse(
         }
         if header_lines > 0 && !line.trim().is_empty() {
             let t = line.trim();
-            if t.starts_with("[LINE]") || t.starts_with("Saved on") || t.starts_with("保存日時") {
+            let saved_on =
+                msgkinds::wording::find(msgkinds::Source::LineTxt, msgkinds::wording::Section::Title, None, t);
+            if t.starts_with(export_mark()) || saved_on.is_some() {
                 header_lines -= 1;
                 continue;
             }
@@ -548,14 +563,12 @@ fn parts(language: Option<&str>, text: &str, reading: &mut msgkinds::Reading) ->
     if marker {
         reading.fallback(msgkinds::Source::LineTxt);
     }
-    if let Some(call) = t.strip_prefix('☎') {
+    if let Some(call) = t.strip_prefix(phone()) {
         let (outcome, secs, video) = match msgkinds::media_type::sources::line::call(language, call) {
             Some((code, rest, video)) => match code {
-                "☎ Call time" | "☎ 通話時間" => (CallOutcome::Answered, duration(rest), video),
-                "☎ Missed call" | "☎ 不在着信" | "☎ No answer" => (CallOutcome::Missed, None, video),
-                "☎ Canceled call" | "☎ 通話をキャンセルしました" => {
-                    (CallOutcome::Cancelled, None, video)
-                }
+                code::CALL_TIME | code::CALL_TIME_JA => (CallOutcome::Answered, duration(rest), video),
+                code::MISSED_CALL | code::MISSED_CALL_JA | code::NO_ANSWER => (CallOutcome::Missed, None, video),
+                code::CANCELED_CALL | code::CANCELED_CALL_JA => (CallOutcome::Cancelled, None, video),
                 _ => (CallOutcome::Unknown, None, video),
             },
             None => {
@@ -566,14 +579,8 @@ fn parts(language: Option<&str>, text: &str, reading: &mut msgkinds::Reading) ->
         return vec![Part::Call { video, outcome, secs }];
     }
     let mut parts = vec![Part::text(text)];
-    for word in text.split(char::is_whitespace) {
-        if let Some(at) = word.find("https://").or_else(|| word.find("http://")) {
-            let url = word[at..].trim_end_matches(['.', ',', ')', '!', '?', '"', '」', '。']);
-            if url.len() > 8 {
-                parts.push(Part::Link { url: url.to_string(), title: None });
-            }
-        }
-    }
+    let links = msgkinds::media_type::sources::whatsapp_export::links(text);
+    parts.extend(links.into_iter().map(|url| Part::Link { url: url.to_string(), title: None }));
     parts
 }
 
@@ -589,6 +596,7 @@ fn duration(s: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use msgkinds::registry::codes::line_txt as code;
 
     /// Wording neither msgkinds nor oopz knows stays as it is, and is counted for the notes.
     #[test]
@@ -596,7 +604,7 @@ mod tests {
         let mut r = msgkinds::Reading::new(None);
         assert!(matches!(&parts(Some("en"), "[Foto]", &mut r)[..], [Part::Text { .. }]));
         assert!(matches!(&parts(None, "[Foto]", &mut r)[..], [Part::Media(_)]));
-        assert!(matches!(&parts(None, "[Photo]", &mut r)[..], [Part::Media(_)]));
+        assert!(matches!(&parts(None, code::PHOTO, &mut r)[..], [Part::Media(_)]));
         assert_eq!(event(None, "Ana ha lasciato il gruppo", &mut r), Event::Other);
         assert!(matches!(
             &parts(None, "☎ Llamada perdida", &mut r)[..],
@@ -617,9 +625,9 @@ mod tests {
             matches!(one("[Album] Viaje", &mut r), Part::Media(Media { kind: MediaKind::Photo, caption: Some(c), .. }) if c == "Viaje")
         );
         assert!(matches!(one("[Poll] ¿Cena?", &mut r), Part::Poll { question, .. } if question == "¿Cena?"));
-        assert!(matches!(one("[GIF]", &mut r), Part::Media(Media { kind: MediaKind::Gif, .. })));
+        assert!(matches!(one(code::GIF, &mut r), Part::Media(Media { kind: MediaKind::Gif, .. })));
         assert!(matches!(one("[オーディオ]", &mut r), Part::Media(Media { kind: MediaKind::Audio, .. })));
-        assert!(matches!(one("[Note]", &mut r), Part::Text { .. }));
+        assert!(matches!(one(code::NOTE, &mut r), Part::Text { .. }));
         assert!(matches!(
             one("☎ Video call time 1:02:03", &mut r),
             Part::Call { video: true, outcome: CallOutcome::Answered, secs: Some(3723) }
@@ -630,7 +638,7 @@ mod tests {
         ));
         assert!(matches!(one("☎ 応答なし", &mut r), Part::Call { outcome: CallOutcome::Missed, .. }));
         assert!(matches!(one("☎ Cancelled call", &mut r), Part::Call { outcome: CallOutcome::Cancelled, .. }));
-        assert!(matches!(one("☎ Group call started.", &mut r), Part::Call { outcome: CallOutcome::Unknown, .. }));
+        assert!(matches!(one(code::GROUP_CALL_STARTED, &mut r), Part::Call { outcome: CallOutcome::Unknown, .. }));
         assert_eq!(event(None, "Ana changed the group's name to \"B\"", &mut r), Event::Renamed);
         assert_eq!(event(None, "Ana joined the group.", &mut r), Event::MemberJoined);
         assert_eq!(event(None, "Anaがグループに参加しました。", &mut r), Event::MemberJoined);

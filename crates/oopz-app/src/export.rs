@@ -42,25 +42,15 @@ impl Labels {
     /// files (`apps/desktop/src/lib/i18n/`). `heading` names what is exported.
     pub fn english(heading: &str) -> Labels {
         let t = |en: &str| en.to_owned();
-        let kinds: &[(i64, &str)] = &[
-            (0, "text"),
-            (1, "photo"),
-            (2, "audio / voice"),
-            (3, "video"),
-            (4, "contact"),
-            (5, "location"),
-            (7, "system"),
-            (9, "document"),
-            (13, "GIF"),
-            (15, "deleted"),
-            (16, "live location"),
-            (20, "sticker"),
-            (42, "view once"),
-            (46, "poll"),
-            (81, "video note"),
-            (90, "call"),
-            (99, "album"),
-        ];
+        // WhatsApp's own labels for its type codes, msgkinds' registry rows (English, as the CLI shows them).
+        let kinds: Vec<(i64, String)> = msgkinds::Source::WhatsAppAndroid
+            .entries()
+            .iter()
+            .filter_map(|e| match e.code {
+                msgkinds::Code::Int(code) => Some((code, e.label.to_lowercase())),
+                msgkinds::Code::Name(_) => None,
+            })
+            .collect();
         Labels {
             lang: "en".to_owned(),
             heading: heading.to_owned(),
@@ -77,7 +67,7 @@ impl Labels {
             note: t(
                 "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.",
             ),
-            kinds: kinds.iter().map(|&(code, en)| (code, t(en))).collect(),
+            kinds: kinds.into_iter().collect(),
         }
     }
 }
@@ -311,7 +301,7 @@ mod tests {
             senders: w("senders"),
             you: w("You"),
             note: w("not encrypted"),
-            kinds: HashMap::from([(0, w("text")), (1, w("photo"))]),
+            kinds: HashMap::from([(0, w("kind zero")), (1, w("kind one"))]),
         }
     }
 
@@ -330,7 +320,7 @@ mod tests {
 
         let html = fs::read_to_string(&first).unwrap();
         assert!(html.contains("Content-Security-Policy") && html.contains("default-src 'none'"));
-        assert!(!html.contains("<script") && !html.contains("http://") && !html.contains("https://"));
+        assert!(!html.contains("<script") && !html.contains("://"));
         assert!(html.contains("Chat &lt;b&gt;") && !html.contains("Chat <b>"));
         assert!(html.contains("Hola"), "the chat's own text is in its page");
         assert!(!html.contains(fixture::BEN_JID), "never a whole number");
