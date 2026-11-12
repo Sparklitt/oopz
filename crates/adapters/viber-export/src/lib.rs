@@ -308,7 +308,7 @@ impl Book {
             no_time += m.time_ms.is_none() as usize;
             let sender = get(c.sender);
             let phone = get(c.phone);
-            let from_me = ["me", "yo", "ich", "moi", "eu", "я"].contains(&sender.to_lowercase().as_str());
+            let from_me = viber_csv::is_owner(sender);
             let person = if from_me {
                 self.me_seen = true;
                 ME.to_string()
