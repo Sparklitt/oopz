@@ -2,6 +2,7 @@
 // Record<Kind, …>, so a kind added to backend/types.ts doesn't build until each one says what to do with it.
 import type { IconName } from "./components/Icon.svelte";
 import type { Kind, MediaKind } from "./backend/types";
+import { FORMATS, HEAD_LEN, MIME, sniff as sniffHead } from "./generated/msgkinds";
 
 export const KIND_ICON: Record<Kind, IconName> = {
   text: "chats",
@@ -33,33 +34,7 @@ export const KIND_ICON: Record<Kind, IconName> = {
 
 /** It plays for a while (msgkinds' `Kind::has_duration`): a sticker, a photo, a GIF, a document or an album never
  *  shows one, whatever the source wrote. */
-export const HAS_DURATION: Record<Kind, boolean> = {
-  text: false,
-  link: false,
-  photo: false,
-  video: true,
-  video_note: true,
-  gif: false,
-  voice: true,
-  audio: true,
-  sticker: false,
-  document: false,
-  location: false,
-  contact: false,
-  poll: false,
-  call: true,
-  album: false,
-  sticker_pack: false,
-  event: false,
-  payment: false,
-  game: false,
-  business: false,
-  story: false,
-  reaction: false,
-  system: false,
-  deleted: false,
-  unknown: false,
-};
+export { HAS_DURATION } from "./generated/msgkinds";
 
 /** Every kind, in msgkinds' order. */
 export const KINDS = Object.keys(KIND_ICON) as Kind[];
@@ -77,18 +52,14 @@ export const SHOWN_FROM_FILE: Record<MediaKind, "image" | "audio" | null> = {
 };
 
 /** Telegram's animated sticker: Lottie JSON, gzipped. */
-export const TGS = "application/x-tgsticker";
+export const TGS = MIME.TGS;
 
-/** A file's type from its first bytes, for a blob the webview shows (WebP, WebM and Lottie stickers, PNG, JPEG, Ogg voice notes). */
+/** A file's type from its first bytes (msgkinds' signatures), for a blob the webview shows; `fallback`, the type the
+ *  source gave, when the bytes say nothing or only show its container (a `.tgs` is gzip, an `.m4a` an MP4). A gzip
+ *  otherwise is a Lottie sticker, the only one the app shows. */
 export function sniff(bytes: ArrayBuffer, fallback: string): string {
-  const b = new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength));
-  const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
-  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
-  if (b[0] === 0x89 && ascii(1, 4) === "PNG") return "image/png";
-  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
-  if (ascii(0, 4) === "OggS") return "audio/ogg";
-  // Animated stickers: Telegram's WebM video stickers (Matroska), and its Lottie stickers (`.tgs`, gzipped JSON).
-  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video/webm";
-  if (b[0] === 0x1f && b[1] === 0x8b) return TGS;
-  return fallback;
+  const found = sniffHead(new Uint8Array(bytes, 0, Math.min(HEAD_LEN, bytes.byteLength)));
+  if (!found) return fallback;
+  if (FORMATS.some((f) => f.mime === fallback && f.container === found)) return fallback;
+  return found === MIME.GZIP ? TGS : found;
 }

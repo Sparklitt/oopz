@@ -1162,6 +1162,14 @@ mod tests {
         assert_eq!(Event::from(msgkinds::Event::TopicChanged), Event::TopicCreated);
     }
 
+    /// The desktop app's copy of msgkinds' data (`apps/desktop/src/lib/generated/msgkinds.ts`) is current: rewrite it
+    /// with `cargo run -q --example bindings -- ts` in msgkinds.
+    #[test]
+    fn the_desktop_apps_msgkinds_file_is_current() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/desktop/src/lib/generated/msgkinds.ts");
+        assert!(std::fs::read_to_string(path).unwrap() == msgkinds::bindings::typescript(), "{path} is stale");
+    }
+
     /// The desktop app's types (`apps/desktop/src/lib/backend/types.ts`) name the same kinds and events, so its
     /// `Record<Kind, …>` tables (icons, labels in each language) cover every one.
     #[test]
