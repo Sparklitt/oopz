@@ -6,6 +6,10 @@
 //! first number over 12: day first; a second: month first; else day first, noted). The sender "Me" is the owner. A
 //! zip is read in memory; entries with `..` or absolute paths are ignored.
 
+use msgkinds::media_type::formats::{CSV, ZIP};
+use msgkinds::media_type::name::has_format;
+use msgkinds::media_type::sources::viber_csv;
+use msgkinds::wording::codes::viber_csv as col;
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -37,14 +41,14 @@ impl Adapter for ViberExportAdapter {
     }
 
     fn detect(&self, path: &Path) -> bool {
-        let lower = path.to_string_lossy().to_lowercase();
+        let name = path.to_string_lossy();
         let Ok(file) = std::fs::File::open(path) else { return false };
-        if lower.ends_with(".zip") {
+        if has_format(&name, ZIP) {
             let Ok(zip) = zip::ZipArchive::new(file) else { return false };
-            let names: Vec<String> = zip.file_names().flatten().map(|n| n.to_lowercase()).collect();
-            return !names.is_empty() && names.iter().all(|n| n.ends_with(".csv") || n.ends_with('/'));
+            let names: Vec<String> = zip.file_names().flatten().map(|n| n.into_owned()).collect();
+            return !names.is_empty() && names.iter().all(|n| has_format(n, CSV) || n.ends_with('/'));
         }
-        if !lower.ends_with(".csv") {
+        if !has_format(&name, CSV) {
             return false;
         }
         let mut head = Vec::new();
@@ -53,8 +57,8 @@ impl Adapter for ViberExportAdapter {
         }
         let text = decode(&head);
         let first = text.lines().next().unwrap_or("");
-        let lower = first.to_lowercase();
-        (lower.contains("date") && (lower.contains("message") || lower.contains("text")))
+        let columns: Vec<_> = first.split([',', ';', '\t']).filter_map(viber_csv::column).collect();
+        (columns.contains(&col::DATE) && columns.contains(&col::MESSAGE))
             || date(first.split([',', ';', '\t']).next().unwrap_or("")).is_some()
     }
 
@@ -66,17 +70,13 @@ impl Adapter for ViberExportAdapter {
 }
 
 fn decode(bytes: &[u8]) -> String {
-    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|&c| u16::from_le_bytes(c)).collect();
-        return String::from_utf16_lossy(&units);
-    }
-    String::from_utf8_lossy(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)).into_owned()
+    msgkinds::media_type::text::decode(bytes)
 }
 
 /// Reads an export from memory: a zip of CSV files (by its first bytes) or one CSV named `name`.
 pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
     let mut book = Book::default();
-    if bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"PK\x05\x06") {
+    if msgkinds::media_type::sniff(bytes, msgkinds::media_type::Hint::None).is_some_and(|s| s.format.mime == ZIP) {
         let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| Error::NotThisFormat(FORMAT))?;
         let mut refused = 0;
         for i in 0..zip.len() {
@@ -86,7 +86,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
                 continue;
             };
             let entry_name = path.to_string_lossy().into_owned();
-            if entry.is_dir() || !entry_name.to_lowercase().ends_with(".csv") {
+            if entry.is_dir() || !has_format(&entry_name, CSV) {
                 continue;
             }
             let mut raw = Vec::new();
@@ -135,19 +135,13 @@ impl Columns {
     fn from_header(fields: &[String]) -> Option<Columns> {
         let mut c = Columns::default();
         for (i, f) in fields.iter().enumerate() {
-            let f = f.trim().trim_start_matches('\u{FEFF}').to_lowercase();
-            let slot = if f.contains("date") {
-                &mut c.date
-            } else if f.contains("time") {
-                &mut c.time
-            } else if f.contains("phone") || f.contains("number") {
-                &mut c.phone
-            } else if f.contains("sender") || f.contains("name") {
-                &mut c.sender
-            } else if f.contains("message") || f.contains("text") {
-                &mut c.message
-            } else {
-                continue;
+            let slot = match viber_csv::column(f) {
+                Some(col::DATE) => &mut c.date,
+                Some(col::TIME) => &mut c.time,
+                Some(col::PHONE) => &mut c.phone,
+                Some(col::SENDER) => &mut c.sender,
+                Some(col::MESSAGE) => &mut c.message,
+                _ => continue,
             };
             slot.get_or_insert(i);
         }
@@ -249,8 +243,7 @@ impl Book {
             None => return Err(Error::NotThisFormat(FORMAT)),
         };
 
-        let stem = name.rsplit(['/', '\\']).next().unwrap_or(name);
-        let stem = stem.strip_suffix(".csv").or_else(|| stem.strip_suffix(".CSV")).unwrap_or(stem);
+        let stem = msgkinds::media_type::name::stem(name);
         let mut id = stem.to_string();
         let mut n = 1;
         while self.conversations.iter().any(|c| c.id == id) {
@@ -354,14 +347,8 @@ impl Book {
                 continue;
             }
             m.parts.push(Part::text(text.clone()));
-            for word in text.split(char::is_whitespace) {
-                if let Some(at) = word.find("https://").or_else(|| word.find("http://")) {
-                    let url = word[at..].trim_end_matches(['.', ',', ')', '!', '?', '"', '\'']);
-                    if url.len() > 8 {
-                        m.parts.push(Part::Link { url: url.to_string(), title: None });
-                    }
-                }
-            }
+            let links = msgkinds::media_type::sources::whatsapp_export::links(&text);
+            m.parts.extend(links.into_iter().map(|url| Part::Link { url: url.to_string(), title: None }));
             self.messages.push(m);
         }
         if short > 0 {
