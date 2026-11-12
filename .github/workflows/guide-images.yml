@@ -50,13 +50,13 @@ jobs:
         working-directory: apps/desktop
     steps:
       # A pull request from this repository: its branch, to push to. Otherwise what the event names.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && env.FORK == 'false' && github.head_ref || '' }}
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: apps/desktop/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
