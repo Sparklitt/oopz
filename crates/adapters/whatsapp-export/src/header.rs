@@ -2,11 +2,8 @@
 //! (iPhone), with any of `/ . -` between the date's numbers, a 2- or 4-digit year, and a 12-hour clock written `PM`,
 //! `p. m.`, `a.m.` after a space, a no-break space or a narrow no-break space.
 
-/// Direction and byte-order marks WhatsApp puts around names, notices and attachments.
-pub const MARKS: &[char] = &[
-    '\u{200E}', '\u{200F}', '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}',
-    '\u{2068}', '\u{2069}', '\u{FEFF}',
-];
+/// Direction and byte-order marks WhatsApp puts around names, notices and attachments (msgkinds' wording `[shape]`).
+pub use msgkinds::media_type::sources::whatsapp_export::is_mark;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Header {
@@ -88,7 +85,7 @@ impl<'a> Cur<'a> {
 impl Header {
     /// A message's first line: its date and time, and the rest of the line.
     pub fn parse(line: &str) -> Option<(Header, &str)> {
-        let mut c = Cur { s: line.trim_start_matches(MARKS), i: 0 };
+        let mut c = Cur { s: line.trim_start_matches(is_mark), i: 0 };
         let ios = c.eat('[');
         let (a, la) = c.number(4)?;
         let sep = c.peek().filter(|s| matches!(s, '/' | '.' | '-'))?;

@@ -148,7 +148,7 @@ fn nothing_panics() {
     let export = whatsapp_txt::generate(9, whatsapp_txt::Layout::Ios);
     let bytes = &export.files[0].1;
     for cut in (0..bytes.len()).step_by(97).chain([1, 2, 3, bytes.len() - 1]) {
-        let _ = read("_chat.txt", &bytes[..cut]);
+        let _ = read(msgkinds::media_type::sources::whatsapp::IOS_CHAT_TEXT, &bytes[..cut]);
     }
     let zip = oopz_gen::exports::zip(&export.files);
     for cut in (0..zip.len()).step_by(211) {

@@ -2,11 +2,12 @@
 //! calls, deleted and edited messages (English and Spanish, and a few other languages where known), else text with
 //! its links.
 
+use msgkinds::registry::codes::whatsapp_export as code;
 use std::collections::{HashMap, HashSet};
 
 use oopz_model::{CallOutcome, Event, Media, MediaKind, Part, PollOption};
 
-use crate::header::MARKS;
+use crate::header::is_mark;
 
 /// The files that came with the chat (a zip's entries, a folder's files), when known, and the contact cards' text.
 #[derive(Debug, Default)]
@@ -64,7 +65,7 @@ impl Stats {
 /// counted when it looks like one of WhatsApp's own `<…>` markers.
 pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
     use msgkinds::media_type::sources::whatsapp_export as words;
-    let t = text.trim_start_matches(MARKS);
+    let t = text.trim_start_matches(is_mark);
     let (body, edited) = match words::edited(stats.language, t) {
         Some(body) => (body, true),
         None => (t, false),
@@ -72,9 +73,9 @@ pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
     let code = words::content_in(stats.language, body);
     let row = stats.reading.lookup_name(msgkinds::Source::WhatsAppExport, code).entry();
     match code {
-        "deleted" | "deleted_admin" => return Read::Deleted { own: false },
-        "deleted_own" => return Read::Deleted { own: true },
-        "text" if words::unread_marker_in(stats.language, body) => {
+        code::DELETED | code::DELETED_ADMIN => return Read::Deleted { own: false },
+        code::DELETED_OWN => return Read::Deleted { own: true },
+        code::TEXT if words::unread_marker_in(stats.language, body) => {
             stats.reading.fallback(msgkinds::Source::WhatsAppExport)
         }
         _ => {}
@@ -84,23 +85,27 @@ pub fn read(text: &str, files: &Files, stats: &mut Stats) -> Read {
 }
 
 fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stats: &mut Stats) -> Vec<Part> {
-    let bare = t.trim().trim_matches(MARKS);
+    let bare = t.trim().trim_matches(is_mark);
     let (first, rest) = t.split_once('\n').unwrap_or((t, ""));
-    let first_bare = first.trim().trim_matches(MARKS);
+    let first_bare = first.trim().trim_matches(is_mark);
     let caption = || Some(rest.trim().to_string()).filter(|c| !c.is_empty());
     let row_media = row.and_then(|e| MediaKind::from_kind(e.kind.into()));
 
     match code {
-        "omitted" => {
+        code::OMITTED => {
             stats.kindless_media += 1;
             vec![media(MediaKind::Document, None, None, true)]
         }
-        "image_omitted" | "video_omitted" | "video_note_omitted" | "audio_omitted" | "sticker_omitted"
-        | "gif_omitted" => vec![media(row_media.unwrap_or(MediaKind::Document), None, None, true)],
+        code::IMAGE_OMITTED
+        | code::VIDEO_OMITTED
+        | code::VIDEO_NOTE_OMITTED
+        | code::AUDIO_OMITTED
+        | code::STICKER_OMITTED
+        | code::GIF_OMITTED => vec![media(row_media.unwrap_or(MediaKind::Document), None, None, true)],
         // `informe.pdf • 3 pages ‎document omitted`: the name is before the dot, or before iPhone's mark.
-        "document_omitted" => {
-            let before = first.trim().trim_start_matches(MARKS);
-            let name = match (before.find(" • "), before.rfind(MARKS)) {
+        code::DOCUMENT_OMITTED => {
+            let before = first.trim().trim_start_matches(is_mark);
+            let name = match (before.find(" • "), before.rfind(is_mark)) {
                 (Some(at), _) => &before[..at],
                 (None, Some(at)) if at > 0 => &before[..at],
                 _ => "",
@@ -108,8 +113,8 @@ fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stat
             let name = Some(name.trim().to_string()).filter(|n| !n.is_empty());
             vec![media(MediaKind::Document, name, None, true)]
         }
-        "contact_omitted" => vec![Part::Contact { name: None, phones: Vec::new(), vcard: None }],
-        "view_once" => {
+        code::CONTACT_OMITTED => vec![Part::Contact { name: None, phones: Vec::new(), vcard: None }],
+        code::VIEW_ONCE => {
             let kind = msgkinds::media_type::sources::whatsapp_export::view_once_kind(stats.language, bare);
             let mut m = media(MediaKind::from_kind(kind.into()).unwrap_or(MediaKind::Photo), None, None, true);
             if let Part::Media(m) = &mut m {
@@ -117,41 +122,38 @@ fn parts(code: &str, row: Option<&msgkinds::Entry>, t: &str, files: &Files, stat
             }
             vec![m]
         }
-        "attached" | "contact_attached" => {
-            // iPhone: `<attached: NAME>` then a caption; Android: `NAME (file attached)`, the caption below.
-            let found = if first_bare.starts_with('<') {
-                first_bare.split_once(": ").and_then(|(_, after)| after.split_once('>')).map(|(name, more)| {
-                    let mut c = more.trim().to_string();
-                    if !rest.trim().is_empty() {
-                        if !c.is_empty() {
-                            c.push('\n');
-                        }
-                        c.push_str(rest.trim());
-                    }
-                    (name, Some(c).filter(|c| !c.is_empty()))
-                })
-            } else {
-                first_bare.rfind(" (").map(|at| (first_bare[..at].split(" • ").next().unwrap_or(""), caption()))
+        code::ATTACHED | code::CONTACT_ATTACHED => {
+            // msgkinds reads the name in any language; the caption is what follows it: after iPhone's `<…: NAME>` on its
+            // line, and the lines below.
+            let name = msgkinds::media_type::sources::whatsapp_export::attached_name_in(stats.language, t)
+                .map(|n| n.split(" • ").next().unwrap_or(n).trim());
+            let caption = match first_bare.starts_with('<') {
+                true => {
+                    let after = first_bare.split_once('>').map_or("", |(_, more)| more.trim());
+                    let c = [after, rest.trim()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n");
+                    Some(c).filter(|c| !c.is_empty())
+                }
+                false => caption(),
             };
-            match found.map(|(name, c)| (name.trim(), c)) {
-                Some((name, c)) if !name.is_empty() => vec![file_part(name, c, files, stats)],
+            match name {
+                Some(name) if !name.is_empty() => vec![file_part(name, caption, files, stats)],
                 _ => text_parts(t),
             }
         }
-        "live_location" => vec![Part::Location { lat: None, lng: None, name: None, live: true }],
-        "location" => {
-            let url = first_bare.split_once(": ").map_or("", |(_, u)| u).trim();
-            let (lat, lng) = coordinates(url).unzip();
+        code::LIVE_LOCATION => vec![Part::Location { lat: None, lng: None, name: None, live: true }],
+        code::LOCATION => {
+            let (lat, lng) =
+                msgkinds::media_type::sources::whatsapp_export::location_in(stats.language, first_bare).unzip();
             vec![Part::Location { lat, lng, name: caption(), live: false }]
         }
-        "poll" => vec![poll(rest)],
-        "missed_voice_call" | "missed_video_call" | "voice_call" | "video_call" => {
+        code::POLL => vec![poll(stats.language, rest)],
+        code::MISSED_VOICE_CALL | code::MISSED_VIDEO_CALL | code::VOICE_CALL | code::VIDEO_CALL => {
             let outcome = if code.starts_with("missed") { CallOutcome::Missed } else { CallOutcome::Unknown };
             let video = row.is_some_and(|e| e.has(msgkinds::Flag::Video));
             vec![Part::Call { video, outcome, secs: None }]
         }
         // "Waiting for this message": WhatsApp's own line, its words kept.
-        "pending" => vec![Part::System { event: Event::Other, text: Some(bare.to_string()) }],
+        code::PENDING => vec![Part::System { event: Event::Other, text: Some(bare.to_string()) }],
         _ => text_parts(t),
     }
 }
@@ -173,10 +175,9 @@ fn file_part(name: &str, caption: Option<String>, files: &Files, stats: &mut Sta
     {
         stats.missing_files += 1;
     }
-    let lower = name.to_lowercase();
-    if lower.ends_with(".vcf") {
+    if msgkinds::media_type::sources::whatsapp_export::is_vcard(name) {
         let card = files.vcards.get(name);
-        let stem = name.get(..name.len() - 4).unwrap_or(name).trim();
+        let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem).trim();
         // iPhone's `00000011-Name.vcf`.
         let stem = match stem.split_once('-') {
             Some((n, s)) if n.len() == 8 && n.bytes().all(|b| b.is_ascii_digit()) => s,
@@ -196,33 +197,10 @@ fn file_part(name: &str, caption: Option<String>, files: &Files, stats: &mut Sta
     })
 }
 
-/// From WhatsApp's file names (`IMG-…`, `PTT-…`, iPhone's `…-PHOTO-…`), else the extension.
+/// From WhatsApp's file names (`IMG-…`, `PTT-…`, iPhone's `…-PHOTO-…`), else the extension: msgkinds'
+/// `whatsapp::file_name`.
 fn kind_of(name: &str) -> MediaKind {
-    let upper = name.to_uppercase();
-    for (prefix, kind) in [
-        ("IMG-", MediaKind::Photo),
-        ("VID-", MediaKind::Video),
-        ("PTT-", MediaKind::Voice),
-        ("AUD-", MediaKind::Audio),
-        ("STK-", MediaKind::Sticker),
-        ("DOC-", MediaKind::Document),
-    ] {
-        if upper.starts_with(prefix) {
-            return kind;
-        }
-    }
-    for (word, kind) in [
-        ("-PHOTO-", MediaKind::Photo),
-        ("-VIDEO-", MediaKind::Video),
-        ("-AUDIO-", MediaKind::Voice),
-        ("-STICKER-", MediaKind::Sticker),
-        ("-GIF-", MediaKind::Gif),
-    ] {
-        if upper.contains(word) {
-            return kind;
-        }
-    }
-    MediaKind::from_file_name(name)
+    MediaKind::from_msgkinds(msgkinds::media_type::sources::whatsapp::file_name(name).0)
 }
 
 /// A contact card's name (`FN`) and phone numbers (`TEL`).
@@ -242,23 +220,13 @@ fn vcard(card: &str) -> (Option<String>, Vec<String>) {
     (name, phones)
 }
 
-/// `https://maps.google.com/?q=40.4168,-3.7038` → (40.4168, -3.7038).
-fn coordinates(url: &str) -> Option<(f64, f64)> {
-    let (_, q) = url.split_once("q=").or_else(|| url.split_once('@'))?;
-    let q = q.split(['&', ' ']).next()?;
-    let (lat, lng) = q.split_once(',')?;
-    let lat: f64 = lat.trim().parse().ok()?;
-    let lng: f64 = lng.split(',').next()?.trim().parse().ok()?;
-    ((-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lng)).then_some((lat, lng))
-}
-
 /// `POLL:` then the question, then `OPTION: text (n votes)` lines.
-fn poll(body: &str) -> Part {
+fn poll(language: Option<&str>, body: &str) -> Part {
     let mut question = String::new();
     let mut options = Vec::new();
     for line in body.lines() {
         let line = line.trim();
-        let option = ["OPTION:", "OPCIÓN:", "OPÇÃO:", "OPTION :"].iter().find_map(|p| line.strip_prefix(p));
+        let option = msgkinds::media_type::sources::whatsapp_export::poll_option_in(language, line);
         match option {
             Some(option) => {
                 let option = option.trim();
@@ -294,17 +262,9 @@ fn poll(body: &str) -> Part {
     Part::Poll { question, options, multiple: false }
 }
 
-/// The `http(s)://` links in a text, without trailing punctuation.
+/// The links in a text, without trailing punctuation (msgkinds' `whatsapp_export::links`).
 pub fn links(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for word in text.split(|c: char| c.is_whitespace() || c == '<' || c == '>') {
-        let Some(at) = word.find("https://").or_else(|| word.find("http://")) else { continue };
-        let url = word[at..].trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\'', '”', '’']);
-        if url.len() > "https://".len() && !out.iter().any(|u| u == url) {
-            out.push(url.to_string());
-        }
-    }
-    out
+    msgkinds::media_type::sources::whatsapp_export::links(text).into_iter().map(str::to_owned).collect()
 }
 
 /// Text and links only: on iPhone, a line starting with U+200E that reads as plain text is the app's notice.
@@ -318,7 +278,7 @@ pub fn is_notice(parts: &[Part]) -> bool {
 /// as a fallback.
 pub fn event(text: &str, stats: &mut Stats) -> Event {
     let code = msgkinds::media_type::sources::whatsapp_export::notice_in(stats.language, text);
-    if code == "notice" {
+    if code == code::NOTICE {
         stats.reading.fallback(msgkinds::Source::WhatsAppExport);
     }
     let row = stats.reading.lookup_name(msgkinds::Source::WhatsAppExport, code).entry();
@@ -367,18 +327,17 @@ mod tests {
     }
 
     #[test]
-    fn links_and_coordinates() {
+    fn links() {
         assert_eq!(
-            links("see https://example.org/a, and (http://example.com)."),
+            super::links("see https://example.org/a, and (http://example.com)."),
             ["https://example.org/a", "http://example.com"]
         );
-        assert_eq!(coordinates("https://maps.google.com/?q=40.4168,-3.7038"), Some((40.4168, -3.7038)));
-        assert_eq!(coordinates("https://maps.google.com/?q=400,1"), None);
     }
 
     #[test]
     fn polls_count_votes() {
-        let Part::Poll { question, options, .. } = poll("¿Cena?\nOPTION: Pizza (2 votes)\nOPTION: A (b) (1 vote)")
+        let Part::Poll { question, options, .. } =
+            poll(None, "¿Cena?\nOPTION: Pizza (2 votes)\nOPTION: A (b) (1 vote)")
         else {
             panic!("a poll");
         };

@@ -11,6 +11,10 @@
 mod content;
 mod header;
 
+use msgkinds::media_type::formats::{PLAIN_TEXT, VCARD, ZIP};
+use msgkinds::media_type::name::has_format;
+use msgkinds::media_type::sources::whatsapp::IOS_CHAT_TEXT;
+use msgkinds::media_type::sources::whatsapp_export as words;
 use std::collections::{BTreeMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -48,8 +52,7 @@ impl Adapter for WhatsAppExportAdapter {
             return chat_file_in(path).is_some();
         }
         let name = file_name(path);
-        let lower = name.to_lowercase();
-        if lower.ends_with(".zip") {
+        if has_format(&name, ZIP) {
             if chat_name(&name).is_some_and(|n| n != name) {
                 return true;
             }
@@ -57,7 +60,7 @@ impl Adapter for WhatsAppExportAdapter {
             let Ok(zip) = zip::ZipArchive::new(file) else { return false };
             return zip.file_names().flatten().any(|n| is_chat_text(&n));
         }
-        if !lower.ends_with(".txt") {
+        if !has_format(&name, PLAIN_TEXT) {
             return false;
         }
         let Ok(file) = std::fs::File::open(path) else { return false };
@@ -74,7 +77,7 @@ impl Adapter for WhatsAppExportAdapter {
         } else {
             let bytes = std::fs::read(path).map_err(|e| Error::io(path.display(), e))?;
             let mut loaded = read(&file_name(path), &bytes)?;
-            if !bytes.starts_with(b"PK") {
+            if !is_zip(&bytes) {
                 loaded.info.media_root = path.parent().map(Path::to_path_buf);
             }
             loaded
@@ -86,7 +89,7 @@ impl Adapter for WhatsAppExportAdapter {
 /// Reads an export from memory: a zip (by its first bytes) or the chat text. `name` is the file's name, which holds
 /// the chat's name.
 pub fn read(name: &str, bytes: &[u8]) -> Result<Loaded> {
-    if bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"PK\x05\x06") {
+    if is_zip(bytes) {
         return read_zip(name, bytes);
     }
     read_text(chat_name(name), &decode(bytes), &Files::default())
@@ -113,14 +116,14 @@ fn read_zip(name: &str, bytes: &[u8]) -> Result<Loaded> {
         };
         let entry_name = path.to_string_lossy().replace('\\', "/");
         let base = entry_name.rsplit('/').next().unwrap_or(&entry_name).to_string();
-        let lower = base.to_lowercase();
-        let is_chat = is_chat_text(&entry_name) || (chat.is_none() && lower.ends_with(".txt"));
-        if is_chat || lower.ends_with(".vcf") {
+        let is_chat = is_chat_text(&entry_name) || (chat.is_none() && has_format(&base, PLAIN_TEXT));
+        let vcard = has_format(&base, VCARD);
+        if is_chat || vcard {
             let mut raw = Vec::new();
             if (&mut entry).take(MAX_ENTRY).read_to_end(&mut raw).is_err() {
                 continue;
             }
-            if lower.ends_with(".vcf") {
+            if vcard {
                 files.vcards.insert(base.clone(), decode(&raw));
             } else if chat.as_ref().is_none_or(|(n, _)| !is_chat_text(n)) {
                 chat = Some((entry_name.clone(), decode(&raw)));
@@ -131,7 +134,8 @@ fn read_zip(name: &str, bytes: &[u8]) -> Result<Loaded> {
         }
     }
     let Some((chat_entry, text)) = chat else { return Err(Error::NotThisFormat(FORMAT)) };
-    let chat_title = chat_name(&chat_entry).filter(|_| !chat_entry.ends_with("_chat.txt")).or_else(|| chat_name(name));
+    let chat_title =
+        chat_name(&chat_entry).filter(|_| !chat_entry.ends_with(IOS_CHAT_TEXT)).or_else(|| chat_name(name));
     let mut loaded = parse(chat_title, &text, &files)?;
     loaded.info.notes.push("media files are inside the zip".into());
     if unsafe_names > 0 {
@@ -147,7 +151,7 @@ fn read_folder(dir: &Path) -> Result<Loaded> {
     let entries = std::fs::read_dir(dir).map_err(|e| Error::io(dir.display(), e))?;
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.to_lowercase().ends_with(".vcf")
+        if has_format(&name, VCARD)
             && let Ok(raw) = std::fs::read(entry.path())
         {
             files.vcards.insert(name.clone(), decode(&raw));
@@ -157,7 +161,7 @@ fn read_folder(dir: &Path) -> Result<Loaded> {
         }
     }
     let name = file_name(&chat_file);
-    let title = if name == "_chat.txt" { chat_name(&file_name(dir)) } else { chat_name(&name) };
+    let title = if name == IOS_CHAT_TEXT { chat_name(&file_name(dir)) } else { chat_name(&name) };
     let mut loaded = parse(title, &decode(&bytes), &files)?;
     loaded.info.media_root = Some(dir.to_path_buf());
     Ok(loaded)
@@ -169,50 +173,36 @@ fn chat_file_in(dir: &Path) -> Option<std::path::PathBuf> {
     names.iter().find(|n| is_chat_text(n)).map(|n| dir.join(n))
 }
 
+/// A chat's text: iPhone's `_chat.txt`, or a text file WhatsApp named (msgkinds' `chat_name`, or the app's name in it).
 fn is_chat_text(name: &str) -> bool {
-    let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
-    let lower = base.to_lowercase();
-    lower.ends_with(".txt")
-        && (base == "_chat.txt"
-            || PREFIXES.iter().any(|p| lower.starts_with(&p.to_lowercase()))
-            || base.contains("WhatsApp"))
+    let base = msgkinds::media_type::name::base(name).unwrap_or(name);
+    has_format(base, PLAIN_TEXT)
+        && (base == IOS_CHAT_TEXT || words::chat_name(base).is_some() || base.contains(msgkinds::App::WhatsApp.name()))
+}
+
+/// A zip, by its first bytes (msgkinds' signatures).
+fn is_zip(bytes: &[u8]) -> bool {
+    msgkinds::media_type::sniff(bytes, msgkinds::media_type::Hint::None).is_some_and(|s| s.format.mime == ZIP)
 }
 
 fn file_name(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-const PREFIXES: [&str; 8] = [
-    "WhatsApp Chat with ",
-    "WhatsApp Chat - ",
-    "Chat de WhatsApp con ",
-    "Chat de WhatsApp - ",
-    "WhatsApp-Chat mit ",
-    "Discussion WhatsApp avec ",
-    "Conversa do WhatsApp com ",
-    "WhatsApp-chat met ",
-];
-
 /// The chat's name from an export's file name: `WhatsApp Chat with X.txt`, `Chat de WhatsApp con X.txt`,
 /// `WhatsApp Chat - X.zip`; any other name without its extension; `None` for iPhone's `_chat.txt` or nothing.
 pub fn chat_name(file: &str) -> Option<String> {
-    let base = file.rsplit(['/', '\\']).next().unwrap_or(file);
-    let stem = base.strip_suffix(".txt").or_else(|| base.strip_suffix(".zip")).unwrap_or(base);
-    if stem.is_empty() || stem == "_chat" {
+    let stem = msgkinds::media_type::name::stem(file);
+    if stem.is_empty() || stem == msgkinds::media_type::name::stem(IOS_CHAT_TEXT) {
         return None;
     }
-    let name = PREFIXES.iter().find_map(|p| stem.strip_prefix(p)).unwrap_or(stem);
+    let name = words::chat_name(stem).unwrap_or(stem);
     Some(name.trim().to_string()).filter(|n| !n.is_empty())
 }
 
-/// Text from bytes: UTF-16 when it starts with its byte-order mark, else UTF-8 (a BOM dropped, bad bytes replaced).
+/// Text from bytes: UTF-16 when it starts with its byte-order mark, else UTF-8 (msgkinds' `text::decode`).
 fn decode(bytes: &[u8]) -> String {
-    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|&c| u16::from_le_bytes(c)).collect();
-        return String::from_utf16_lossy(&units);
-    }
-    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
-    String::from_utf8_lossy(bytes).into_owned()
+    msgkinds::media_type::text::decode(bytes)
 }
 
 /// One message as written, before its date is read.
@@ -263,7 +253,7 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
     // One language per export: found from its lines (a message's body as a body, a line with no sender as a notice),
     // then only that language's words are read, so another language's words in a message stay its text.
     let lines = raws.iter().filter(|r| r.header.is_some()).map(|r| {
-        let text = r.text.trim_start_matches(header::MARKS);
+        let text = r.text.trim_start_matches(header::is_mark);
         match r.sender {
             Some(_) => (msgkinds::wording::Section::Body, text.lines().next().unwrap_or("")),
             None => (msgkinds::wording::Section::Notice, text),
@@ -325,7 +315,7 @@ fn parse(chat: Option<String>, text: &str, files: &Files) -> Result<Loaded> {
                         | Event::MemberRemoved
                         | Event::AdminChanged
                 );
-                m.parts.push(Part::System { event, text: Some(text.trim_start_matches(header::MARKS).to_string()) });
+                m.parts.push(Part::System { event, text: Some(text.trim_start_matches(header::is_mark).to_string()) });
             }
         }
         messages.push(m);
@@ -404,7 +394,7 @@ fn split_sender(rest: &str) -> (Option<String>, &str) {
             None => return (None, rest),
         },
     };
-    let name = name.trim_matches(header::MARKS);
+    let name = name.trim_matches(header::is_mark);
     let ok = !name.is_empty()
         && name.chars().count() <= 100
         && !name.contains(['"', '“', '”', '«', '»'])
@@ -414,6 +404,6 @@ fn split_sender(rest: &str) -> (Option<String>, &str) {
 
 /// A sender written as a number: someone not in the phone's contacts.
 fn looks_like_phone(s: &str) -> bool {
-    let s = s.trim_matches(header::MARKS);
+    let s = s.trim_matches(header::is_mark);
     s.starts_with('+') && s.chars().all(|c| c.is_ascii_digit() || " +-()\u{A0}".contains(c))
 }
