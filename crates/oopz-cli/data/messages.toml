@@ -1,0 +1,706 @@
+# Every sentence the `oopz` command prints, by language: compiled by build.rs with msgkinds' generator into
+# `crate::say::Message` (msgkinds' docs/messages.md has the format and its checks). The language is the terminal's
+# (LC_ALL, LC_MESSAGES, LANG). `name` is stable: never rename or reuse one; add a new one instead. Spanish follows the
+# desktop app's (apps/desktop/src/lib/i18n/es.ts) where it has the same sentence. Indentation and table widths stay in
+# the code; a wording never starts or ends with a space.
+
+catalog = "oopz_cli"
+languages = ["en", "es"]
+
+# Every command.
+
+[[message]]
+name = "error_line"
+for = "user"
+params = ["error"]
+en = "error: {error}"
+es = "error: {error}"
+
+[[message]]
+name = "temp_folder"
+for = "user"
+params = []
+en = "creating a private temporary folder"
+es = "creando una carpeta temporal privada"
+
+[[message]]
+name = "not_shown"
+for = "user"
+params = ["what"]
+en = "{what} (not shown)"
+es = "{what} (no se muestra)"
+
+[[message]]
+name = "key_backup"
+for = "user"
+params = []
+en = "64-digit backup key"
+es = "clave de 64 dígitos de la copia"
+
+[[message]]
+name = "key_first_backup"
+for = "user"
+params = []
+en = "64-digit first backup's key"
+es = "clave de 64 dígitos de la primera copia"
+
+[[message]]
+name = "key_second_backup"
+for = "user"
+params = []
+en = "64-digit second backup's key"
+es = "clave de 64 dígitos de la segunda copia"
+
+[[message]]
+name = "key_source"
+for = "user"
+params = []
+en = "64-digit source key"
+es = "clave de 64 dígitos de la copia de origen"
+
+[[message]]
+name = "key_target"
+for = "user"
+params = []
+en = "64-digit target key"
+es = "clave de 64 dígitos de la copia de destino"
+
+[[message]]
+name = "saved"
+for = "user"
+params = ["path"]
+en = "saved: {path}"
+es = "guardado: {path}"
+
+[[message]]
+name = "keep_text_private"
+for = "user"
+params = []
+en = "this file holds message text and isn't encrypted: keep it private, delete it when done"
+es = "este archivo contiene tus mensajes y no está cifrado: guárdalo en un lugar privado y bórralo cuando termines"
+
+[[message]]
+name = "dates"
+for = "user"
+params = ["first", "last"]
+en = "dates: {first} to {last}"
+es = "fechas: del {first} al {last}"
+
+[[message]]
+name = "position_of"
+for = "user"
+params = ["at", "of"]
+en = "position {at} of {of}"
+es = "posición {at} de {of}"
+
+[[message]]
+name = "results"
+for = "user"
+params = ["count"]
+en = "{count} results, newest first"
+es = "{count} resultados, los más recientes primero"
+
+[[message]]
+name = "results_first_ones"
+for = "user"
+params = ["count"]
+en = "{count} results, newest first (the first ones; narrow the search)"
+es = "{count} resultados, los más recientes primero (los primeros; afina la búsqueda)"
+
+[[message]]
+name = "by_month"
+for = "user"
+params = []
+en = "by month:"
+es = "por mes:"
+
+[[message]]
+name = "who_writes_most"
+for = "user"
+params = []
+en = "who writes most:"
+es = "quién escribe más:"
+
+[[message]]
+name = "voice_minutes"
+for = "user"
+params = ["minutes"]
+en = "voice notes and audio: {minutes} minutes"
+es = "notas de voz y audio: {minutes} minutos"
+
+[[message]]
+name = "sent"
+for = "user"
+params = []
+en = "sent"
+es = "enviado"
+
+[[message]]
+name = "received"
+for = "user"
+params = []
+en = "received"
+es = "recibido"
+
+[[message]]
+name = "time_left"
+for = "user"
+params = ["time"]
+en = "{time} left"
+es = "quedan {time}"
+
+# The days of the week, Sunday first, as a table's rows.
+
+[[message]]
+name = "day_sun"
+for = "user"
+params = []
+en = "Sun"
+es = "dom"
+
+[[message]]
+name = "day_mon"
+for = "user"
+params = []
+en = "Mon"
+es = "lun"
+
+[[message]]
+name = "day_tue"
+for = "user"
+params = []
+en = "Tue"
+es = "mar"
+
+[[message]]
+name = "day_wed"
+for = "user"
+params = []
+en = "Wed"
+es = "mié"
+
+[[message]]
+name = "day_thu"
+for = "user"
+params = []
+en = "Thu"
+es = "jue"
+
+[[message]]
+name = "day_fri"
+for = "user"
+params = []
+en = "Fri"
+es = "vie"
+
+[[message]]
+name = "day_sat"
+for = "user"
+params = []
+en = "Sat"
+es = "sáb"
+
+# Table headers.
+
+[[message]]
+name = "head_chat"
+for = "user"
+params = []
+en = "chat"
+es = "chat"
+
+[[message]]
+name = "head_who"
+for = "user"
+params = []
+en = "who"
+es = "quién"
+
+[[message]]
+name = "head_messages"
+for = "user"
+params = []
+en = "messages"
+es = "mensajes"
+
+[[message]]
+name = "head_last_message"
+for = "user"
+params = []
+en = "last message"
+es = "último mensaje"
+
+[[message]]
+name = "head_date"
+for = "user"
+params = []
+en = "date"
+es = "fecha"
+
+[[message]]
+name = "head_side"
+for = "user"
+params = []
+en = "side"
+es = "lado"
+
+[[message]]
+name = "head_position"
+for = "user"
+params = []
+en = "position"
+es = "posición"
+
+# A chat's kind, as the backup has it (oopz-app's session), and the last 3 characters of its id.
+
+[[message]]
+name = "who_contact"
+for = "user"
+params = ["ending"]
+en = "contact ••••{ending}"
+es = "contacto ••••{ending}"
+
+[[message]]
+name = "who_contact_lid"
+for = "user"
+params = ["ending"]
+en = "contact (lid) ••••{ending}"
+es = "contacto (id privado) ••••{ending}"
+
+[[message]]
+name = "who_group"
+for = "user"
+params = ["ending"]
+en = "group ••••{ending}"
+es = "grupo ••••{ending}"
+
+[[message]]
+name = "who_broadcast"
+for = "user"
+params = ["ending"]
+en = "broadcast ••••{ending}"
+es = "lista de difusión ••••{ending}"
+
+[[message]]
+name = "who_other"
+for = "user"
+params = ["ending"]
+en = "other ••••{ending}"
+es = "otro ••••{ending}"
+
+# oopz backups
+
+[[message]]
+name = "backup_ok"
+for = "user"
+params = ["name", "mb", "chats", "messages", "last"]
+en = "{name}  {mb} MB  ok: {chats} chats, {messages} messages, last {last}"
+es = "{name}  {mb} MB  bien: {chats} chats, {messages} mensajes, el último {last}"
+
+[[message]]
+name = "backup_damaged"
+for = "user"
+params = ["name", "mb", "problems"]
+en = "{name}  {mb} MB  DAMAGED: {problems}"
+es = "{name}  {mb} MB  DAÑADA: {problems}"
+
+[[message]]
+name = "backup_failed"
+for = "user"
+params = ["name", "mb", "error"]
+en = "{name}  {mb} MB  FAILED: {error}"
+es = "{name}  {mb} MB  FALLÓ: {error}"
+
+[[message]]
+name = "backup_not_crypt15"
+for = "user"
+params = ["name", "mb"]
+en = "{name}  {mb} MB  FAILED: named like a backup but doesn't look like one"
+es = "{name}  {mb} MB  FALLÓ: se llama como una copia pero no lo parece"
+
+[[message]]
+name = "backup_older"
+for = "user"
+params = ["name", "mb", "format"]
+en = "{name}  {mb} MB  skipped: older format ({format}), not supported"
+es = "{name}  {mb} MB  omitida: formato antiguo ({format}), no compatible"
+
+[[message]]
+name = "no_crypt15_backups"
+for = "user"
+params = ["dir"]
+en = "no crypt15 backups in {dir}: only older formats"
+es = "no hay copias crypt15 en {dir}: solo formatos antiguos"
+
+[[message]]
+name = "backups_failed"
+for = "user"
+params = ["bad", "checked"]
+en = "{bad} of {checked} backups didn't pass"
+es = "{bad} de {checked} copias no pasaron la comprobación"
+
+# oopz check
+
+[[message]]
+name = "backup_bytes"
+for = "user"
+params = ["name", "bytes"]
+en = "{name}  {bytes} bytes"
+es = "{name}  {bytes} bytes"
+
+[[message]]
+name = "database_sound"
+for = "user"
+params = []
+en = "database: sound"
+es = "base de datos: en buen estado"
+
+[[message]]
+name = "database_problems"
+for = "user"
+params = ["problems"]
+en = "database: problems: {problems}"
+es = "base de datos: problemas: {problems}"
+
+[[message]]
+name = "chat_counts"
+for = "user"
+params = ["chats", "one_to_one", "groups"]
+en = "chats: {chats} ({one_to_one} one-to-one, {groups} groups)"
+es = "chats: {chats} ({one_to_one} individuales, {groups} grupos)"
+
+[[message]]
+name = "messages_count"
+for = "user"
+params = ["messages"]
+en = "messages: {messages}"
+es = "mensajes: {messages}"
+
+# oopz stats
+
+[[message]]
+name = "messages_sent_received"
+for = "user"
+params = ["messages", "sent", "received"]
+en = "messages: {messages} ({sent} sent, {received} received)"
+es = "mensajes: {messages} ({sent} enviados, {received} recibidos)"
+
+[[message]]
+name = "by_type"
+for = "user"
+params = []
+en = "by type:"
+es = "por tipo:"
+
+[[message]]
+name = "type_messages_media"
+for = "user"
+params = ["code", "messages", "mb"]
+en = "type {code}: {messages} messages, {mb} MB of media"
+es = "tipo {code}: {messages} mensajes, {mb} MB de archivos"
+
+[[message]]
+name = "by_hour_here"
+for = "user"
+params = ["hours"]
+en = "by hour (this computer's time zone): {hours}"
+es = "por hora (zona horaria de este ordenador): {hours}"
+
+[[message]]
+name = "by_day_hour_here"
+for = "user"
+params = []
+en = "by day and hour (this computer's time zone; rows Sunday to Saturday, columns 0 to 23 h):"
+es = "por día y hora (zona horaria de este ordenador; filas de domingo a sábado, columnas de 0 a 23 h):"
+
+# oopz thumbnail, jump, export
+
+[[message]]
+name = "saved_bytes"
+for = "user"
+params = ["path", "bytes"]
+en = "saved {path} ({bytes} bytes)"
+es = "guardado {path} ({bytes} bytes)"
+
+[[message]]
+name = "no_picture"
+for = "user"
+params = ["message", "media"]
+en = "message {message} has no picture in {media}"
+es = "el mensaje {message} no tiene imagen en {media}"
+
+[[message]]
+name = "chat_empty"
+for = "user"
+params = ["chat"]
+en = "chat {chat} has no messages"
+es = "el chat {chat} no tiene mensajes"
+
+[[message]]
+name = "heading_chat"
+for = "user"
+params = ["chat"]
+en = "chat {chat}"
+es = "chat {chat}"
+
+[[message]]
+name = "heading_whole_backup"
+for = "user"
+params = []
+en = "the whole backup"
+es = "toda la copia"
+
+# oopz missing
+
+[[message]]
+name = "in_both"
+for = "user"
+params = ["count"]
+en = "in both: {count}"
+es = "en las dos: {count}"
+
+[[message]]
+name = "only_in_first"
+for = "user"
+params = ["count", "first", "last"]
+en = "only in the first: {count} ({first} to {last})"
+es = "solo en la primera: {count} (del {first} al {last})"
+
+[[message]]
+name = "only_in_second"
+for = "user"
+params = ["count", "first", "last"]
+en = "only in the second: {count} ({first} to {last})"
+es = "solo en la segunda: {count} (del {first} al {last})"
+
+# oopz restore
+
+[[message]]
+name = "not_a_folder"
+for = "user"
+params = ["path"]
+en = "{path} isn't a folder"
+es = "{path} no es una carpeta"
+
+[[message]]
+name = "restore_counts"
+for = "user"
+params = ["before", "already", "added"]
+en = "target chat had {before} messages: {already} already there, {added} added"
+es = "el chat de destino tenía {before} mensajes: {already} ya estaban, {added} añadidos"
+
+[[message]]
+name = "check_line"
+for = "user"
+params = ["check"]
+en = "check {check}"
+es = "comprobación {check}"
+
+[[message]]
+name = "media_copied_missing"
+for = "user"
+params = ["copied", "missing"]
+en = "media files: {copied} copied, {missing} missing"
+es = "archivos multimedia: {copied} copiados, {missing} faltan"
+
+[[message]]
+name = "original_unchanged"
+for = "user"
+params = []
+en = "original target unchanged: yes"
+es = "destino original sin cambios: sí"
+
+[[message]]
+name = "original_changed"
+for = "user"
+params = []
+en = "original target unchanged: NO"
+es = "destino original sin cambios: NO"
+
+[[message]]
+name = "written"
+for = "user"
+params = ["path", "sha256"]
+en = "written: {path} (sha256 {sha256})"
+es = "escrito: {path} (sha256 {sha256})"
+
+[[message]]
+name = "next_chat_facts"
+for = "user"
+params = ["backup", "chat"]
+en = "next: oopz chat-facts --backup {backup} --chat {chat}"
+es = "siguiente: oopz chat-facts --backup {backup} --chat {chat}"
+
+# oopz receive
+
+[[message]]
+name = "scan_or_type"
+for = "user"
+params = []
+en = "Scan this with the phone's camera, or type this address in the phone's browser:"
+es = "Escanéalo con la cámara del teléfono, o escribe esta dirección en el navegador del teléfono:"
+
+[[message]]
+name = "several_addresses"
+for = "user"
+params = []
+en = "This computer has several addresses; if the phone can't open the page, try another with\n--address (the first is the likeliest; \"virtual?\" ones are rarely reachable from a phone):"
+es = "Este ordenador tiene varias direcciones; si el teléfono no abre la página, prueba otra con\n--address (la primera es la más probable; las marcadas «¿virtual?» casi nunca funcionan desde un teléfono):"
+
+[[message]]
+name = "virtual"
+for = "user"
+params = []
+en = "(virtual?)"
+es = "(¿virtual?)"
+
+[[message]]
+name = "home_wifi"
+for = "user"
+params = []
+en = "Use your own home Wi-Fi: backups are encrypted, photos and videos are not."
+es = "Usa el Wi-Fi de tu casa: las copias van cifradas, pero las fotos y vídeos no."
+
+[[message]]
+name = "files_go_to"
+for = "user"
+params = ["dest", "gb"]
+en = "Files go to {dest} ({gb} GB free). Ctrl-C stops."
+es = "Los archivos van a {dest} ({gb} GB libres). Ctrl-C para detener."
+
+[[message]]
+name = "phone_opened"
+for = "user"
+params = []
+en = "The phone opened the page."
+es = "El teléfono abrió la página."
+
+[[message]]
+name = "wifi_tips"
+for = "user"
+params = []
+en = "The phone hasn't opened the page yet. What usually helps:\n  - Put the phone and this computer on the same Wi-Fi (on the phone, Wi-Fi on, not mobile data).\n  - Guest networks and some routers keep devices apart: turn on the phone's hotspot and connect this computer to it.\n    The page still never goes through the internet.\n  - Pause any VPN on the phone or on this computer.\n  - On Windows: allow oopz on private networks when the firewall asks, and set this network as Private.\n  - Try another address with --address."
+es = "El teléfono aún no ha abierto la página. Lo que suele ayudar:\n  - Pon el teléfono y este ordenador en el mismo Wi-Fi. En el teléfono: Wi-Fi activado, no datos móviles.\n  - Las redes de invitados y algunos routers aíslan los dispositivos. Activa el punto de acceso del teléfono y conecta\n    este ordenador a él: la página sigue sin pasar por internet.\n  - Pausa cualquier VPN en el teléfono o en este ordenador.\n  - En Windows: permite oopz en redes privadas cuando lo pregunte el cortafuegos, y marca esta red como Privada.\n  - Prueba otra dirección con --address."
+
+[[message]]
+name = "received_file"
+for = "user"
+params = ["name", "bytes", "sha256"]
+en = "received {name} ({bytes} bytes, sha256 {sha256})"
+es = "recibido {name} ({bytes} bytes, sha256 {sha256})"
+
+[[message]]
+name = "receiving"
+for = "user"
+params = ["name", "done", "total", "speed"]
+en = "receiving {name}: {done} / {total} MB, {speed} MB/s"
+es = "recibiendo {name}: {done} / {total} MB, {speed} MB/s"
+
+[[message]]
+name = "receive_stopped"
+for = "user"
+params = ["why", "files", "dest"]
+en = "stopped: {why}; {files} files in {dest}"
+es = "detenido: {why}; {files} archivos en {dest}"
+
+# oopz types
+
+[[message]]
+name = "type_messages_text"
+for = "user"
+params = ["code", "messages", "with_text"]
+en = "type {code}: {messages} messages, {with_text} with text"
+es = "tipo {code}: {messages} mensajes, {with_text} con texto"
+
+[[message]]
+name = "linked_table"
+for = "user"
+params = ["table", "count"]
+en = "linked {table}: {count}"
+es = "enlazados en {table}: {count}"
+
+[[message]]
+name = "media_mime"
+for = "user"
+params = ["mime", "count"]
+en = "media {mime}: {count}"
+es = "archivos {mime}: {count}"
+
+# oopz pull
+
+[[message]]
+name = "paired_with"
+for = "user"
+params = ["host"]
+en = "paired with {host}"
+es = "emparejado con {host}"
+
+[[message]]
+name = "next_connect"
+for = "user"
+params = []
+en = "next: oopz pull --connect IP:PORT (under \"IP address & port\" on the Wireless debugging screen)"
+es = "siguiente: oopz pull --connect IP:PUERTO (en «Dirección IP y puerto» de la pantalla Depuración inalámbrica)"
+
+[[message]]
+name = "connected_to"
+for = "user"
+params = ["host"]
+en = "connected to {host}"
+es = "conectado a {host}"
+
+[[message]]
+name = "a_phone"
+for = "user"
+params = []
+en = "phone"
+es = "teléfono"
+
+[[message]]
+name = "over_wireless"
+for = "user"
+params = ["model", "serial"]
+en = "{model} ({serial}, over wireless debugging)"
+es = "{model} ({serial}, por depuración inalámbrica)"
+
+[[message]]
+name = "over_usb"
+for = "user"
+params = ["model", "serial"]
+en = "{model} ({serial}, over USB)"
+es = "{model} ({serial}, por USB)"
+
+[[message]]
+name = "folder_files"
+for = "user"
+params = ["folder", "files", "mb"]
+en = "{folder}: {files} files, {mb} MB"
+es = "{folder}: {files} archivos, {mb} MB"
+
+[[message]]
+name = "copying_into"
+for = "user"
+params = ["dest", "gb"]
+en = "Copying into {dest} ({gb} GB free). Ctrl-C stops."
+es = "Copiando en {dest} ({gb} GB libres). Ctrl-C para detener."
+
+[[message]]
+name = "copying"
+for = "user"
+params = ["folder", "done", "total", "speed"]
+en = "copying {folder}: {done} / {total} MB, {speed} MB/s"
+es = "copiando {folder}: {done} / {total} MB, {speed} MB/s"
+
+[[message]]
+name = "copied_folder"
+for = "user"
+params = ["name", "files", "bytes"]
+en = "copied {name}: {files} files, {bytes} bytes, every size checked"
+es = "copiado {name}: {files} archivos, {bytes} bytes, cada tamaño comprobado"
+
+[[message]]
+name = "next_backups"
+for = "user"
+params = ["dir"]
+en = "next: oopz backups --dir {dir}"
+es = "siguiente: oopz backups --dir {dir}"

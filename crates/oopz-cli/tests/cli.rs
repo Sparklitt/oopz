@@ -5,9 +5,17 @@ use std::process::{Command, Output, Stdio};
 
 use oopz::fixture::{self, BEN_CHAT, BEN_JID, KEY_HEX};
 
+/// The terminal's locale every test but the language one runs in: what they read is English.
+const LOCALE: &str = "C";
+
 fn oopz(args: &[&str], key: Option<&str>) -> Output {
+    oopz_in(LOCALE, args, key)
+}
+
+fn oopz_in(locale: &str, args: &[&str], key: Option<&str>) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_oopz"))
         .args(args)
+        .env("LC_ALL", locale)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -199,6 +207,19 @@ fn check_stats_search_export_missing_print_counts_only() {
     }
 }
 
+/// The terminal's language words what the command prints (msgkinds' docs/messages.md rows 24-29 pick it).
+#[test]
+fn the_terminals_language_words_the_output() {
+    let fx = fixture::build();
+    let backup = fx.backup.to_str().unwrap();
+    let es = text(&oopz_in("es_ES.UTF-8", &["check", "--backup", backup], Some(KEY_HEX)));
+    assert!(es.contains("base de datos: en buen estado") && es.contains("mensajes: "), "{es}");
+    for locale in ["C", "fr_FR.UTF-8", ""] {
+        let en = text(&oopz_in(locale, &["check", "--backup", backup], Some(KEY_HEX)));
+        assert!(en.contains("database: sound") && en.contains("messages: "), "{locale}: {en}");
+    }
+}
+
 #[test]
 fn search_filters_and_jump_to_a_date() {
     let fx = fixture::two_phones();
@@ -239,6 +260,7 @@ fn pull_refuses_without_adb_a_phone_or_a_clear_choice() {
     let pull = |path: &std::path::Path, devices: &str| {
         Command::new(env!("CARGO_BIN_EXE_oopz"))
             .args(["pull", "--out-dir", out.path().to_str().unwrap()])
+            .env("LC_ALL", LOCALE)
             .env("PATH", path)
             .env_remove("ANDROID_HOME")
             .env_remove("ANDROID_SDK_ROOT")

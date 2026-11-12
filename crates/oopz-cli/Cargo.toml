@@ -32,6 +32,10 @@ rpassword.workspace = true
 tempfile.workspace = true
 zeroize.workspace = true
 
+[build-dependencies]
+# Compiles data/messages.toml with msgkinds' generator: one mechanism for every sentence (msgkinds' docs/messages.md).
+msgkinds = { workspace = true, features = ["build-support"] }
+
 [dev-dependencies]
 oopz = { workspace = true, features = ["fixtures"] }
 oopz-gen = { path = "../oopz-gen" }

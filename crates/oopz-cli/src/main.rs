@@ -12,12 +12,16 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
+use msgkinds::Note;
 use oopz_app::export::Labels;
 use oopz_app::session::{self, MergeRequest, Session, Summary};
 use zeroize::Zeroizing;
 
 mod library;
 mod pull;
+mod say;
+
+use say::{Message, say};
 
 #[derive(Parser)]
 #[command(
@@ -208,7 +212,7 @@ fn main() -> ExitCode {
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("error: {e:#}");
+            eprintln!("{}", say!(ErrorLine, format!("{e:#}")));
             ExitCode::FAILURE
         }
     }
@@ -224,12 +228,12 @@ struct Open {
 
 impl Open {
     fn new() -> Result<Self> {
-        let tmp = tempfile::Builder::new().prefix("oopz-").tempdir().context("creating a private temporary folder")?;
+        let tmp = tempfile::Builder::new().prefix("oopz-").tempdir().with_context(|| say!(TempFolder))?;
         Ok(Self { session: Session::default(), tmp: tmp.path().to_path_buf(), _tmp: tmp })
     }
 
     /// Checks `path` with the key asked for as `which`, as the app's Check screen does.
-    fn check(&mut self, path: &Path, which: &str) -> Result<Summary> {
+    fn check(&mut self, path: &Path, which: Message) -> Result<Summary> {
         let key = read_key_text(which)?;
         self.check_with(path, &key)
     }
@@ -240,7 +244,7 @@ impl Open {
 
     /// [`Open::check`] and the search index, for stats, search and export.
     fn indexed(&mut self, path: &Path) -> Result<u32> {
-        let id = self.check(path, "backup")?.id;
+        let id = self.check(path, Message::KeyBackup)?.id;
         self.session.build_index(id, &self.tmp)?;
         Ok(id)
     }
@@ -273,7 +277,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::Backups { dir } => {
             let files = session::find_backups(&dir)?;
             let openable = files.iter().filter(|f| f.kind == "crypt15").count();
-            let key = if openable > 0 { Some(read_key_text("backup")?) } else { None };
+            let key = if openable > 0 { Some(read_key_text(Message::KeyBackup)?) } else { None };
             let (mut bad, mut checked) = (0, 0);
             for file in &files {
                 let mb = file.bytes / 1_000_000;
@@ -283,52 +287,48 @@ fn run(cli: Cli) -> Result<()> {
                         checked += 1;
                         match open.check_with(&file.path, key) {
                             Ok(s) if s.sound => {
-                                println!(
-                                    "{name}  {mb} MB  ok: {} chats, {} messages, last {}",
-                                    s.chats,
-                                    s.messages,
-                                    date(s.last_ms)
-                                );
+                                println!("{}", say!(BackupOk, name, mb, s.chats, s.messages, date(s.last_ms)));
                                 open.session.forget(s.id);
                             }
                             Ok(s) => {
                                 bad += 1;
-                                println!("{name}  {mb} MB  DAMAGED: {}", s.problems);
+                                println!("{}", say!(BackupDamaged, name, mb, s.problems));
                                 open.session.forget(s.id);
                             }
                             Err(e) => {
                                 bad += 1;
-                                println!("{name}  {mb} MB  FAILED: {e}");
+                                println!("{}", say!(BackupFailed, name, mb, e));
                             }
                         }
                     }
                     ("not_crypt15", _) => {
                         checked += 1;
                         bad += 1;
-                        println!("{name}  {mb} MB  FAILED: named like a backup but doesn't look like one");
+                        println!("{}", say!(BackupNotCrypt15, name, mb));
                     }
-                    (older, _) => println!("{name}  {mb} MB  skipped: older format ({older}), not supported"),
+                    (older, _) => println!("{}", say!(BackupOlder, name, mb, older)),
                 }
             }
-            anyhow::ensure!(checked > 0, "no crypt15 backups in {}: only older formats", dir.display());
-            anyhow::ensure!(bad == 0, "{bad} of {checked} backups didn't pass");
+            anyhow::ensure!(checked > 0, say!(NoCrypt15Backups, dir.display()));
+            anyhow::ensure!(bad == 0, say!(BackupsFailed, bad, checked));
         }
         Command::Check { backup } => {
-            let s = open.check(&backup, "backup")?;
-            println!("{}  {} bytes", s.name, s.bytes);
+            let s = open.check(&backup, Message::KeyBackup)?;
+            println!("{}", say!(BackupBytes, s.name, s.bytes));
             if s.sound {
-                println!("database: sound");
+                println!("{}", say!(DatabaseSound));
             } else {
-                println!("database: problems: {}", s.problems);
+                println!("{}", say!(DatabaseProblems, s.problems));
             }
-            println!("chats: {} ({} one-to-one, {} groups)", s.chats, s.one_to_one, s.groups);
-            println!("messages: {}", s.messages);
-            println!("dates: {} to {}", date(s.first_ms), date(s.last_ms));
+            println!("{}", say!(ChatCounts, s.chats, s.one_to_one, s.groups));
+            println!("{}", say!(MessagesCount, s.messages));
+            println!("{}", say!(Dates, date(s.first_ms), date(s.last_ms)));
             println!("sha256: {}", s.sha256);
         }
         Command::Chats { backup, names } => {
-            let s = open.check(&backup, "backup")?;
-            println!("{:>5}  {:<20} {:>9}  {:<12}", "chat", "who", "messages", "last message");
+            let s = open.check(&backup, Message::KeyBackup)?;
+            let head = [say!(HeadChat), say!(HeadWho), say!(HeadMessages), say!(HeadLastMessage)];
+            println!("{:>5}  {:<20} {:>9}  {:<12}", head[0], head[1], head[2], head[3]);
             for c in &s.chat_list {
                 print!("{:>5}  {:<20} {:>9}  {:<12}", c.number, who(c.kind, &c.ending), c.messages, date(c.last_ms));
                 match (&c.name, names) {
@@ -340,27 +340,24 @@ fn run(cli: Cli) -> Result<()> {
         Command::Stats { backup, chat } => {
             let id = open.indexed(&backup)?;
             let s = open.session.stats(id, chat)?;
-            println!("messages: {} ({} sent, {} received)", s.messages, s.from_me, s.from_others);
-            println!("dates: {} to {}", date(s.first_ms), date(s.last_ms));
-            println!("voice notes and audio: {} minutes", s.audio_seconds / 60);
-            println!("by type:");
+            println!("{}", say!(MessagesSentReceived, s.messages, s.from_me, s.from_others));
+            println!("{}", say!(Dates, date(s.first_ms), date(s.last_ms)));
+            println!("{}", say!(VoiceMinutes, s.audio_seconds / 60));
+            println!("{}", say!(ByType));
             for (code, n, bytes) in &s.by_kind {
-                println!("    type {code}: {n} messages, {} MB of media", bytes / 1_000_000);
+                println!("    {}", say!(TypeMessagesMedia, code, n, bytes / 1_000_000));
             }
-            println!("by month:");
+            println!("{}", say!(ByMonth));
             for (month, n) in &s.by_month {
                 println!("    {month}: {n}");
             }
-            println!(
-                "by hour (this computer's time zone): {}",
-                s.by_hour.iter().map(u64::to_string).collect::<Vec<_>>().join(" ")
-            );
-            println!("by day and hour (this computer's time zone; rows Sunday to Saturday, columns 0 to 23 h):");
-            for (day, hours) in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].iter().zip(&s.by_day_hour) {
+            println!("{}", say!(ByHourHere, s.by_hour.iter().map(u64::to_string).collect::<Vec<_>>().join(" ")));
+            println!("{}", say!(ByDayHourHere));
+            for (day, hours) in days().iter().zip(&s.by_day_hour) {
                 println!("    {day}: {}", hours.iter().map(u64::to_string).collect::<Vec<_>>().join(" "));
             }
             if !s.senders.is_empty() {
-                println!("who writes most:");
+                println!("{}", say!(WhoWritesMost));
                 for (ending, n) in &s.senders {
                     println!("    ••••{ending}: {n}");
                 }
@@ -383,61 +380,59 @@ fn run(cli: Cli) -> Result<()> {
                 before_ms: before.map(day_ms).transpose()?,
             };
             let hits = open.session.search(id, &query, &filter, session::SEARCH_LIMIT)?;
-            println!("{:>5}  {:<10}  {:<8}  {:>9}", "chat", "date", "side", "position");
+            let head = [say!(HeadChat), say!(HeadDate), say!(HeadSide), say!(HeadPosition)];
+            println!("{:>5}  {:<10}  {:<8}  {:>9}", head[0], head[1], head[2], head[3]);
             for h in &hits {
                 let position =
                     open.session.position(id, h.id)?.map_or_else(|| "-".into(), |(_, n)| (n + 1).to_string());
-                let side = if h.from_me { "sent" } else { "received" };
+                let side = if h.from_me { say!(Sent) } else { say!(Received) };
                 println!("{:>5}  {:<10}  {:<8}  {:>9}", h.chat, date(Some(h.ts)), side, position);
             }
-            let more =
-                if hits.len() as u32 == session::SEARCH_LIMIT { " (the first ones; narrow the search)" } else { "" };
-            println!("{} results, newest first{more}", hits.len());
+            if hits.len() as u32 == session::SEARCH_LIMIT {
+                println!("{}", say!(ResultsFirstOnes, hits.len()));
+            } else {
+                println!("{}", say!(Results, hits.len()));
+            }
         }
         Command::Thumbnail { backup, message, media, size, out } => {
-            let id = open.check(&backup, "backup")?.id;
+            let id = open.check(&backup, Message::KeyBackup)?.id;
             match open.session.thumbnail(id, message, &media, size.clamp(16, 1024))? {
                 Some(jpeg) => {
                     std::fs::OpenOptions::new().write(true).create_new(true).open(&out)?.write_all(&jpeg)?;
-                    println!("saved {} ({} bytes)", out.display(), jpeg.len());
+                    println!("{}", say!(SavedBytes, out.display(), jpeg.len()));
                 }
-                None => anyhow::bail!("message {message} has no picture in {}", media.display()),
+                None => anyhow::bail!(say!(NoPicture, message, media.display())),
             }
         }
         Command::Jump { backup, chat, date } => {
             let id = open.indexed(&backup)?;
             match open.session.position_at(id, chat, day_ms(date)?)? {
-                Some(at) => println!("position {} of {}", at + 1, open.session.chat_len(id, chat)?),
-                None => println!("chat {chat} has no messages"),
+                Some(at) => println!("{}", say!(PositionOf, at + 1, open.session.chat_len(id, chat)?)),
+                None => println!("{}", say!(ChatEmpty, chat)),
             }
         }
         Command::Export { backup, chat, out_dir } => {
             let id = open.indexed(&backup)?;
             let heading = match chat {
-                Some(n) => format!("chat {n}"),
-                None => "the whole backup".to_owned(),
+                Some(n) => say!(HeadingChat, n),
+                None => say!(HeadingWholeBackup),
             };
-            let page = open.session.export(
-                id,
-                chat,
-                &Labels::in_language(oopz_model::messages::LANGUAGES[0], &heading),
-                &out_dir,
-            )?;
-            println!("saved: {}", page.display());
-            println!("this file holds message text and isn't encrypted: keep it private, delete it when done");
+            let page = open.session.export(id, chat, &Labels::in_language(say::language(), &heading), &out_dir)?;
+            println!("{}", say!(Saved, page.display()));
+            println!("{}", say!(KeepTextPrivate));
         }
         Command::Missing { a, chat_a, b, chat_b } => {
-            let a = open.check(&a, "first backup's")?.id;
-            let b = open.check(&b, "second backup's")?.id;
+            let a = open.check(&a, Message::KeyFirstBackup)?.id;
+            let b = open.check(&b, Message::KeySecondBackup)?.id;
             let m = open.session.missing(a, chat_a, b, chat_b)?;
-            println!("in both: {}", m.both);
-            println!("only in the first: {} ({} to {})", m.only_a, date(m.only_a_first_ms), date(m.only_a_last_ms));
-            println!("only in the second: {} ({} to {})", m.only_b, date(m.only_b_first_ms), date(m.only_b_last_ms));
+            println!("{}", say!(InBoth, m.both));
+            println!("{}", say!(OnlyInFirst, m.only_a, date(m.only_a_first_ms), date(m.only_a_last_ms)));
+            println!("{}", say!(OnlyInSecond, m.only_b, date(m.only_b_first_ms), date(m.only_b_last_ms)));
         }
         Command::Restore { source, source_chat, target, target_chat, out_dir, media } => {
-            anyhow::ensure!(out_dir.is_dir(), "{} isn't a folder", out_dir.display());
-            let source = open.check(&source, "source")?.id;
-            let target_key = read_key_text("target")?;
+            anyhow::ensure!(out_dir.is_dir(), say!(NotAFolder, out_dir.display()));
+            let source = open.check(&source, Message::KeySource)?.id;
+            let target_key = read_key_text(Message::KeyTarget)?;
             let target = open.check_with(&target, &target_key)?.id;
             let done = open.session.merge(&MergeRequest {
                 source,
@@ -448,92 +443,82 @@ fn run(cli: Cli) -> Result<()> {
                 out_parent: &out_dir,
                 media: media.as_deref(),
             })?;
-            println!(
-                "target chat had {} messages: {} already there, {} added",
-                done.target_before, done.already_there, done.added
-            );
+            println!("{}", say!(RestoreCounts, done.target_before, done.already_there, done.added));
             for check in &done.checks {
-                println!("check {check}");
+                println!("{}", say!(CheckLine, check));
             }
             if let (Some(copied), Some(missing)) = (done.media_copied, done.media_missing) {
-                println!("media files: {copied} copied, {missing} missing");
+                println!("{}", say!(MediaCopiedMissing, copied, missing));
             }
-            println!("original target unchanged: {}", if done.original_untouched { "yes" } else { "NO" });
-            println!("written: {} (sha256 {})", done.backup.display(), done.sha256);
-            println!("next: oopz chat-facts --backup {} --chat {target_chat}", done.backup.display());
+            println!("{}", if done.original_untouched { say!(OriginalUnchanged) } else { say!(OriginalChanged) });
+            println!("{}", say!(Written, done.backup.display(), done.sha256));
+            println!("{}", say!(NextChatFacts, done.backup.display(), target_chat));
         }
         Command::Receive { out_dir, address } => {
             let (rx, info) = oopz_app::receive::start_in(&out_dir, address)?;
             println!("{}", rx.qr_text()?);
-            println!("Scan this with the phone's camera, or type this address in the phone's browser:");
+            println!("{}", say!(ScanOrType));
             println!("{}", info.url);
             if info.addresses.len() > 1 {
-                println!("This computer has several addresses; if the phone can't open the page, try another with");
-                println!(
-                    "--address (the first is the likeliest; \"virtual?\" ones are rarely reachable from a phone):"
-                );
+                println!("{}", say!(SeveralAddresses));
                 for a in &info.addresses {
                     let mark = if a.ip == info.ip { "*" } else { " " };
                     let card = if a.card.is_empty() { String::new() } else { format!("  {}", a.card) };
-                    println!("  {mark} {}{card}{}", a.ip, if a.likely_virtual { "  (virtual?)" } else { "" });
+                    let virtual_ = if a.likely_virtual { format!("  {}", say!(Virtual)) } else { String::new() };
+                    println!("  {mark} {}{card}{virtual_}", a.ip);
                 }
             }
-            println!("Use your own home Wi-Fi: backups are encrypted, photos and videos are not.");
-            println!("Files go to {} ({} GB free). Ctrl-C stops.", info.dest.display(), info.free / 1_000_000_000);
+            println!("{}", say!(HomeWifi));
+            println!("{}", say!(FilesGoTo, info.dest.display(), info.free / 1_000_000_000));
             let started = std::time::Instant::now();
             let (mut shown, mut said_opened, mut said_tips) = (0, false, false);
             loop {
                 let status = rx.status();
                 if status.opened && !said_opened {
                     said_opened = true;
-                    println!("The phone opened the page.");
+                    println!("{}", say!(PhoneOpened));
                 }
                 if !status.opened && !said_tips && started.elapsed() >= oopz_app::receive::TIPS_AFTER {
                     said_tips = true;
-                    println!("{WIFI_TIPS}");
+                    println!("{}", say!(WifiTips));
                 }
                 for f in &status.files[shown..] {
-                    println!("received {} ({} bytes, sha256 {})", f.name, f.bytes, f.sha256);
+                    println!("{}", say!(ReceivedFile, f.name, f.bytes, f.sha256));
                 }
                 shown = status.files.len();
                 if let Some(p) = &status.current {
-                    let left = p.secs_left.map_or_else(String::new, |s| format!(", {}:{:02} left", s / 60, s % 60));
-                    eprint!(
-                        "\rreceiving {}: {} / {} MB, {:.1} MB/s{left}   ",
-                        p.name,
-                        p.done / 1_000_000,
-                        p.total / 1_000_000,
-                        p.bytes_per_sec as f64 / 1e6
-                    );
+                    let speed = format!("{:.1}", p.bytes_per_sec as f64 / 1e6);
+                    let line = say!(Receiving, p.name, p.done / 1_000_000, p.total / 1_000_000, speed);
+                    eprint!("\r{line}{}   ", time_left(p.secs_left));
                     let _ = io::stderr().flush();
                 }
                 if let Some(why) = status.stopped {
-                    println!("stopped: {why}; {} files in {}", status.files.len(), info.dest.display());
+                    println!("{}", say!(ReceiveStopped, why, status.files.len(), info.dest.display()));
                     break;
                 }
                 std::thread::sleep(Duration::from_millis(500));
             }
         }
         Command::Types { backup, chat } => {
-            let id = open.check(&backup, "backup")?.id;
+            let id = open.check(&backup, Message::KeyBackup)?.id;
             for p in open.session.types(id, chat)? {
-                println!("type {}: {} messages, {} with text", p.code, p.messages, p.with_text);
+                println!("{}", say!(TypeMessagesText, p.code, p.messages, p.with_text));
                 for (table, n) in &p.linked {
-                    println!("    linked {table}: {n}");
+                    println!("    {}", say!(LinkedTable, table, n));
                 }
                 for (mime, n) in p.mimes.iter().take(3) {
-                    println!("    media {mime}: {n}");
+                    println!("    {}", say!(MediaMime, mime, n));
                 }
             }
         }
         Command::ChatFacts { backup, chat } => {
-            let id = open.check(&backup, "backup")?.id;
+            let id = open.check(&backup, Message::KeyBackup)?.id;
             for f in open.session.chat_facts(id, chat)? {
                 println!("{}: {}", f.label, f.value);
             }
         }
         Command::Tables { backup } => {
-            let id = open.check(&backup, "backup")?.id;
+            let id = open.check(&backup, Message::KeyBackup)?.id;
             for t in open.session.tables(id)? {
                 println!("{} ({}): {}", t.name, t.rows, t.columns.join(", "));
             }
@@ -542,34 +527,37 @@ fn run(cli: Cli) -> Result<()> {
     Ok(())
 }
 
-/// What usually keeps a phone from opening the page (the app's screen says the same).
-const WIFI_TIPS: &str = "The phone hasn't opened the page yet. What usually helps:
-  - Put the phone and this computer on the same Wi-Fi (on the phone, Wi-Fi on, not mobile data).
-  - Guest networks and some routers keep devices apart: turn on the phone's hotspot and connect this computer to it.
-    The page still never goes through the internet.
-  - Pause any VPN on the phone or on this computer.
-  - On Windows: allow oopz on private networks when the firewall asks, and set this network as Private.
-  - Try another address with --address.";
-
-/// A chat's kind and the last 3 characters of its id, never the whole number.
+/// A chat's kind (oopz-app's session names them) and the last 3 characters of its id, never the whole number.
 fn who(kind: &str, ending: &str) -> String {
-    let kind = match kind {
-        "contact_lid" => "contact (lid)",
-        other => other,
-    };
-    format!("{kind} ••••{ending}")
+    match kind {
+        "contact" => say!(WhoContact, ending),
+        "contact_lid" => say!(WhoContactLid, ending),
+        "group" => say!(WhoGroup, ending),
+        "broadcast" => say!(WhoBroadcast, ending),
+        _ => say!(WhoOther, ending),
+    }
+}
+
+/// The days of the week, Sunday first: a by-day table's rows.
+fn days() -> [String; 7] {
+    [say!(DaySun), say!(DayMon), say!(DayTue), say!(DayWed), say!(DayThu), say!(DayFri), say!(DaySat)]
+}
+
+/// `, 3:05 left` for a progress line, or nothing when it isn't known yet.
+fn time_left(secs: Option<u64>) -> String {
+    secs.map_or_else(String::new, |s| format!(", {}", say!(TimeLeft, format!("{}:{:02}", s / 60, s % 60))))
 }
 
 /// From a hidden prompt, or one line of stdin when it isn't a terminal (`oopz … < keyfile`). Never from an argument
 /// or the environment: both leak into shell history and process lists. Piped, one line per key, in the order asked.
-fn read_key_text(which: &str) -> Result<Zeroizing<String>> {
-    read_secret(&format!("64-digit {which} key"))
+fn read_key_text(which: Message) -> Result<Zeroizing<String>> {
+    read_secret(&Note::of(which, []).text(say::language()))
 }
 
 /// [`read_key_text`] for any secret: `what` names it in the prompt.
 fn read_secret(what: &str) -> Result<Zeroizing<String>> {
     if io::stdin().is_terminal() {
-        Ok(Zeroizing::new(rpassword::prompt_password(format!("{what} (not shown): "))?))
+        Ok(Zeroizing::new(rpassword::prompt_password(format!("{}: ", say!(NotShown, what)))?))
     } else {
         let mut line = Zeroizing::new(String::new());
         io::stdin().lock().read_line(&mut line)?;
