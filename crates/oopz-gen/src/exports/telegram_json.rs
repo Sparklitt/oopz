@@ -2,12 +2,12 @@
 //! chats (a personal chat with every kind of message, a supergroup with service messages, Saved Messages, a
 //! channel and the Replies feed), with media that was and wasn't included.
 
-use oopz_model::Kind;
 use msgkinds::media_type::formats;
 use msgkinds::registry::codes::telegram_json as tg;
 use msgkinds::registry::codes::telegram_json_action as action;
 use msgkinds::registry::codes::telegram_json_entity as entity;
 use msgkinds::registry::codes::telegram_json_media as media;
+use oopz_model::Kind;
 use serde_json::{Value, json};
 
 use super::{Export, Manifest, civil, year_start};
@@ -269,7 +269,13 @@ pub fn generate(seed: u64) -> Export {
         CARLA,
         json!({ "action": action::TOPIC_EDIT, "new_title": "Partidos 2024", "text": "" }),
     );
-    group.service(&mut rng, m, Kind::System, me, json!({ "action": action::EDIT_CHAT_THEME, "emoticon": "⚽", "text": "" }));
+    group.service(
+        &mut rng,
+        m,
+        Kind::System,
+        me,
+        json!({ "action": action::EDIT_CHAT_THEME, "emoticon": "⚽", "text": "" }),
+    );
     group.service(
         &mut rng,
         m,
@@ -291,7 +297,13 @@ pub fn generate(seed: u64) -> Export {
         BEN,
         json!({ "action": action::GROUP_CALL_SCHEDULED, "schedule_date": 1_706_000_000, "text": "" }),
     );
-    group.service(&mut rng, m, Kind::Call, BEN, json!({ "action": action::GROUP_CALL, "duration_seconds": 600, "text": "" }));
+    group.service(
+        &mut rng,
+        m,
+        Kind::Call,
+        BEN,
+        json!({ "action": action::GROUP_CALL, "duration_seconds": 600, "text": "" }),
+    );
 
     // Telegram's own feed of replies to the owner's comments.
     let mut replies = Chat::new(year_start(2024) + 4 * 86_400_000);

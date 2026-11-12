@@ -45,17 +45,62 @@ pub struct Media {
     pub missing: u64,
 }
 
-/// (folder, file prefix, extension, mime)
+/// A voice note's MIME: an Ogg with its codec, as WhatsApp gives it.
+static VOICE_MIME: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    use msgkinds::media_type::formats::{CODECS_PARAMETER, OGG_AUDIO};
+    format!("{OGG_AUDIO}; {CODECS_PARAMETER}={}", msgkinds::media_type::signatures::CODEC_OPUS)
+});
+
+/// (folder, file prefix, extension, mime), as WhatsApp names its files (msgkinds' `whatsapp` folders and markers)
+/// and the format each kind is shared as.
 fn naming(kind: Kind) -> (&'static str, &'static str, &'static str, &'static str) {
-    match kind {
-        Kind::Image | Kind::Album | Kind::ViewOnce => ("WhatsApp Images", "IMG", "jpg", "image/jpeg"),
-        Kind::Video => ("WhatsApp Video", "VID", "mp4", "video/mp4"),
-        Kind::VideoNote => ("WhatsApp Video Notes", "VID", "mp4", "video/mp4"),
-        Kind::Gif => ("WhatsApp Animated Gifs", "VID", "mp4", "video/mp4"),
-        Kind::Voice => ("WhatsApp Voice Notes", "PTT", "opus", "audio/ogg; codecs=opus"),
-        Kind::Audio => ("WhatsApp Audio", "AUD", "mp3", "audio/mpeg"),
-        Kind::Sticker => ("WhatsApp Stickers", "STK", "webp", "image/webp"),
-        _ => ("WhatsApp Documents", "DOC", "bin", "application/octet-stream"),
+    use msgkinds::Kind as K;
+    use msgkinds::media_type::sources::whatsapp::{FOLDERS, Marker, NAME_MARKERS};
+    let shared = match kind {
+        Kind::Image | Kind::Album | Kind::ViewOnce => K::Photo,
+        Kind::Video => K::Video,
+        Kind::VideoNote => K::VideoNote,
+        Kind::Gif => K::Gif,
+        Kind::Voice => K::Voice,
+        Kind::Audio => K::Audio,
+        Kind::Sticker => K::Sticker,
+        _ => K::Document,
+    };
+    let folder = FOLDERS.iter().find(|(k, _)| *k == shared).map_or("", |(_, f)| f);
+    // Android names a video note's and a GIF's file as a video's.
+    let named = match shared {
+        K::VideoNote | K::Gif => K::Video,
+        k => k,
+    };
+    let android = |m: &str| m.ends_with('-') && !m.starts_with('-');
+    let prefix =
+        NAME_MARKERS.iter().find(|(m, k, _)| *k == named && android(m)).map_or("", |(m, ..)| m.trim_end_matches('-'));
+    let format = msgkinds::media_type::share_out::default_for(shared);
+    match (shared, format) {
+        // WhatsApp writes its voice notes as `.opus` (the extension its markers name for one).
+        (K::Voice, Some(_)) => {
+            let ext = NAME_MARKERS.iter().find_map(|(_, _, rule)| match rule {
+                Marker::VoiceIfExtension(e) => Some(*e),
+                _ => None,
+            });
+            (folder, prefix, ext.unwrap_or_default(), VOICE_MIME.as_str())
+        }
+        (_, Some(f)) => (folder, prefix, f.extension().unwrap_or_default(), f.mime),
+        (_, None) => (folder, prefix, "bin", msgkinds::media_type::OCTET_STREAM),
+    }
+}
+
+#[cfg(test)]
+mod naming_tests {
+    use super::*;
+
+    /// Every kind has WhatsApp's folder, an Android prefix and an extension.
+    #[test]
+    fn every_kind_is_named() {
+        for kind in Kind::ALL {
+            let (folder, prefix, ext, mime) = naming(kind);
+            assert!(!folder.is_empty() && !prefix.is_empty() && !ext.is_empty() && !mime.is_empty(), "{kind:?}");
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 //! clock, `2024.01.01 Monday` with `10:00 PM`, `Mon, 01/15/2024` with `PM10:00`) and a Japanese group
 //! (`2024/01/01(月)`, BOM, CRLF), with every placeholder, calls, unsent messages and quoted multi-line messages.
 
+use msgkinds::registry::codes::line_txt as line;
 use oopz_model::Kind;
 
 use super::{Export, Manifest, civil, weekday, year_start};
@@ -49,17 +50,17 @@ pub fn generate(seed: u64, layout: Layout) -> Export {
     // The Japanese export is a group whose owner isn't written; the English ones are with Ben, so Ana is the owner.
     let people: &[usize] = if ja { &[0, 1, 2] } else { &[0, 1] };
     let specials = vec![
-        Content::Placeholder("[Photo]", "[写真]", Kind::Photo),
-        Content::Placeholder("[Sticker]", "[スタンプ]", Kind::Sticker),
-        Content::Placeholder("[Video]", "[動画]", Kind::Video),
-        Content::Placeholder("[File]", "[ファイル]", Kind::Document),
-        Content::Placeholder("[Voice message]", "[ボイスメッセージ]", Kind::Voice),
-        Content::Placeholder("[Contact]", "[連絡先]", Kind::Contact),
-        Content::Placeholder("[Location]", "[位置情報]", Kind::Location),
-        Content::Placeholder("[Album]", "[アルバム]", Kind::Photo),
+        Content::Placeholder(line::PHOTO, line::PHOTO_JA, Kind::Photo),
+        Content::Placeholder(line::STICKER, line::STICKER_JA, Kind::Sticker),
+        Content::Placeholder(line::VIDEO, line::VIDEO_JA, Kind::Video),
+        Content::Placeholder(line::FILE, line::FILE_JA, Kind::Document),
+        Content::Placeholder(line::VOICE_MESSAGE, line::VOICE_MESSAGE_JA, Kind::Voice),
+        Content::Placeholder(line::CONTACT, line::CONTACT_JA, Kind::Contact),
+        Content::Placeholder(line::LOCATION, line::LOCATION_JA, Kind::Location),
+        Content::Placeholder(line::ALBUM, line::ALBUM_JA, Kind::Photo),
         Content::Call("☎ Call time 0:15", "☎ 通話時間 0:15"),
-        Content::Call("☎ Missed call", "☎ 不在着信"),
-        Content::Call("☎ Canceled call", "☎ キャンセル"),
+        Content::Call(line::MISSED_CALL, line::MISSED_CALL_JA),
+        Content::Call(line::CANCELED_CALL, "☎ キャンセル"),
         Content::Unsent,
         Content::System,
         Content::Text("mira https://example.org/receta".into()),

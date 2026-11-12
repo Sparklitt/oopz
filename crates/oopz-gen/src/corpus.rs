@@ -2,6 +2,7 @@
 //! Links use only the reserved example domains (RFC 2606).
 
 use crate::rng::Rng;
+use msgkinds::media_type::formats;
 
 pub const FIRST_NAMES: &[&str] = &[
     "Ana", "Ben", "Carla", "Dani", "Elena", "Fran", "Gabi", "Hugo", "Inés", "Javi", "Kai", "Lucía", "Marco", "Nuria",
@@ -213,16 +214,16 @@ pub const PLACES: &[(&str, &str)] = &[
 ];
 
 pub const DOCUMENTS: &[(&str, &str)] = &[
-    ("Factura_2023.pdf", "application/pdf"),
-    ("Contrato alquiler.pdf", "application/pdf"),
-    ("Notas reunión.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    ("Presupuesto.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-    ("billete_tren.pdf", "application/pdf"),
-    ("fotos boda.zip", "application/zip"),
-    ("CV.pdf", "application/pdf"),
-    ("receta abuela.txt", "text/plain"),
-    ("Präsentation – final (2).pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
-    ("archivo sin extensión", "application/octet-stream"),
+    ("Factura_2023.pdf", formats::PDF),
+    ("Contrato alquiler.pdf", formats::PDF),
+    ("Notas reunión.docx", formats::DOCX),
+    ("Presupuesto.xlsx", formats::XLSX),
+    ("billete_tren.pdf", formats::PDF),
+    ("fotos boda.zip", formats::ZIP),
+    ("CV.pdf", formats::PDF),
+    ("receta abuela.txt", formats::PLAIN_TEXT),
+    ("Präsentation – final (2).pptx", formats::PPTX),
+    ("archivo sin extensión", formats::OCTET_STREAM),
 ];
 
 pub const POLLS: &[(&str, &[&str])] = &[
