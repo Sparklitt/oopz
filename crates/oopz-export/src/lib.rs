@@ -5,6 +5,8 @@
 //! complete, so a stop or a failure leaves nothing behind and nothing is ever overwritten. The free space is checked
 //! first. View-once content is never written. The files hold the person's messages, unencrypted: the app says so.
 
+pub mod bindings;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::fs;

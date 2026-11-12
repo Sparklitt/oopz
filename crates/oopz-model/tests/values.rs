@@ -41,3 +41,12 @@ fn no_value_of_msgkinds_is_spelled_in_oopz() {
     let shown: Vec<&str> = found.iter().map(|s| s.as_str()).collect();
     assert!(found.is_empty(), "{} values of msgkinds spelled in oopz:\n{}", found.len(), shown.join("\n"));
 }
+
+/// The desktop app's TypeScript and Svelte name the generated file's constants (`MIME.JPEG`), never the values.
+#[test]
+fn no_value_of_msgkinds_is_spelled_in_the_desktop_app() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let generated = |p: &Path| p.components().any(|c| c.as_os_str() == "generated");
+    let found = msgkinds::scan::spelled_in_reader_files(&root, &["apps/desktop/src"], &["ts", "svelte"], &generated);
+    assert!(found.is_empty(), "{} values of msgkinds spelled in the desktop app:\n{}", found.len(), found.join("\n"));
+}

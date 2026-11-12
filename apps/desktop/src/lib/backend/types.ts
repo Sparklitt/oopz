@@ -300,22 +300,9 @@ export interface Fact {
 
 // ---- the library (decision 0016): every app's sources in one place; shapes from crates/oopz-core ----
 
-export type AppCode = "whatsapp" | "telegram" | "sms" | "line" | "viber" | "signal" | "imessage";
-/** What a message is: msgkinds' kinds (crates/oopz-model's Kind; a Rust test keeps this list the same). */
-export type Kind =
-  | "text" | "link" | "photo" | "video" | "video_note" | "gif" | "voice" | "audio" | "sticker" | "document" | "location" | "contact" | "poll" | "call"
-  | "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "reaction" | "system" | "deleted" | "unknown";
-export type MediaKind = "photo" | "video" | "video_note" | "gif" | "sticker" | "voice" | "audio" | "document";
-/** The kinds a card part holds (oopz-model's CardKind). */
-export type CardKind = "album" | "sticker_pack" | "event" | "payment" | "game" | "business" | "story" | "reaction";
-/** What an app's notice says happened (oopz-model's Event; a Rust test keeps this list the same). */
-export type EventCode =
-  | "encryption" | "security_code_changed" | "number_changed" | "device_changed" | "account_deleted" | "contact_joined" | "business_notice"
-  | "group_created" | "topic_created" | "renamed" | "description_changed" | "picture_changed" | "picture_removed" | "settings_changed"
-  | "member_added" | "member_joined" | "member_left" | "member_removed" | "join_requested" | "admin_added" | "admin_removed" | "admin_changed"
-  | "owner_changed" | "community_changed" | "invite_link_reset" | "disappearing" | "kept_in_chat" | "chat_locked" | "screenshot" | "pinned"
-  | "unpinned" | "blocked" | "unblocked" | "message_deleted" | "history_cleared" | "group_call" | "poll_closed" | "payment_status"
-  | "missed_messages" | "theme_changed" | "profile_changed" | "other";
+// The codes oopz's Rust stores, generated from its enums (crates/oopz-export/src/bindings.rs).
+export type { AppCode, CardKind, EventCode, ExportFormat, Kind, MediaKind } from "../generated/oopz";
+import type { AppCode, CardKind, EventCode, ExportFormat, Kind, MediaKind } from "../generated/oopz";
 export type Order = "conversation" | "time" | "newest";
 
 export interface LibraryInfo {
@@ -526,7 +513,6 @@ export interface LibStats {
   voice_secs: number;
 }
 
-export type ExportFormat = "html" | "json" | "csv" | "txt" | "vcard" | "media-zip" | "pdf";
 
 /** A library export's words (oopz_export::Words), from the language files (src/lib/i18n/). */
 export type ExportWords = Strings["exportWords"] & {

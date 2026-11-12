@@ -2,6 +2,7 @@
 // Plain words: the person may never have seen a backup file.
 import type { CardKind, EventCode, Kind, MediaKind } from "../backend/types";
 import type { Locale } from "./types.ts";
+import { APP_NAME } from "../generated/msgkinds.ts";
 
 const en = {
   cantStart: "oopz couldn't start: ",
@@ -185,7 +186,7 @@ const en = {
   adbCode: "Pairing code",
   adbHost: "IP address and port",
   adbConnect: "Connect",
-  adbBusiness: "WhatsApp Business",
+  adbBusiness: APP_NAME.whatsapp_business,
   adbMedia: "Also copy Media (photos, videos, voice notes: can be many GB)",
   adbStart: "Choose where to copy",
   adbCopying: "Copying",

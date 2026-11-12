@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MIME } from "../generated/msgkinds";
   // A photo's thumbnail from the Media folder the person picked. Fetched only once the row is on screen (or at once
   // where IntersectionObserver is missing), shown from a blob URL that is revoked when the row leaves the page.
   import { onMount } from "svelte";
@@ -20,7 +21,7 @@
         const bytes = await be().thumbnail(id, message, folder, 320);
         if (gone) return;
         if (bytes.byteLength === 0) missing = true;
-        else url = made = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+        else url = made = URL.createObjectURL(new Blob([bytes], { type: MIME.JPEG }));
       } catch {
         if (!gone) missing = true;
       }

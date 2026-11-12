@@ -25,6 +25,9 @@ import type {
   SourceRow,
   Step,
 } from "./types";
+import { MIME, extension } from "../generated/msgkinds";
+/** A format's extension with its dot (`.json`). */
+const dot = (mime: string) => `.${extension(mime)}`;
 
 type LibraryBackend = Pick<Backend, Extract<keyof Backend, `lib${string}` | `library${string}`>>;
 
@@ -122,15 +125,15 @@ export function libraryMock(opts: {
         const r = hash(c.id * 31, i) % 40;
         let kind: Kind = "text";
         let parts: Part[] = [{ type: "text", text: WORDS[hash(c.id, i * 3) % WORDS.length] }];
-        if (r === 0) (kind = "photo"), (parts = [{ type: "media", kind: "photo", file: `IMG-${i}.jpg`, name: null, mime: "image/jpeg", size: 240_000 + i, width: 1200, height: 900, secs: null, caption: i % 2 ? "Mira qué vistas" : null, view_once: false, omitted: false }]);
-        else if (r === 1) (kind = "voice"), (parts = [{ type: "media", kind: "voice", file: null, name: null, mime: "audio/ogg", size: 31_000, width: null, height: null, secs: 4 + (i % 50), caption: null, view_once: false, omitted: false }]);
+        if (r === 0) (kind = "photo"), (parts = [{ type: "media", kind: "photo", file: `IMG-${i}.jpg`, name: null, mime: MIME.JPEG, size: 240_000 + i, width: 1200, height: 900, secs: null, caption: i % 2 ? "Mira qué vistas" : null, view_once: false, omitted: false }]);
+        else if (r === 1) (kind = "voice"), (parts = [{ type: "media", kind: "voice", file: null, name: null, mime: MIME.OGG_AUDIO, size: 31_000, width: null, height: null, secs: 4 + (i % 50), caption: null, view_once: false, omitted: false }]);
         else if (r === 2) (kind = "location"), (parts = [{ type: "location", lat: 36.5298, lng: -6.2923, name: "Playa de la Caleta", live: false }]);
         else if (r === 3) (kind = "call"), (parts = [{ type: "call", video: i % 2 === 0, outcome: i % 3 ? "answered" : "missed", secs: i % 3 ? 120 + i : null }]);
         else if (r === 4 && c.kind === "group") (kind = "poll"), (parts = [{ type: "poll", question: "¿Qué día quedamos?", options: [{ text: "Sábado", voters: [], votes: 3 }, { text: "Domingo", voters: [], votes: 1 }], multiple: false }]);
         else if (r === 5) (kind = "link"), (parts = [{ type: "text", text: "Look: https://example.com/viaje" }, { type: "link", url: "https://example.com/viaje", title: "Example trip" }]);
-        else if (r === 6) (kind = "document"), (parts = [{ type: "media", kind: "document", file: null, name: "Billetes tren.pdf", mime: "application/pdf", size: 88_000, width: null, height: null, secs: null, caption: null, view_once: false, omitted: true }]);
+        else if (r === 6) (kind = "document"), (parts = [{ type: "media", kind: "document", file: null, name: "Billetes tren.pdf", mime: MIME.PDF, size: 88_000, width: null, height: null, secs: null, caption: null, view_once: false, omitted: true }]);
         else if (r === 7 && i % 4 === 0) (kind = "system"), (parts = [{ type: "system", event: "member_added", text: null }]);
-        else if (r === 8) (kind = "sticker"), (parts = [{ type: "media", kind: "sticker", file: i % 3 ? `STK-${i}.webp` : null, name: null, mime: "image/webp", size: 18_000, width: 512, height: 512, secs: 0, caption: null, view_once: false, omitted: false }]);
+        else if (r === 8) (kind = "sticker"), (parts = [{ type: "media", kind: "sticker", file: i % 3 ? `STK-${i}.webp` : null, name: null, mime: MIME.WEBP, size: 18_000, width: 512, height: 512, secs: 0, caption: null, view_once: false, omitted: false }]);
         else if (r === 9 && c.kind === "group") (kind = "album"), (parts = [{ type: "card", kind: "album", title: null, text: null }]);
         else if (r === 10 && i % 3 === 0) (kind = "unknown"), (parts = [{ type: "unknown", code: "9999", text: null }]);
         const row: MessageRow = {
@@ -271,7 +274,7 @@ export function libraryMock(opts: {
       const name = path.replace(/^.*[\\/]/, "").replace(/^.*%2F/, "");
       const lower = name.toLowerCase();
       const pickedId =
-        adapter ?? (lower.endsWith(".crypt15") ? "whatsapp-android" : lower.endsWith(".json") ? "telegram-json" : lower.endsWith(".xml") ? "sms-xml" : lower.endsWith(".csv") ? "viber-csv" : lower.endsWith(".txt") || lower.endsWith(".zip") ? "whatsapp-export" : !name.includes(".") ? "whatsapp-ios" : null);
+        adapter ?? (lower.endsWith(".crypt15") ? "whatsapp-android" : lower.endsWith(dot(MIME.JSON)) ? "telegram-json" : lower.endsWith(".xml") ? "sms-xml" : lower.endsWith(dot(MIME.CSV)) ? "viber-csv" : lower.endsWith(dot(MIME.PLAIN_TEXT)) || lower.endsWith(dot(MIME.ZIP)) ? "whatsapp-export" : !name.includes(".") ? "whatsapp-ios" : null);
       const a = ADAPTERS.find((x) => x.id === pickedId) ?? fail("unsupported_file", `${name} isn't a file oopz can open`);
       if (a.secret !== "none") {
         if (!secret) fail(a.secret === "key" ? "needs_key" : "needs_password", "this file needs its owner's secret");

@@ -201,6 +201,11 @@ export const FORMATS: { mime: string; extensions: string[]; kind: Kind; containe
   { mime: "application/x-ole-storage", extensions: [], kind: "document" },
 ];
 
+/** The extension written for a format (its first), by its MIME. */
+export function extension(mime: string): string | undefined {
+  return FORMATS.find((f) => f.mime === mime)?.extensions[0];
+}
+
 /** How many first bytes `sniff` needs. */
 export const HEAD_LEN = 128;
 

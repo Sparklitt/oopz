@@ -1191,22 +1191,6 @@ mod tests {
         assert!(std::fs::read_to_string(path).unwrap() == msgkinds::bindings::typescript(), "{path} is stale");
     }
 
-    /// The desktop app's types (`apps/desktop/src/lib/backend/types.ts`) name the same kinds and events, so its
-    /// `Record<Kind, …>` tables (icons, labels in each language) cover every one.
-    #[test]
-    fn the_desktop_app_names_the_same_kinds_and_events() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/desktop/src/lib/backend/types.ts");
-        let ts = std::fs::read_to_string(path).unwrap();
-        let union = |name: &str| -> Vec<String> {
-            let start = ts.find(&format!("export type {name} =")).unwrap_or_else(|| panic!("no {name}"));
-            let body = &ts[start..start + ts[start..].find(';').unwrap()];
-            body.split('"').skip(1).step_by(2).map(str::to_owned).collect()
-        };
-        assert_eq!(union("Kind"), Kind::ALL.map(|k| k.code().to_owned()));
-        assert_eq!(union("EventCode"), Event::ALL.map(|e| e.code().to_owned()));
-        assert_eq!(union("CardKind"), CardKind::ALL.map(|c| Kind::from(c).code().to_owned()));
-    }
-
     #[test]
     fn apps_map_to_msgkinds_apps() {
         for a in App::ALL {

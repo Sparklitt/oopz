@@ -3,6 +3,7 @@
 import type { AdapterInfo, AppCode, ConversationRow, LibFilter, LibraryInfo, MessageRow, Selection, SourceRow } from "./backend/types";
 import { strings } from "./i18n";
 import { app, be, go, run } from "./state.svelte";
+import { APP_NAME } from "./generated/msgkinds";
 
 export const emptyFilter = (): LibFilter => ({ apps: [], sources: [], conversations: [], contacts: [], people: [], kinds: [], from_me: null, after_ms: null, before_ms: null, words: "" });
 export const emptySelection = (): Selection => ({ filter: emptyFilter(), add: [], remove: [] });
@@ -62,7 +63,8 @@ export function libraryWiped() {
     .catch(() => {});
 }
 
-export const appName = (a: AppCode) => ({ whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", line: "LINE", viber: "Viber", signal: "Signal", imessage: "iMessage" })[a];
+/** The name people know an app by (msgkinds' `App::name`). */
+export const appName = (a: AppCode) => APP_NAME[a];
 
 /** A conversation's title: its name, else its members' names; its kind and number when names are hidden. */
 export function convTitle(c: ConversationRow): string {

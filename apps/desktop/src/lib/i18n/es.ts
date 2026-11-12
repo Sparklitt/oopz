@@ -1,6 +1,7 @@
 // Español: the same keys as en.ts (the type checks it), the phone's words, and the adapters' import notes said again.
 import type { PhoneStrings, Strings } from "./en.ts";
 import type { Locale, NoteRule } from "./types.ts";
+import { APP_NAME } from "../generated/msgkinds.ts";
 
 const es: Strings = {
   cantStart: "oopz no ha podido arrancar: ",
@@ -184,7 +185,7 @@ const es: Strings = {
   adbCode: "Código de vinculación",
   adbHost: "Dirección IP y puerto",
   adbConnect: "Conectar",
-  adbBusiness: "WhatsApp Business",
+  adbBusiness: APP_NAME.whatsapp_business,
   adbMedia: "Copiar también Media (fotos, vídeos, notas de voz: pueden ser muchos GB)",
   adbStart: "Elegir dónde copiar",
   adbCopying: "Copiando",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MIME } from "../generated/msgkinds";
   // A message's file shown as it is: a sticker or a photo as a picture (an animated WebP keeps moving; a WebM sticker
   // loops as a muted video; a Lottie `.tgs` sticker is unzipped here and drawn by lottie-web's light player, SVG only,
   // loaded only when one is shown), a voice note as a player. Fetched only once the row is on screen (or at once where IntersectionObserver is missing), from a
@@ -52,7 +53,7 @@
         if (gone) return;
         if (bytes.byteLength === 0) missing = true;
         else {
-          type = sniff(bytes, as === "audio" ? "audio/ogg" : "image/jpeg");
+          type = sniff(bytes, as === "audio" ? MIME.OGG_AUDIO : MIME.JPEG);
           if (type === TGS) {
             stop = await lottie(bytes);
             if (!stop && !gone) missing = true;
@@ -86,7 +87,7 @@
 <div class="file" bind:this={box}>
   {#if type === TGS && !missing}
     <div class="lottie" class:sticker role="img" aria-label={label} bind:this={lottieBox}></div>
-  {:else if url && type === "video/webm"}
+  {:else if url && type === MIME.WEBM}
     <video src={url} class:sticker autoplay loop muted playsinline aria-label={label}></video>
   {:else if url && as === "image"}
     <img src={url} alt={label} class:sticker />

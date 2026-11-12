@@ -17,6 +17,7 @@ import pkg from "../../../package.json";
 import type { AdbDevice, Address, Backend, BackupFile, Call, ChatRow, CliStatus, Filter, Hit, Line, Media, Missing, OnProgress, PullStatus, Reply, ReceiveStatus, Stats, Step, Summary, ToolsInstalled } from "./types";
 import { libraryMock } from "./mockLibrary";
 import { mockSticker } from "./mockMedia";
+import { MIME, extension } from "../generated/msgkinds";
 
 const RIGHT_KEY = "0123456789abcdef".repeat(4);
 const FOLDER = "/home/you/Phone/Databases";
@@ -177,7 +178,7 @@ function timeOf(row: ChatRow, pos: number): number {
   return Math.round(FIRST + step * pos + (hash(row.number, pos) % Math.max(1, Math.floor(step / 2))));
 }
 
-const MIMES: Record<number, string> = { 1: "image/jpeg", 2: "audio/ogg; codecs=opus", 3: "video/mp4", 9: "application/pdf", 13: "video/mp4", 20: "image/webp", 81: "video/mp4" };
+const MIMES: Record<number, string> = { 1: MIME.JPEG, 2: "audio/ogg; codecs=opus", 3: MIME.MP4, 9: MIME.PDF, 13: MIME.MP4, 20: MIME.WEBP, 81: MIME.MP4 };
 
 /** What the backup would say about the message's file. */
 function mediaOf(kind: number, h: number, text: string | null): Media | null {
@@ -483,7 +484,7 @@ export function createMock(): Backend {
     async saveResult(from) {
       await sleep(400);
       if (!from.startsWith(PRIVATE)) fail("io", "not a file oopz made");
-      return from.endsWith(".html") ? 2_310_000 : 1_204_000_000;
+      return from.endsWith(`.${extension(MIME.HTML)}`) ? 2_310_000 : 1_204_000_000;
     },
     appVersion: async () => pkg.version,
 
@@ -669,7 +670,7 @@ export function createMock(): Backend {
       g.lineTo(canvas.width * 0.8, canvas.height * 0.5);
       g.lineTo(canvas.width, canvas.height);
       g.fill();
-      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", 0.8));
+      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, MIME.JPEG, 0.8));
       return blob ? new Response(blob).arrayBuffer() : new ArrayBuffer(0);
     },
     async mediaFile(_id, message) {

@@ -1,5 +1,6 @@
 // Invented media files for the mock backends (the browser preview and the screenshots): a sticker as a transparent
 // PNG drawn on a canvas, so the sticker card shows a picture; never a real file.
+import { MIME } from "../generated/msgkinds";
 
 /** A round, smiling sticker, `size` pixels square, its colour picked by `seed`. */
 export async function mockSticker(seed: number, size = 160): Promise<ArrayBuffer> {
@@ -22,6 +23,6 @@ export async function mockSticker(seed: number, size = 160): Promise<ArrayBuffer
     g.arc(r * x, r * 0.8, size / 18, 0, Math.PI * 2);
     g.fill();
   }
-  const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/png"));
+  const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, MIME.PNG));
   return blob ? new Response(blob).arrayBuffer() : new ArrayBuffer(0);
 }

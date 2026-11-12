@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { APP_NAME } from "../generated/msgkinds";
   // One message, drawn by its kind, with what WhatsApp kept around it: the message it answers, reactions, edits,
   // forwards, poll votes, call results and file facts. Photos, stickers and voice notes show from the Media folder
   // when the person picked one; other media are labelled placeholders. A type oopz doesn't know is a labelled card.
@@ -29,7 +30,7 @@
   );
   // A code oopz doesn't know: "WhatsApp: 9999, not shown yet".
   let known = $derived(t.kinds[line.kind] !== undefined);
-  let kindName = $derived(t.kinds[line.kind] ?? t.lib.notShown("WhatsApp", String(line.kind)));
+  let kindName = $derived(t.kinds[line.kind] ?? t.lib.notShown(APP_NAME.whatsapp, String(line.kind)));
   let who = $derived(line.from_me ? t.you : line.sender ? `••••${line.sender}` : t.them);
   // A fixed waveform per message, so it doesn't change as the list scrolls.
   let wave = $derived(Array.from({ length: 28 }, (_, i) => 25 + ((line.id * 31 + i * 17) % 75)));
