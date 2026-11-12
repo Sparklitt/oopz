@@ -10,6 +10,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
+use msgkinds::media_type::formats::{JSON, VCARD, ZIP};
+use msgkinds::media_type::name::has_format;
+use msgkinds::registry::codes::telegram_json as tg;
+use msgkinds::registry::codes::telegram_json_action as action;
+use msgkinds::registry::codes::telegram_json_entity as entity;
+
 use oopz_model::{
     Adapter, App, CallOutcome, CardKind, Conversation, ConversationKind, Error, Event, Loaded, Media, MediaKind,
     Message, Part, Person, PollOption, Reaction, Result, Secret, Source, SourceInfo, civil_to_ms, normalize_phone,
@@ -41,13 +47,13 @@ impl Adapter for TelegramExportAdapter {
         if path.is_dir() {
             return result_in(path).is_some();
         }
-        let lower = path.to_string_lossy().to_lowercase();
-        if lower.ends_with(".zip") {
+        let name = path.to_string_lossy();
+        if has_format(&name, ZIP) {
             let Ok(file) = std::fs::File::open(path) else { return false };
             let Ok(zip) = zip::ZipArchive::new(file) else { return false };
             return zip.file_names().flatten().any(|n| n.ends_with("result.json"));
         }
-        if !lower.ends_with(".json") {
+        if !has_format(&name, JSON) {
             return false;
         }
         let Ok(file) = std::fs::File::open(path) else { return false };
@@ -135,7 +141,7 @@ struct Notes {
 
 /// Reads `result.json`'s bytes.
 pub fn read(bytes: &[u8]) -> Result<Loaded> {
-    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let bytes = bytes.strip_prefix(msgkinds::media_type::signatures::UTF8_BOM).unwrap_or(bytes);
     let value: Value = serde_json::from_slice(bytes).map_err(|_| Error::NotThisFormat(FORMAT))?;
     let Some(top) = value.as_object() else { return Err(Error::NotThisFormat(FORMAT)) };
 
@@ -337,11 +343,11 @@ impl Reader {
         out.forwarded = m.get("forwarded_from").is_some_and(|f| !f.is_null());
         let kind = m.get("type").and_then(Value::as_str).unwrap_or("");
         match kind {
-            "message" => {
+            tg::MESSAGE => {
                 out.sender = self.person(m.get("from_id"), m.get("from"));
                 out.parts = self.parts(m);
             }
-            "service" => {
+            tg::SERVICE => {
                 out.sender = self.person(m.get("actor_id"), m.get("actor"));
                 out.parts = vec![self.service(m)];
                 // A pin, a game score: the message it is about.
@@ -379,11 +385,11 @@ impl Reader {
         let (text, links) = text_of(body(m));
         let mut parts = Vec::new();
         let mut media = None;
-        if let Some(photo) = m.get("photo").and_then(Value::as_str) {
+        if let Some(photo) = m.get(tg::PHOTO).and_then(Value::as_str) {
             let mut x = Media { kind: MediaKind::Photo, ..file_facts(m, photo) };
             x.size = m.get("photo_file_size").and_then(int_of).and_then(|n| u64::try_from(n).ok()).or(x.size);
             media = Some(x);
-        } else if m.contains_key("file") || m.contains_key("media_type") {
+        } else if m.contains_key(tg::FILE) || m.contains_key("media_type") {
             // `media_type` by msgkinds' registry (`Source::TelegramJsonMedia`); none is a plain file.
             let media_type = m.get("media_type").and_then(Value::as_str);
             let looked = media_type.map(|t| self.reading.lookup_name(msgkinds::Source::TelegramJsonMedia, t).kind());
@@ -394,7 +400,7 @@ impl Reader {
                     return vec![Part::Unknown { code: other.to_string(), text: Some(text).filter(|t| !t.is_empty()) }];
                 }
             };
-            let file = m.get("file").and_then(Value::as_str).unwrap_or("(File not included.)");
+            let file = m.get(tg::FILE).and_then(Value::as_str).unwrap_or("(File not included.)");
             let mut x = Media { kind, ..file_facts(m, file) };
             if x.name.is_none() && kind == MediaKind::Audio {
                 // A song's `performer` and `title` stand in for its file name.
@@ -408,17 +414,17 @@ impl Reader {
             x.caption = Some(text.clone()).filter(|t| !t.is_empty());
             parts.push(Part::Media(x));
         }
-        if let Some(loc) = m.get("location_information").and_then(Value::as_object) {
+        if let Some(loc) = m.get(tg::LOCATION_INFORMATION).and_then(Value::as_object) {
             let lat = loc.get("latitude").and_then(Value::as_f64);
             let lng = loc.get("longitude").and_then(Value::as_f64);
-            let name = ["place_name", "title", "address"]
+            let name = [tg::PLACE_NAME, "title", "address"]
                 .iter()
                 .find_map(|k| m.get(*k).and_then(Value::as_str))
                 .map(str::to_string);
-            let live = m.contains_key("live_location_period_seconds");
+            let live = m.contains_key(tg::LIVE_LOCATION_PERIOD_SECONDS);
             parts.push(Part::Location { lat, lng, name, live });
         }
-        if let Some(poll) = m.get("poll").and_then(Value::as_object) {
+        if let Some(poll) = m.get(tg::POLL).and_then(Value::as_object) {
             let question = poll.get("question").map(|q| text_of(Some(q)).0).unwrap_or_default();
             let options = poll
                 .get("answers")
@@ -435,18 +441,18 @@ impl Reader {
                 .collect();
             parts.push(Part::Poll { question, options, multiple: false });
         }
-        if let Some(c) = m.get("contact_information").and_then(Value::as_object) {
+        if let Some(c) = m.get(tg::CONTACT_INFORMATION).and_then(Value::as_object) {
             let phones = c.get("phone_number").and_then(Value::as_str).map(|p| vec![p.to_string()]).unwrap_or_default();
             parts.push(Part::Contact { name: full_name(c), phones, vcard: None });
             // The card itself is a file beside the export (`contacts/contact_1.vcard`).
             if let Some(card) = m.get("contact_vcard").and_then(Value::as_str) {
                 let mut x = Media { kind: MediaKind::Document, ..file_facts(m, card) };
-                x.mime = Some("text/vcard".into());
+                x.mime = Some(VCARD.into());
                 x.view_once = false;
                 parts.push(Part::Media(x));
             }
         }
-        if let Some(i) = m.get("invoice_information").and_then(Value::as_object) {
+        if let Some(i) = m.get(tg::INVOICE_INFORMATION).and_then(Value::as_object) {
             let s = |k: &str| i.get(k).and_then(Value::as_str).unwrap_or("").trim();
             let amount = i.get("amount").and_then(int_of).map(|a| money(a, s("currency")));
             let line = [s("title"), s("description"), amount.as_deref().unwrap_or("")]
@@ -458,10 +464,10 @@ impl Reader {
             *self.notes.unknown.entry("invoice".into()).or_default() += 1;
         }
         if let Some(link) = m.get("game_link").and_then(Value::as_str).filter(|l| !l.is_empty()) {
-            let title = m.get("game_title").and_then(Value::as_str).map(str::to_string);
+            let title = m.get(tg::GAME_TITLE).and_then(Value::as_str).map(str::to_string);
             parts.push(Part::Link { url: link.to_string(), title });
         }
-        if let Some(g) = m.get("giveaway_information").and_then(Value::as_object) {
+        if let Some(g) = m.get(tg::GIVEAWAY_INFORMATION).and_then(Value::as_object) {
             let n = |k: &str| g.get(k).and_then(int_of).unwrap_or(0);
             let until = g.get("until_date").and_then(Value::as_str).unwrap_or("");
             let line = format!("giveaway: {} × {} months, until {until}", n("quantity"), n("months"));
@@ -496,12 +502,12 @@ impl Reader {
             title.map(str::to_string).or_else(|| Some(text_of(m.get("text")).0).filter(|t| !t.is_empty()))
         };
         let secs = m.get("duration_seconds").and_then(int_of).and_then(|n| u64::try_from(n).ok());
-        let code = if action.is_empty() { "service" } else { action };
+        let code = if action.is_empty() { tg::SERVICE } else { action };
         let Some(entry) = self.reading.lookup_name(msgkinds::Source::TelegramJsonAction, code).entry() else {
             return Part::Unknown { code: code.to_string(), text };
         };
         match entry.kind {
-            msgkinds::Kind::Call if action == "phone_call" => {
+            msgkinds::Kind::Call if action == action::PHONE_CALL => {
                 let outcome = match m.get("discard_reason").and_then(Value::as_str) {
                     Some("missed") => CallOutcome::Missed,
                     Some("busy") => CallOutcome::Busy,
@@ -574,14 +580,14 @@ fn notice(action: &str, m: &Map<String, Value>) -> String {
     let n = |k: &str| m.get(k).and_then(int_of);
     let what = action.replace('_', " ");
     let extra = match action {
-        "score_in_game" => n("score").map(|x| format!("score {x}")),
-        "send_payment" | "send_premium_gift" => {
+        action::SCORE_IN_GAME => n("score").map(|x| format!("score {x}")),
+        action::SEND_PAYMENT | action::SEND_PREMIUM_GIFT => {
             let paid = n("amount").or(n("cost")).map(|a| money(a, &s("currency")));
             let months = n("months").map(|x| format!("{x} months"));
             Some([paid, months].into_iter().flatten().collect::<Vec<_>>().join(", "))
         }
-        "gift_code_prize" => n("months").map(|x| format!("{x} months")),
-        "send_passport_values" => Some(
+        action::GIFT_CODE_PRIZE => n("months").map(|x| format!("{x} months")),
+        action::SEND_PASSPORT_VALUES => Some(
             m.get("values")
                 .and_then(Value::as_array)
                 .into_iter()
@@ -590,12 +596,12 @@ fn notice(action: &str, m: &Map<String, Value>) -> String {
                 .collect::<Vec<_>>()
                 .join(", "),
         ),
-        "proximity_reached" => n("distance").map(|d| format!("{} → {}, {d} m", s("from"), s("to"))),
-        "group_call_scheduled" => n("schedule_date").and_then(|t| t.checked_mul(1000)).and_then(|ms| {
+        action::PROXIMITY_REACHED => n("distance").map(|d| format!("{} → {}, {d} m", s("from"), s("to"))),
+        action::GROUP_CALL_SCHEDULED => n("schedule_date").and_then(|t| t.checked_mul(1000)).and_then(|ms| {
             let (y, mo, d, h, mi) = civil_of(ms)?;
             Some(format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02} UTC"))
         }),
-        "send_webview_data" => Some(s("text")).filter(|t| !t.is_empty()),
+        action::SEND_WEBVIEW_DATA => Some(s("text")).filter(|t| !t.is_empty()),
         _ => None,
     };
     match extra.filter(|e| !e.trim().is_empty()) {
@@ -653,8 +659,10 @@ fn text_of(text: Option<&Value>) -> (String, Vec<Part>) {
                         let t = e.get("text").and_then(Value::as_str).unwrap_or("");
                         out.push_str(t);
                         match e.get("type").and_then(Value::as_str) {
-                            Some("link") if !t.is_empty() => links.push(Part::Link { url: t.to_string(), title: None }),
-                            Some("text_link") => {
+                            Some(entity::LINK) if !t.is_empty() => {
+                                links.push(Part::Link { url: t.to_string(), title: None })
+                            }
+                            Some(entity::TEXT_LINK) => {
                                 if let Some(href) = e.get("href").and_then(Value::as_str) {
                                     let title = Some(t.to_string()).filter(|t| !t.is_empty());
                                     links.push(Part::Link { url: href.to_string(), title });
@@ -744,8 +752,7 @@ mod tests {
         assert_eq!(wall_time("1969-12-31T23:59:59"), Some(-1000));
         assert_eq!(wall_time("2024-02-30T00:00:00"), None);
         assert_eq!(wall_time("nonsense"), None);
-        let v: Value = serde_json::from_str(r#"["a ", {"type": "bold", "text": "b"}, {"type": "text_link", "text": "c", "href": "https://example.org"}]"#)
-            .expect("json");
+        let v = serde_json::json!(["a ", {"type": entity::BOLD, "text": "b"}, {"type": entity::TEXT_LINK, "text": "c", "href": "https://example.org"}]);
         let (text, links) = text_of(Some(&v));
         assert_eq!(text, "a bc");
         assert_eq!(links, vec![Part::Link { url: "https://example.org".into(), title: Some("c".into()) }]);
