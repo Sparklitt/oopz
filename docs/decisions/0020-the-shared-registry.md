@@ -41,7 +41,8 @@ it's known.
    columns, an optional table gone, an unknown type, a newer `user_version`) opens with all its messages
    (`oopz-gen/tests/schema_changes.rs`); each export adapter reads a changed format (a column, key or line it
    doesn't know, one moved or missing) and keeps what it can or says what's missing (`mod format_changes` in
-   `line-export`, `sms-xml`, `telegram-export` and `viber-export`'s `tests/export.rs`). The desktop app's `Kind`,
+   `line-export`, `sms-xml`, `telegram-export` and `viber-export`'s `tests/export.rs`, and `whatsapp-ios`'s
+   `tests/backup.rs`). The desktop app's `Kind`,
    `EventCode` and the other codes oopz stores come from `apps/desktop/src/lib/generated/oopz.ts`, written from
    oopz's enums (`oopz-export`'s `bindings`, its test fails when stale), and msgkinds' data from
    `generated/msgkinds.ts`; its tables are `Record<Kind, …>` in every language. No msgkinds value is spelled in
