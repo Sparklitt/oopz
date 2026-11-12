@@ -417,7 +417,12 @@ fn run(cli: Cli) -> Result<()> {
                 Some(n) => format!("chat {n}"),
                 None => "the whole backup".to_owned(),
             };
-            let page = open.session.export(id, chat, &Labels::english(&heading), &out_dir)?;
+            let page = open.session.export(
+                id,
+                chat,
+                &Labels::in_language(oopz_model::messages::LANGUAGES[0], &heading),
+                &out_dir,
+            )?;
             println!("saved: {}", page.display());
             println!("this file holds message text and isn't encrypted: keep it private, delete it when done");
         }

@@ -347,3 +347,23 @@ fn a_media_file_is_found_only_inside_its_folder() {
     assert_eq!(lib.media_file(id("1"), 0).unwrap(), None, "not media");
     assert_eq!(lib.media_file(9_999_999, 0).unwrap(), None, "no such message");
 }
+
+/// Every language of oopz's messages words every field, outcome, event and card; another language gets the default
+/// language's words and says so.
+#[test]
+fn words_in_every_language_and_a_fallback() {
+    for lang in LANGUAGES {
+        let w = Words::in_language(lang);
+        assert_eq!(w.lang, lang);
+        assert_eq!(
+            (w.outcomes.len(), w.events.len(), w.cards.len()),
+            (m::CallOutcome::ALL.len(), m::Event::ALL.len(), m::CardKind::ALL.len())
+        );
+        for word in w.outcomes.values().chain(w.events.values()).chain(w.cards.values()).chain([&w.me, &w.note]) {
+            assert!(!word.is_empty(), "{lang}");
+        }
+    }
+    assert_ne!(Words::in_language(LANGUAGES[0]).note, Words::in_language(LANGUAGES[1]).note);
+    let other = Words::in_language("xx");
+    assert_eq!((other.lang.as_str(), other.note), (LANGUAGES[0], Words::default().note));
+}

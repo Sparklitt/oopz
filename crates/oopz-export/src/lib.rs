@@ -13,7 +13,9 @@ use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
 
+use msgkinds::Note;
 use oopz_core::{ContactRow, Error, Library, MessageRow, Order, Result, Selection};
+use oopz_model::messages::{LANGUAGES, Message as Msg};
 use oopz_model::{self as m, App, Kind, Part};
 use serde::{Deserialize, Serialize};
 
@@ -143,117 +145,131 @@ pub struct Words {
 
 impl Default for Words {
     fn default() -> Self {
+        Words::in_language(LANGUAGES[0])
+    }
+}
+
+impl Words {
+    /// The export's words in `lang`, from oopz's messages (`oopz_model::messages`): a language they aren't worded in
+    /// gets the default language's words, and `lang` says which.
+    pub fn in_language(lang: &str) -> Words {
+        let lang = if LANGUAGES.contains(&lang) { lang } else { LANGUAGES[0] };
+        let w = |m: Msg| Note::of(m, []).text(lang);
+        // A call outcome's stored code, as `code_word` looks it up.
+        let code = |o: m::CallOutcome| serde_json::to_value(o).ok().and_then(|v| v.as_str().map(str::to_owned));
         Words {
-            lang: "en".into(),
-            me: "You".into(),
-            note: "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.".into(),
-            exported: "Exported with oopz".into(),
-            deleted: "This message was deleted".into(),
-            edited: "edited".into(),
-            forwarded: "Forwarded".into(),
-            view_once: "View once (not kept)".into(),
-            omitted: "not included in the export".into(),
-            reply: "Reply to".into(),
-            votes: "votes".into(),
-            call: "Voice call".into(),
-            video_call: "Video call".into(),
-            location: "Location".into(),
-            live: "Live location".into(),
-            unknown: "Something oopz can't show yet".into(),
-            not_shown: "not shown yet".into(),
-            wall_clock: "Times as the phone showed them".into(),
-            photo: "Photo".into(),
-            video: "Video".into(),
-            video_note: "Video note".into(),
-            gif: "GIF".into(),
-            sticker: "Sticker".into(),
-            voice: "Voice note".into(),
-            audio: "Audio".into(),
-            document: "Document".into(),
-            contents: "Contents".into(),
-            messages: "messages".into(),
-            outcomes: owned(&[
-                ("answered", "answered"),
-                ("missed", "missed"),
-                ("declined", "declined"),
-                ("cancelled", "cancelled"),
-                ("busy", "busy"),
-                ("failed", "failed"),
-                ("unknown", "result unknown"),
-            ]),
-            events: m::Event::ALL.into_iter().map(|e| (e.code().to_owned(), event_word(e).to_owned())).collect(),
+            lang: lang.into(),
+            me: w(Msg::ExportMe),
+            note: w(Msg::ExportNote),
+            exported: w(Msg::ExportExported),
+            deleted: w(Msg::ExportDeleted),
+            edited: w(Msg::ExportEdited),
+            forwarded: w(Msg::ExportForwarded),
+            view_once: w(Msg::ExportViewOnce),
+            omitted: w(Msg::ExportOmitted),
+            reply: w(Msg::ExportReply),
+            votes: w(Msg::ExportVotes),
+            call: w(Msg::ExportCall),
+            video_call: w(Msg::ExportVideoCall),
+            location: w(Msg::ExportLocation),
+            live: w(Msg::ExportLive),
+            unknown: w(Msg::ExportUnknown),
+            not_shown: w(Msg::ExportNotShown),
+            wall_clock: w(Msg::ExportWallClock),
+            photo: w(Msg::ExportPhoto),
+            video: w(Msg::ExportVideo),
+            video_note: w(Msg::ExportVideoNote),
+            gif: w(Msg::ExportGif),
+            sticker: w(Msg::ExportSticker),
+            voice: w(Msg::ExportVoice),
+            audio: w(Msg::ExportAudio),
+            document: w(Msg::ExportDocument),
+            contents: w(Msg::ExportContents),
+            messages: w(Msg::ExportMessages),
+            outcomes: m::CallOutcome::ALL.into_iter().filter_map(|o| Some((code(o)?, w(outcome_message(o))))).collect(),
+            events: m::Event::ALL.into_iter().map(|e| (e.code().to_owned(), w(event_message(e)))).collect(),
             cards: m::CardKind::ALL
                 .into_iter()
-                .map(|c| (Kind::from(c).code().to_owned(), card_word(c).to_owned()))
+                .map(|c| (Kind::from(c).code().to_owned(), w(card_message(c))))
                 .collect(),
         }
     }
 }
 
-/// An event's words in English (the desktop app gives its own language's).
-fn event_word(e: m::Event) -> &'static str {
+fn outcome_message(o: m::CallOutcome) -> Msg {
+    use m::CallOutcome as O;
+    match o {
+        O::Answered => Msg::OutcomeAnswered,
+        O::Missed => Msg::OutcomeMissed,
+        O::Declined => Msg::OutcomeDeclined,
+        O::Cancelled => Msg::OutcomeCancelled,
+        O::Busy => Msg::OutcomeBusy,
+        O::Failed => Msg::OutcomeFailed,
+        O::Unknown => Msg::OutcomeUnknown,
+    }
+}
+
+/// An event with no text of its own.
+fn event_message(e: m::Event) -> Msg {
+    use m::Event as E;
     match e {
-        m::Event::Encryption => "Messages are end-to-end encrypted",
-        m::Event::SecurityCodeChanged => "Security code changed",
-        m::Event::NumberChanged => "Changed their number",
-        m::Event::DeviceChanged => "A device was added or removed",
-        m::Event::AccountDeleted => "Deleted their account",
-        m::Event::ContactJoined => "Joined the app",
-        m::Event::BusinessNotice => "Business account notice",
-        m::Event::GroupCreated => "Group created",
-        m::Event::TopicCreated => "Topic created",
-        m::Event::Renamed => "Name changed",
-        m::Event::DescriptionChanged => "Description changed",
-        m::Event::PictureChanged => "Picture changed",
-        m::Event::PictureRemoved => "Picture removed",
-        m::Event::SettingsChanged => "Settings changed",
-        m::Event::MemberAdded => "Someone was added",
-        m::Event::MemberJoined => "Someone joined",
-        m::Event::MemberLeft => "Someone left",
-        m::Event::MemberRemoved => "Someone was removed",
-        m::Event::JoinRequested => "Someone asked to join",
-        m::Event::AdminAdded => "Someone was made admin",
-        m::Event::AdminRemoved => "Someone is no longer admin",
-        m::Event::AdminChanged => "Admins changed",
-        m::Event::OwnerChanged => "Owner changed",
-        m::Event::CommunityChanged => "Community changed",
-        m::Event::InviteLinkReset => "Invite link reset",
-        m::Event::Disappearing => "Disappearing messages changed",
-        m::Event::KeptInChat => "A message was kept in the chat",
-        m::Event::ChatLocked => "Chat locked",
-        m::Event::Screenshot => "A screenshot was taken",
-        m::Event::Pinned => "A message was pinned",
-        m::Event::Unpinned => "A message was unpinned",
-        m::Event::Blocked => "Blocked or unblocked",
-        m::Event::Unblocked => "Unblocked",
-        m::Event::MessageDeleted => "A message was deleted",
-        m::Event::HistoryCleared => "History cleared",
-        m::Event::GroupCall => "Group call",
-        m::Event::PollClosed => "Poll closed",
-        m::Event::PaymentStatus => "Payment status changed",
-        m::Event::MissedMessages => "Missed messages",
-        m::Event::ThemeChanged => "Theme changed",
-        m::Event::ProfileChanged => "Profile name changed",
-        m::Event::Other => "Notice",
+        E::Encryption => Msg::EventEncryption,
+        E::SecurityCodeChanged => Msg::EventSecurityCodeChanged,
+        E::NumberChanged => Msg::EventNumberChanged,
+        E::DeviceChanged => Msg::EventDeviceChanged,
+        E::AccountDeleted => Msg::EventAccountDeleted,
+        E::ContactJoined => Msg::EventContactJoined,
+        E::BusinessNotice => Msg::EventBusinessNotice,
+        E::GroupCreated => Msg::EventGroupCreated,
+        E::TopicCreated => Msg::EventTopicCreated,
+        E::Renamed => Msg::EventRenamed,
+        E::DescriptionChanged => Msg::EventDescriptionChanged,
+        E::PictureChanged => Msg::EventPictureChanged,
+        E::PictureRemoved => Msg::EventPictureRemoved,
+        E::SettingsChanged => Msg::EventSettingsChanged,
+        E::MemberAdded => Msg::EventMemberAdded,
+        E::MemberJoined => Msg::EventMemberJoined,
+        E::MemberLeft => Msg::EventMemberLeft,
+        E::MemberRemoved => Msg::EventMemberRemoved,
+        E::JoinRequested => Msg::EventJoinRequested,
+        E::AdminAdded => Msg::EventAdminAdded,
+        E::AdminRemoved => Msg::EventAdminRemoved,
+        E::AdminChanged => Msg::EventAdminChanged,
+        E::OwnerChanged => Msg::EventOwnerChanged,
+        E::CommunityChanged => Msg::EventCommunityChanged,
+        E::InviteLinkReset => Msg::EventInviteLinkReset,
+        E::Disappearing => Msg::EventDisappearing,
+        E::KeptInChat => Msg::EventKeptInChat,
+        E::ChatLocked => Msg::EventChatLocked,
+        E::Screenshot => Msg::EventScreenshot,
+        E::Pinned => Msg::EventPinned,
+        E::Unpinned => Msg::EventUnpinned,
+        E::Blocked => Msg::EventBlocked,
+        E::Unblocked => Msg::EventUnblocked,
+        E::MessageDeleted => Msg::EventMessageDeleted,
+        E::HistoryCleared => Msg::EventHistoryCleared,
+        E::GroupCall => Msg::EventGroupCall,
+        E::PollClosed => Msg::EventPollClosed,
+        E::PaymentStatus => Msg::EventPaymentStatus,
+        E::MissedMessages => Msg::EventMissedMessages,
+        E::ThemeChanged => Msg::EventThemeChanged,
+        E::ProfileChanged => Msg::EventProfileChanged,
+        E::Other => Msg::EventOther,
     }
 }
 
-/// A card's words in English.
-fn card_word(c: m::CardKind) -> &'static str {
+fn card_message(c: m::CardKind) -> Msg {
+    use m::CardKind as C;
     match c {
-        m::CardKind::Album => "Album",
-        m::CardKind::StickerPack => "Sticker pack",
-        m::CardKind::Event => "Event",
-        m::CardKind::Payment => "Payment",
-        m::CardKind::Game => "Game",
-        m::CardKind::Business => "Business message",
-        m::CardKind::Story => "Status update",
-        m::CardKind::Reaction => "Reaction",
+        C::Album => Msg::CardAlbum,
+        C::StickerPack => Msg::CardStickerPack,
+        C::Event => Msg::CardEvent,
+        C::Payment => Msg::CardPayment,
+        C::Game => Msg::CardGame,
+        C::Business => Msg::CardBusiness,
+        C::Story => Msg::CardStory,
+        C::Reaction => Msg::CardReaction,
     }
-}
-
-fn owned(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
 }
 
 impl Words {

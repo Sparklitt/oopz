@@ -461,6 +461,18 @@ pub enum CallOutcome {
     Unknown,
 }
 
+impl CallOutcome {
+    pub const ALL: [CallOutcome; 7] = [
+        CallOutcome::Answered,
+        CallOutcome::Missed,
+        CallOutcome::Declined,
+        CallOutcome::Cancelled,
+        CallOutcome::Busy,
+        CallOutcome::Failed,
+        CallOutcome::Unknown,
+    ];
+}
+
 /// The app's own notices (`docs/data-types.md` §4), grouped; the app's wording is kept in [`Part::System::text`].
 /// The same vocabulary as [`msgkinds::Event`] (decision 0020), under the names oopz stored first: `topic_created` is
 /// msgkinds' `topic_changed`, and `admin_changed` (an export that doesn't say which way) is kept for what it says.

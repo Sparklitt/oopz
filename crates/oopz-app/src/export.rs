@@ -38,10 +38,13 @@ pub struct Labels {
 }
 
 impl Labels {
-    /// The page's words in English, for the CLI, which has no UI to send them; the app sends its own, from its language
-    /// files (`apps/desktop/src/lib/i18n/`). `heading` names what is exported.
-    pub fn english(heading: &str) -> Labels {
-        let t = |en: &str| en.to_owned();
+    /// The page's words in `lang`, from oopz's messages (`oopz_model::messages`), for the CLI, which has no UI to send
+    /// them (a language they aren't worded in gets the default's, and `lang` says which); the app sends its own, from
+    /// its language files (`apps/desktop/src/lib/i18n/`). `heading` names what is exported.
+    pub fn in_language(lang: &str, heading: &str) -> Labels {
+        use oopz_model::messages::{LANGUAGES, Message as Msg};
+        let lang = if LANGUAGES.contains(&lang) { lang } else { LANGUAGES[0] };
+        let t = |m: Msg| msgkinds::Note::of(m, []).text(lang);
         // WhatsApp's own labels for its type codes, msgkinds' registry rows (English, as the CLI shows them).
         let kinds: Vec<(i64, String)> = msgkinds::Source::WhatsAppAndroid
             .entries()
@@ -52,21 +55,19 @@ impl Labels {
             })
             .collect();
         Labels {
-            lang: "en".to_owned(),
+            lang: lang.to_owned(),
             heading: heading.to_owned(),
-            messages: t("messages"),
-            sent: t("sent by you"),
-            received: t("received"),
-            dates: t("first and last message"),
-            by_month: t("Messages per month"),
-            by_hour: t("Messages by hour of the day (this computer's time zone)"),
-            by_kind: t("By type"),
-            audio_minutes: t("minutes of voice notes and audio"),
-            senders: t("Who writes most (ids masked)"),
-            you: t("You"),
-            note: t(
-                "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done.",
-            ),
+            messages: t(Msg::ExportMessages),
+            sent: t(Msg::StatsSent),
+            received: t(Msg::StatsReceived),
+            dates: t(Msg::StatsDates),
+            by_month: t(Msg::StatsByMonth),
+            by_hour: t(Msg::StatsByHour),
+            by_kind: t(Msg::StatsByKind),
+            audio_minutes: t(Msg::StatsAudioMinutes),
+            senders: t(Msg::StatsSenders),
+            you: t(Msg::ExportMe),
+            note: t(Msg::ExportNote),
             kinds: kinds.into_iter().collect(),
         }
     }

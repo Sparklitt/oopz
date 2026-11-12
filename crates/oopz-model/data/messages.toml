@@ -304,3 +304,652 @@ for = "user"
 params = ["me"]
 en = "no row is from \"{me}\": pick yourself"
 es = "ninguna fila es de \"{me}\": elígete tú"
+
+# An export's words (oopz-export `Words`): each field, a call's outcome, an event with no text of its own, a card.
+
+[[message]]
+name = "export_me"
+for = "user"
+params = []
+en = "You"
+es = "Tú"
+
+[[message]]
+name = "export_note"
+for = "user"
+params = []
+en = "This file holds your messages and isn't encrypted: keep it somewhere private, and delete it when you're done."
+es = "Este archivo contiene tus mensajes y no está cifrado: guárdalo en un lugar privado y bórralo cuando termines."
+
+[[message]]
+name = "export_exported"
+for = "user"
+params = []
+en = "Exported with oopz"
+es = "Exportado con oopz"
+
+[[message]]
+name = "export_deleted"
+for = "user"
+params = []
+en = "This message was deleted"
+es = "Se eliminó este mensaje"
+
+[[message]]
+name = "export_edited"
+for = "user"
+params = []
+en = "edited"
+es = "editado"
+
+[[message]]
+name = "export_forwarded"
+for = "user"
+params = []
+en = "Forwarded"
+es = "Reenviado"
+
+[[message]]
+name = "export_view_once"
+for = "user"
+params = []
+en = "View once (not kept)"
+es = "Ver una vez (no se guarda)"
+
+[[message]]
+name = "export_omitted"
+for = "user"
+params = []
+en = "not included in the export"
+es = "no incluido en la exportación"
+
+[[message]]
+name = "export_reply"
+for = "user"
+params = []
+en = "Reply to"
+es = "Respuesta a"
+
+[[message]]
+name = "export_votes"
+for = "user"
+params = []
+en = "votes"
+es = "votos"
+
+[[message]]
+name = "export_call"
+for = "user"
+params = []
+en = "Voice call"
+es = "Llamada de voz"
+
+[[message]]
+name = "export_video_call"
+for = "user"
+params = []
+en = "Video call"
+es = "Videollamada"
+
+[[message]]
+name = "export_location"
+for = "user"
+params = []
+en = "Location"
+es = "Ubicación"
+
+[[message]]
+name = "export_live"
+for = "user"
+params = []
+en = "Live location"
+es = "Ubicación en tiempo real"
+
+[[message]]
+name = "export_unknown"
+for = "user"
+params = []
+en = "Something oopz can't show yet"
+es = "Algo que oopz aún no sabe mostrar"
+
+[[message]]
+name = "export_not_shown"
+for = "user"
+params = []
+en = "not shown yet"
+es = "aún no se muestra"
+
+[[message]]
+name = "export_wall_clock"
+for = "user"
+params = []
+en = "Times as the phone showed them"
+es = "Horas como las mostraba el teléfono"
+
+[[message]]
+name = "export_photo"
+for = "user"
+params = []
+en = "Photo"
+es = "Foto"
+
+[[message]]
+name = "export_video"
+for = "user"
+params = []
+en = "Video"
+es = "Vídeo"
+
+[[message]]
+name = "export_video_note"
+for = "user"
+params = []
+en = "Video note"
+es = "Videonota"
+
+[[message]]
+name = "export_gif"
+for = "user"
+params = []
+en = "GIF"
+es = "GIF"
+
+[[message]]
+name = "export_sticker"
+for = "user"
+params = []
+en = "Sticker"
+es = "Sticker"
+
+[[message]]
+name = "export_voice"
+for = "user"
+params = []
+en = "Voice note"
+es = "Nota de voz"
+
+[[message]]
+name = "export_audio"
+for = "user"
+params = []
+en = "Audio"
+es = "Audio"
+
+[[message]]
+name = "export_document"
+for = "user"
+params = []
+en = "Document"
+es = "Documento"
+
+[[message]]
+name = "export_contents"
+for = "user"
+params = []
+en = "Contents"
+es = "Contenido"
+
+[[message]]
+name = "export_messages"
+for = "user"
+params = []
+en = "messages"
+es = "mensajes"
+
+[[message]]
+name = "outcome_answered"
+for = "user"
+params = []
+en = "answered"
+es = "contestada"
+
+[[message]]
+name = "outcome_missed"
+for = "user"
+params = []
+en = "missed"
+es = "perdida"
+
+[[message]]
+name = "outcome_declined"
+for = "user"
+params = []
+en = "declined"
+es = "rechazada"
+
+[[message]]
+name = "outcome_cancelled"
+for = "user"
+params = []
+en = "cancelled"
+es = "cancelada"
+
+[[message]]
+name = "outcome_busy"
+for = "user"
+params = []
+en = "busy"
+es = "ocupado"
+
+[[message]]
+name = "outcome_failed"
+for = "user"
+params = []
+en = "failed"
+es = "fallida"
+
+[[message]]
+name = "outcome_unknown"
+for = "user"
+params = []
+en = "result unknown"
+es = "resultado desconocido"
+
+[[message]]
+name = "event_encryption"
+for = "user"
+params = []
+en = "Messages are end-to-end encrypted"
+es = "Los mensajes están cifrados de extremo a extremo"
+
+[[message]]
+name = "event_security_code_changed"
+for = "user"
+params = []
+en = "Security code changed"
+es = "Cambió el código de seguridad"
+
+[[message]]
+name = "event_number_changed"
+for = "user"
+params = []
+en = "Changed their number"
+es = "Cambió su número"
+
+[[message]]
+name = "event_device_changed"
+for = "user"
+params = []
+en = "A device was added or removed"
+es = "Se añadió o quitó un dispositivo"
+
+[[message]]
+name = "event_account_deleted"
+for = "user"
+params = []
+en = "Deleted their account"
+es = "Eliminó su cuenta"
+
+[[message]]
+name = "event_contact_joined"
+for = "user"
+params = []
+en = "Joined the app"
+es = "Se unió a la app"
+
+[[message]]
+name = "event_business_notice"
+for = "user"
+params = []
+en = "Business account notice"
+es = "Aviso de una cuenta de empresa"
+
+[[message]]
+name = "event_group_created"
+for = "user"
+params = []
+en = "Group created"
+es = "Grupo creado"
+
+[[message]]
+name = "event_topic_created"
+for = "user"
+params = []
+en = "Topic created"
+es = "Se creó un tema"
+
+[[message]]
+name = "event_renamed"
+for = "user"
+params = []
+en = "Name changed"
+es = "Cambió el nombre"
+
+[[message]]
+name = "event_description_changed"
+for = "user"
+params = []
+en = "Description changed"
+es = "Cambió la descripción"
+
+[[message]]
+name = "event_picture_changed"
+for = "user"
+params = []
+en = "Picture changed"
+es = "Cambió la foto"
+
+[[message]]
+name = "event_picture_removed"
+for = "user"
+params = []
+en = "Picture removed"
+es = "Se quitó la foto"
+
+[[message]]
+name = "event_settings_changed"
+for = "user"
+params = []
+en = "Settings changed"
+es = "Cambiaron los ajustes"
+
+[[message]]
+name = "event_member_added"
+for = "user"
+params = []
+en = "Someone was added"
+es = "Se añadió a alguien"
+
+[[message]]
+name = "event_member_joined"
+for = "user"
+params = []
+en = "Someone joined"
+es = "Alguien se unió"
+
+[[message]]
+name = "event_member_left"
+for = "user"
+params = []
+en = "Someone left"
+es = "Alguien salió"
+
+[[message]]
+name = "event_member_removed"
+for = "user"
+params = []
+en = "Someone was removed"
+es = "Se quitó a alguien"
+
+[[message]]
+name = "event_join_requested"
+for = "user"
+params = []
+en = "Someone asked to join"
+es = "Alguien pidió unirse"
+
+[[message]]
+name = "event_admin_added"
+for = "user"
+params = []
+en = "Someone was made admin"
+es = "Alguien es ahora administrador"
+
+[[message]]
+name = "event_admin_removed"
+for = "user"
+params = []
+en = "Someone is no longer admin"
+es = "Alguien ya no es administrador"
+
+[[message]]
+name = "event_admin_changed"
+for = "user"
+params = []
+en = "Admins changed"
+es = "Cambiaron los administradores"
+
+[[message]]
+name = "event_owner_changed"
+for = "user"
+params = []
+en = "Owner changed"
+es = "Cambió el propietario"
+
+[[message]]
+name = "event_community_changed"
+for = "user"
+params = []
+en = "Community changed"
+es = "Cambió la comunidad"
+
+[[message]]
+name = "event_invite_link_reset"
+for = "user"
+params = []
+en = "Invite link reset"
+es = "Se restableció el enlace de invitación"
+
+[[message]]
+name = "event_disappearing"
+for = "user"
+params = []
+en = "Disappearing messages changed"
+es = "Cambiaron los mensajes temporales"
+
+[[message]]
+name = "event_kept_in_chat"
+for = "user"
+params = []
+en = "A message was kept in the chat"
+es = "Se guardó un mensaje en el chat"
+
+[[message]]
+name = "event_chat_locked"
+for = "user"
+params = []
+en = "Chat locked"
+es = "Chat bloqueado"
+
+[[message]]
+name = "event_screenshot"
+for = "user"
+params = []
+en = "A screenshot was taken"
+es = "Se hizo una captura de pantalla"
+
+[[message]]
+name = "event_pinned"
+for = "user"
+params = []
+en = "A message was pinned"
+es = "Se fijó un mensaje"
+
+[[message]]
+name = "event_unpinned"
+for = "user"
+params = []
+en = "A message was unpinned"
+es = "Se dejó de fijar un mensaje"
+
+[[message]]
+name = "event_blocked"
+for = "user"
+params = []
+en = "Blocked or unblocked"
+es = "Bloqueo o desbloqueo"
+
+[[message]]
+name = "event_unblocked"
+for = "user"
+params = []
+en = "Unblocked"
+es = "Desbloqueado"
+
+[[message]]
+name = "event_message_deleted"
+for = "user"
+params = []
+en = "A message was deleted"
+es = "Se eliminó un mensaje"
+
+[[message]]
+name = "event_history_cleared"
+for = "user"
+params = []
+en = "History cleared"
+es = "Se vació el historial"
+
+[[message]]
+name = "event_group_call"
+for = "user"
+params = []
+en = "Group call"
+es = "Llamada de grupo"
+
+[[message]]
+name = "event_poll_closed"
+for = "user"
+params = []
+en = "Poll closed"
+es = "Encuesta cerrada"
+
+[[message]]
+name = "event_payment_status"
+for = "user"
+params = []
+en = "Payment status changed"
+es = "Cambió el estado de un pago"
+
+[[message]]
+name = "event_missed_messages"
+for = "user"
+params = []
+en = "Missed messages"
+es = "Mensajes perdidos"
+
+[[message]]
+name = "event_theme_changed"
+for = "user"
+params = []
+en = "Theme changed"
+es = "Cambió el tema"
+
+[[message]]
+name = "event_profile_changed"
+for = "user"
+params = []
+en = "Profile name changed"
+es = "Cambió el nombre del perfil"
+
+[[message]]
+name = "event_other"
+for = "user"
+params = []
+en = "Notice"
+es = "Aviso"
+
+[[message]]
+name = "card_album"
+for = "user"
+params = []
+en = "Album"
+es = "Álbum"
+
+[[message]]
+name = "card_sticker_pack"
+for = "user"
+params = []
+en = "Sticker pack"
+es = "Paquete de stickers"
+
+[[message]]
+name = "card_event"
+for = "user"
+params = []
+en = "Event"
+es = "Evento"
+
+[[message]]
+name = "card_payment"
+for = "user"
+params = []
+en = "Payment"
+es = "Pago"
+
+[[message]]
+name = "card_game"
+for = "user"
+params = []
+en = "Game"
+es = "Juego"
+
+[[message]]
+name = "card_business"
+for = "user"
+params = []
+en = "Business message"
+es = "Mensaje de empresa"
+
+[[message]]
+name = "card_story"
+for = "user"
+params = []
+en = "Status update"
+es = "Estado"
+
+[[message]]
+name = "card_reaction"
+for = "user"
+params = []
+en = "Reaction"
+es = "Reacción"
+
+
+# A backup's or chat's stats page (oopz-app `Labels`); its `you`, `note` and `messages` are the export's words.
+
+[[message]]
+name = "stats_sent"
+for = "user"
+params = []
+en = "sent by you"
+es = "enviados por ti"
+
+[[message]]
+name = "stats_received"
+for = "user"
+params = []
+en = "received"
+es = "recibidos"
+
+[[message]]
+name = "stats_dates"
+for = "user"
+params = []
+en = "first and last message"
+es = "primer y último mensaje"
+
+[[message]]
+name = "stats_by_month"
+for = "user"
+params = []
+en = "Messages per month"
+es = "Mensajes por mes"
+
+[[message]]
+name = "stats_by_hour"
+for = "user"
+params = []
+en = "Messages by hour of the day (this computer's time zone)"
+es = "Mensajes por hora del día (zona horaria de este ordenador)"
+
+[[message]]
+name = "stats_by_kind"
+for = "user"
+params = []
+en = "By type"
+es = "Por tipo"
+
+[[message]]
+name = "stats_audio_minutes"
+for = "user"
+params = []
+en = "minutes of voice notes and audio"
+es = "minutos de notas de voz y audio"
+
+[[message]]
+name = "stats_senders"
+for = "user"
+params = []
+en = "Who writes most (ids masked)"
+es = "Quién escribe más (ids ocultos)"
