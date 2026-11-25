@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Prose check on the commit message (rules: scripts/unslop.py). Off without .claude/unslop.conf.
+# Turned on once per clone by scripts/install-hooks.sh (it points git at .githooks/).
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+[[ -f "$root/.claude/unslop.conf" ]] || exit 0
+python3 -I -B "$root/scripts/unslop.py" --message "$1" || { echo "commit-msg: AI-tell prose above (rule ids: scripts/unslop.py)" >&2; exit 1; }

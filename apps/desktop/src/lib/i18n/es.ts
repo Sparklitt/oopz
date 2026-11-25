@@ -1,7 +1,7 @@
 // Español: the same keys as en.ts (the type checks it), the phone's words, and the adapters' import notes said again.
 import type { PhoneStrings, Strings } from "./en.ts";
 import type { Locale, NoteRule } from "./types.ts";
-import { APP_NAME } from "../generated/msgkinds.ts";
+import { APP_NAME, KIND_WORD } from "../generated/msgkinds.ts";
 
 const es: Strings = {
   cantStart: "oopz no ha podido arrancar: ",
@@ -297,7 +297,7 @@ const es: Strings = {
   exportSaved: "Guardado",
   showFolder: "Mostrar carpeta",
   dates: "primer y último mensaje",
-  kinds: { 0: "texto", 1: "foto", 2: "audio / voz", 3: "vídeo", 4: "contacto", 5: "ubicación", 7: "sistema", 9: "documento", 13: "GIF", 15: "eliminado", 16: "ubicación en tiempo real", 20: "sticker", 42: "ver una vez", 46: "encuesta", 81: "videonota", 90: "llamada", 99: "álbum", 105: "paquete de stickers" },
+  kinds: { 0: "texto", 1: "foto", 2: "audio / voz", 3: "vídeo", 4: "contacto", 5: "ubicación", 7: "sistema", 9: "documento", 13: "GIF", 15: "eliminado", 16: "ubicación en tiempo real", 20: "sticker", 42: "ver una vez", 46: "encuesta", 81: KIND_WORD.es.video_note, 90: "llamada", 99: "álbum", 105: KIND_WORD.es.sticker_pack },
   screenOnly: "El texto de los mensajes se muestra solo aquí, en tu pantalla. oopz nunca lo escribe en un registro ni lo envía a ningún sitio.",
 
   mergeTitle: "Unir un chat perdido",
@@ -620,12 +620,7 @@ const es: Strings = {
     person: "Persona",
     someone: "Alguien",
     convKinds: { direct: "Chat", group: "Grupo", channel: "Canal", broadcast: "Difusión", notes: "Notas", unknown: "Conversación" },
-    kinds: {
-      text: "texto", link: "enlace", photo: "foto", video: "vídeo", video_note: "videonota", gif: "GIF", voice: "nota de voz", audio: "audio",
-      sticker: "sticker", document: "documento", location: "ubicación", contact: "contacto", poll: "encuesta", call: "llamada", album: "álbum",
-      sticker_pack: "paquete de stickers", event: "evento", payment: "pago", game: "juego", business: "mensaje de empresa", story: "estado",
-      reaction: "reacción", system: "aviso", deleted: "eliminado", unknown: "otro",
-    },
+    kinds: { ...KIND_WORD.es, system: "aviso", unknown: "otro" },
     media: { photo: "Foto", video: "Vídeo", video_note: "Videonota", gif: "GIF", sticker: "Sticker", voice: "Nota de voz", audio: "Audio", document: "Documento" },
     cards: { album: "Álbum", sticker_pack: "Paquete de stickers", event: "Evento", payment: "Pago", game: "Juego", business: "Mensaje de empresa", story: "Estado", reaction: "Reacción" },
     notShown: (app: string, code: string) => `${app}: ${code}, aún no se muestra`,

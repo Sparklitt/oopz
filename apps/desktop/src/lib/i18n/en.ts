@@ -2,7 +2,7 @@
 // Plain words: the person may never have seen a backup file.
 import type { CardKind, EventCode, Kind, MediaKind } from "../backend/types";
 import type { Locale } from "./types.ts";
-import { APP_NAME } from "../generated/msgkinds.ts";
+import { APP_NAME, KIND_WORD } from "../generated/msgkinds.ts";
 
 const en = {
   cantStart: "oopz couldn't start: ",
@@ -298,7 +298,7 @@ const en = {
   exportSaved: "Saved",
   showFolder: "Show folder",
   dates: "first and last message",
-  kinds: { 0: "text", 1: "photo", 2: "audio / voice", 3: "video", 4: "contact", 5: "location", 7: "system", 9: "document", 13: "GIF", 15: "deleted", 16: "live location", 20: "sticker", 42: "view once", 46: "poll", 81: "video note", 90: "call", 99: "album", 105: "sticker pack" } as Record<number, string>,
+  kinds: { 0: "text", 1: "photo", 2: "audio / voice", 3: "video", 4: "contact", 5: "location", 7: "system", 9: "document", 13: "GIF", 15: "deleted", 16: "live location", 20: "sticker", 42: "view once", 46: "poll", 81: KIND_WORD.en.video_note, 90: "call", 99: "album", 105: KIND_WORD.en.sticker_pack } as Record<number, string>,
   screenOnly: "Message text is shown here on your screen only. oopz never writes it to a log or sends it anywhere.",
 
   mergeTitle: "Merge a lost chat",
@@ -621,12 +621,8 @@ const en = {
     person: "Person",
     someone: "Someone",
     convKinds: { direct: "Chat", group: "Group", channel: "Channel", broadcast: "Broadcast", notes: "Notes", unknown: "Conversation" } as Record<string, string>,
-    kinds: {
-      text: "text", link: "link", photo: "photo", video: "video", video_note: "video note", gif: "GIF", voice: "voice note", audio: "audio",
-      sticker: "sticker", document: "document", location: "location", contact: "contact", poll: "poll", call: "call", album: "album",
-      sticker_pack: "sticker pack", event: "event", payment: "payment", game: "game", business: "business message", story: "status update",
-      reaction: "reaction", system: "notice", deleted: "deleted", unknown: "other",
-    } satisfies Record<Kind, string>,
+    // msgkinds' words (KIND_WORD), but for the three labels oopz words its own way.
+    kinds: { ...KIND_WORD.en, story: "status update", system: "notice", unknown: "other" } satisfies Record<Kind, string>,
     media: { photo: "Photo", video: "Video", video_note: "Video note", gif: "GIF", sticker: "Sticker", voice: "Voice note", audio: "Audio", document: "Document" } satisfies Record<MediaKind, string>,
     cards: { album: "Album", sticker_pack: "Sticker pack", event: "Event", payment: "Payment", game: "Game", business: "Business message", story: "Status update", reaction: "Reaction" } satisfies Record<CardKind, string>,
     /** A type oopz doesn't know yet, as its card says it: the app and its own code. */

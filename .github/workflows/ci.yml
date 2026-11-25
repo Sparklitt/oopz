@@ -1,91 +1,57 @@
 name: CI
 
+# The required check on main: scripts/check.sh, the one definition of done, on Linux. Installers for every platform
+# are built by hand (desktop-build.yml). msgkinds is a private path dependency, checked out beside oopz with a
+# read-only deploy key (secret MSGKINDS_DEPLOY_KEY).
+
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - run: cargo fmt --all --check
-
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
+          path: oopz
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --locked --workspace
-
-  msrv:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.92
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo check --locked --workspace --all-targets
-
-  # The desktop app (docs/desktop-plan.md, section 11): the web UI, then the Tauri shell, its own Cargo workspace. The
-  # shell embeds the built UI (`dist/`, not committed), so the UI is built first.
-  desktop:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/desktop
-    steps:
-      - uses: actions/checkout@v4
+          repository: Sparklitt/msgkinds
+          ssh-key: ${{ secrets.MSGKINDS_DEPLOY_KEY }}
+          path: msgkinds
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: apps/desktop/package.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      # Every Tauri command the shell registers is called from the UI's backend (tauri.ts).
-      - run: pnpm check:commands
-      # Every adapter's import note is said again in every language but English (src/lib/i18n/<code>.ts).
-      - run: pnpm check:notes
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
-      - run: cargo fmt --check
-        working-directory: apps/desktop/src-tauri
-      - run: cargo clippy --locked --all-targets -- -D warnings
-        working-directory: apps/desktop/src-tauri
-      - run: cargo test --locked
-        working-directory: apps/desktop/src-tauri
+          workspaces: |
+            oopz -> target
+            oopz/apps/desktop/src-tauri -> target
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-deny,gitleaks
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: oopz/apps/desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: oopz/apps/desktop/pnpm-lock.yaml
+      - run: bash scripts/check.sh
+        working-directory: oopz

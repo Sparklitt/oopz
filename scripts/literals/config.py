@@ -1,0 +1,112 @@
+"""The project's side: its config, its baseline, which files to scan, and what is a problem."""
+
+import re
+import subprocess
+from collections import Counter
+
+from rules import number_value
+
+CONF = ".claude/literals.conf"
+BASELINE = ".claude/literals-baseline.txt"
+# A literal is printed up to this many characters: enough to find it, not a page of SQL.
+SHOWN = 60
+# The numbers allowed anywhere when the config names none (-1 is written - and 1).
+NUMBERS = "0 1 2"
+KEYS = ("source", "test", "constants", "constants_only", "catalogue", "numbers", "allow")
+SWITCHES = {"true": True, "false": False}
+# Folders never scanned when the project is no git repository (in one, what git ignores is skipped).
+SKIP = {".git", "target", "node_modules", "build", "dist", ".gradle", "vendor", "__pycache__", ".venv"}
+HINTS = {"prose": "words a person reads are message ids in the catalogue",
+         "number": "a fixed value is a named, documented constant",
+         "sql": "values are bound parameters; only constants (UPPER_CASE names) are spliced into SQL"}
+
+
+def glob_re(glob):
+    """A path glob as a regex: ** spans folders, * and ? stay inside one."""
+    out, i = "", 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif glob.startswith("**", i):
+            out, i = out + ".*", i + 2
+        else:
+            out, i = out + {"*": "[^/]*", "?": "[^/]"}.get(glob[i], re.escape(glob[i])), i + 1
+    return re.compile(out)
+
+
+def read_conf(text):
+    conf = {key: [] for key in KEYS}
+    conf["constants_only"] = False
+    for number, raw in enumerate(text.splitlines(), 1):
+        raw = raw.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        key, sep, value = (p.strip() for p in raw.partition("="))
+        if not sep or key not in conf or not value:
+            raise ValueError(f"{CONF}:{number}: expected `<key> = <value>`, the key one of {', '.join(KEYS)}")
+        if key == "allow":
+            parts = [p.strip() for p in value.split(" | ")]
+            if len(parts) != 3 or not all(parts):
+                raise ValueError(f"{CONF}:{number}: expected `allow = <glob> | <literal or *> | <reason>`")
+            conf[key].append((number, glob_re(parts[0]), parts[1]))
+        elif key == "numbers":
+            values = [number_value(v) for v in value.split()]
+            if None in values:
+                raise ValueError(f"{CONF}:{number}: numbers are written as in code: `numbers = 0 1 2`")
+            conf[key].extend(values)
+        elif key == "constants_only":
+            if value not in SWITCHES:
+                raise ValueError(f"{CONF}:{number}: `constants_only = true` or `false`")
+            conf[key] = SWITCHES[value]
+        else:
+            conf[key].append(glob_re(value))
+    return conf
+
+
+def read_baseline(text):
+    base = {}
+    for number, raw in enumerate(text.splitlines(), 1):
+        parts = raw.split(" ", 2)
+        if raw.strip() and not raw.startswith("#"):
+            if len(parts) != 3 or not parts[0].isdigit() or parts[1] not in HINTS:
+                raise ValueError(f"{BASELINE}:{number}: expected `<count> <rule> <file>`")
+            base[(parts[2], parts[1])] = int(parts[0])
+    return base
+
+
+def show(rel, line, col, rule, literal):
+    shown = literal if rule == "number" else repr(literal if len(literal) <= SHOWN else literal[:SHOWN] + "…")
+    return f"{rel}:{line}:{col}: {rule} {shown}"
+
+
+def judge(found, allows, base):
+    """(problems, counts): hits beyond the baseline, stale allow entries and stale baseline lines."""
+    used, rest = set(), []
+    for hit in found:
+        match = [a[0] for a in allows if a[1].fullmatch(hit[0]) and a[2] in ("*", hit[4])]
+        used.update(match)
+        if not match:
+            rest.append(hit)
+    counts = Counter((h[0], h[3]) for h in rest)
+    problems = []
+    for key in sorted(set(counts) | set(base)):
+        got, had = counts.get(key, 0), base.get(key, 0)
+        if got > had:
+            if had:
+                problems.append(f"{key[0]}: {key[1]}: {got} hits, the baseline allows {had}; the new ones are among:")
+            problems += [show(*h) for h in rest if (h[0], h[3]) == key]
+        elif got < had:
+            problems.append(f"{BASELINE}: {key[0]} {key[1]}: {got} hits, baseline {had}: lower it (--baseline)")
+    problems += [f"{CONF}:{a[0]}: stale allow entry (allows nothing)" for a in allows if a[0] not in used]
+    return problems, counts
+
+
+def files(root):
+    """The project's files, relative to root: what git knows (ignored ones left out), else a walk."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                             capture_output=True, check=True).stdout.decode("utf-8", "replace")
+        return sorted(p for p in out.split("\0") if p and (root / p).is_file())
+    except (OSError, subprocess.CalledProcessError):
+        return sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
+                      if p.is_file() and not SKIP & set(p.relative_to(root).parts[:-1]))

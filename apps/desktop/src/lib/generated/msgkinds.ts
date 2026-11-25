@@ -59,6 +59,12 @@ export const HAS_DURATION: Record<Kind, boolean> = {
   unknown: false,
 };
 
+/** Each kind's word to stand in a sentence (msgkinds' `Kind::word`), by catalog language. */
+export const KIND_WORD: Record<string, Record<Kind, string>> = {
+  en: { text: "text", link: "link", photo: "photo", video: "video", video_note: "video note", gif: "GIF", voice: "voice note", audio: "audio", sticker: "sticker", document: "document", location: "location", contact: "contact", poll: "poll", call: "call", album: "album", sticker_pack: "sticker pack", event: "event", payment: "payment", game: "game", business: "business message", story: "story", reaction: "reaction", system: "system", deleted: "deleted", unknown: "message" },
+  es: { text: "texto", link: "enlace", photo: "foto", video: "vídeo", video_note: "videonota", gif: "GIF", voice: "nota de voz", audio: "audio", sticker: "sticker", document: "documento", location: "ubicación", contact: "contacto", poll: "encuesta", call: "llamada", album: "álbum", sticker_pack: "paquete de stickers", event: "evento", payment: "pago", game: "juego", business: "mensaje de empresa", story: "estado", reaction: "reacción", system: "sistema", deleted: "eliminado", unknown: "mensaje" },
+};
+
 export const EVENTS = ["encryption", "security_code_changed", "number_changed", "device_changed", "account_deleted", "contact_joined", "business_notice", "group_created", "topic_changed", "renamed", "description_changed", "picture_changed", "picture_removed", "settings_changed", "member_added", "member_joined", "member_left", "member_removed", "join_requested", "admin_added", "admin_removed", "owner_changed", "community_changed", "invite_link_reset", "disappearing", "kept_in_chat", "chat_locked", "screenshot", "pinned", "unpinned", "blocked", "unblocked", "message_deleted", "history_cleared", "group_call", "poll_closed", "payment_status", "missed_messages", "theme_changed", "profile_changed", "other"] as const;
 export type Event = (typeof EVENTS)[number];
 

@@ -1,0 +1,4 @@
+{
+  "ci": "github",
+  "land_check": "bash scripts/check.sh"
+}
