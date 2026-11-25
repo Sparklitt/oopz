@@ -1,0 +1,4 @@
+{
+  "ci": "local",
+  "land_check": "bash scripts/check.sh"
+}
