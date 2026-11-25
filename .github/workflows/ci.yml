@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: oopz
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: Sparklitt/msgkinds
           ssh-key: ${{ secrets.MSGKINDS_DEPLOY_KEY }}
@@ -45,10 +45,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest,cargo-deny,gitleaks
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: oopz/apps/desktop/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
