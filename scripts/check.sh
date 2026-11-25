@@ -98,12 +98,15 @@ STACKS=(rust pnpm)
 # --- rust: cargo fmt, clippy with warnings as errors, tests (nextest when installed), cargo deny
 # apps/desktop/src-tauri is its own workspace (excluded from the root one: it needs a webview toolkit).
 rust_roots=(. apps/desktop/src-tauri)
-# The packages under root $1 that staged or unstaged changes touch: for each changed file, the nearest Cargo.toml
-# above it that declares a [package]. A commit touching no Rust package gives none.
+# The packages under root $1 that staged or unstaged changes touch: per file, the nearest Cargo.toml above it with a
+# [package], unless the file is in a workspace nested inside root (that one's own). No Rust package touched: none.
 touched_packages() {
-  local root=$1 f d
+  local root=$1 f d o
   { git diff --cached --name-only; git diff --name-only; } | sort -u | while IFS= read -r f; do
     [[ "$root" == "." || "$f" == "$root"/* ]] || continue
+    for o in "${rust_roots[@]}"; do
+      [[ "$o" != "$root" && "$o" != "." && "$f" == "$o"/* ]] && continue 2
+    done
     d=$(dirname "$f")
     while :; do
       if [[ -f "$d/Cargo.toml" ]] && grep -q '^\[package\]' "$d/Cargo.toml"; then
