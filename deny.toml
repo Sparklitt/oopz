@@ -1,0 +1,14 @@
+# cargo deny check (scripts/check.sh): advisories, licences, bans, sources.
+[advisories]
+version = 2
+# Unmaintained, not vulnerabilities, with no maintained release to move to (2026-11-25). Each reason says when it goes.
+ignore = [
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser unmaintained; the PDF export reads fonts with it (oopz-export-pdf, krilla); remove when Cargo.lock has no ttf-parser" },
+  { id = "RUSTSEC-2026-0206", reason = "rustybuzz unmaintained; the PDF export shapes text with it (oopz-export-pdf, krilla); remove when Cargo.lock has no rustybuzz" },
+]
+
+[licenses]
+version = 2
+# The licences oopz's dependencies have today (2026-11-25), each compatible with oopz's AGPL-3.0-or-later. A new
+# licence fails here until the owner adds it.
+allow = ["0BSD", "AGPL-3.0-or-later", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "BSL-1.0", "CC0-1.0", "CDLA-Permissive-2.0", "ISC", "LGPL-2.1-or-later", "MIT", "MIT-0", "MPL-2.0", "Unicode-3.0", "Unlicense", "Zlib"]
