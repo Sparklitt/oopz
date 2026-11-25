@@ -113,6 +113,14 @@ fn odd_records() {
     assert!(!notes.contains("future"), "notes never hold message text");
 }
 
+/// An attribute is unescaped once (XML 1.0, section 3.3.3): an escaped entity stays an entity in the text.
+#[test]
+fn attribute_values_are_unescaped_once() {
+    let xml = r#"<smses count="1"><sms address="+99990000005" date="1" type="1" body="&amp;lt;b&amp;gt; &amp;#65;" /></smses>"#;
+    let l = read(xml.as_bytes()).expect("read");
+    assert_eq!(l.messages[0].text(), "&lt;b&gt; &#65;");
+}
+
 #[test]
 fn other_files_are_refused() {
     for bytes in [&b""[..], b"hello", b"<rss><item/></rss>", b"{\"a\": 1}", b"\x00\xff\xfe"] {

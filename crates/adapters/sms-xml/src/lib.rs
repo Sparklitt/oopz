@@ -107,7 +107,7 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
         };
         match event {
             Event::Comment(c) => {
-                let c = String::from_utf8_lossy(&c);
+                let c: &str = &c;
                 if let Some(at) = c.find("SMS Backup & Restore v") {
                     let version = c[at..].split(" on ").next().unwrap_or("").trim().to_string();
                     book.reading = msgkinds::Reading::new(version.strip_prefix("SMS Backup & Restore v"));
@@ -116,13 +116,13 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
             }
             Event::Start(e) | Event::Empty(e) if root.is_none() => {
                 root = Some(match e.name().as_ref() {
-                    b"smses" => Root::Messages,
-                    b"calls" => Root::Calls,
+                    "smses" => Root::Messages,
+                    "calls" => Root::Calls,
                     _ => return Err(Error::NotThisFormat(FORMAT)),
                 });
                 stated = attrs(&e).get("count").and_then(|c| c.parse().ok());
             }
-            Event::Start(e) if e.name().as_ref() == b"mms" && root == Some(Root::Messages) => {
+            Event::Start(e) if e.name().as_ref() == "mms" && root == Some(Root::Messages) => {
                 // An MMS left open by a broken file is kept before the next one starts.
                 if let Some((a, parts, addrs)) = mms.take() {
                     records += 1;
@@ -133,28 +133,28 @@ pub fn read(bytes: &[u8]) -> Result<Loaded> {
             Event::Start(e) | Event::Empty(e) => {
                 let name = e.name();
                 match (name.as_ref(), &root, mms.as_mut()) {
-                    (b"part", _, Some((_, parts, _))) => parts.push(attrs(&e)),
-                    (b"addr", _, Some((_, _, addrs))) => addrs.push(attrs(&e)),
-                    (b"parts" | b"addrs", _, Some(_)) => {}
-                    (b"sms", Some(Root::Messages), None) => {
+                    ("part", _, Some((_, parts, _))) => parts.push(attrs(&e)),
+                    ("addr", _, Some((_, _, addrs))) => addrs.push(attrs(&e)),
+                    ("parts" | "addrs", _, Some(_)) => {}
+                    ("sms", Some(Root::Messages), None) => {
                         records += 1;
                         book.sms(records, &attrs(&e));
                     }
-                    (b"mms", Some(Root::Messages), None) => {
+                    ("mms", Some(Root::Messages), None) => {
                         records += 1;
                         book.mms(records, &attrs(&e), &[], &[]);
                     }
-                    (b"call", Some(Root::Calls), None) => {
+                    ("call", Some(Root::Calls), None) => {
                         records += 1;
                         book.call(records, &attrs(&e));
                     }
                     (other, ..) => {
-                        let other = String::from_utf8_lossy(other).chars().take(40).collect::<String>();
+                        let other = other.chars().take(40).collect::<String>();
                         *book.unknown_elements.entry(other).or_default() += 1;
                     }
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"mms" => {
+            Event::End(e) if e.name().as_ref() == "mms" => {
                 if let Some((a, parts, addrs)) = mms.take() {
                     records += 1;
                     book.mms(records, &a, &parts, &addrs);
@@ -217,7 +217,7 @@ type Attrs = HashMap<String, String>;
 fn attrs(e: &BytesStart) -> Attrs {
     let mut out = HashMap::new();
     for a in e.attributes().with_checks(false).flatten() {
-        out.insert(String::from_utf8_lossy(a.key.as_ref()).into_owned(), unescape(&a.value));
+        out.insert(a.key.as_ref().to_owned(), unescape(a.value.as_bytes()));
     }
     out
 }
