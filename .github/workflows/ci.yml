@@ -44,7 +44,7 @@ jobs:
             oopz/apps/desktop/src-tauri -> target
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-deny,gitleaks
+          tool: cargo-nextest,cargo-deny
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: oopz/apps/desktop/package.json
