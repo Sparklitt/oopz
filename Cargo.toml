@@ -93,5 +93,9 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = "warn"
 
+# Dev builds keep file:line for backtraces only: less memory and disk per compile (claude-setup, Build memory).
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.release]
 strip = "symbols"
