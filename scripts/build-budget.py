@@ -1,10 +1,10 @@
 #!/usr/bin/env -S python3 -I -B
-# copy of sparklitt scripts/build-budget.py sha256 476f52185fcaca55021584d24b53e16ad757805e6f9b4e47facd305fee988536
+# copy of sparklitt scripts/build-budget.py sha256 4b10fc5d56e54a07550bf20b3184c15c2594953792c29cb897a88796e270b6d8
 """A Rust build stays small and fast: its crates, each compile's memory, a rebuild's time (decision 0046).
 
     python3 -I -B scripts/build-budget.py              measure every [[budget]] of .claude/build-budget.toml
     python3 -I -B scripts/build-budget.py --graph      the crate graphs only, no build (quick check)
-    python3 -I -B scripts/build-budget.py --self-test  check this checker against known answers (BG1-BG11)
+    python3 -I -B scripts/build-budget.py --self-test  check this checker against known answers (BG1-BG12)
 
 The numbers are the repository's, in `.claude/build-budget.toml`; this checker is sparklitt's, copied whole
 (`scripts/copies.py`). A [[budget]] names a package and its limits:
@@ -25,16 +25,19 @@ The numbers are the repository's, in `.claude/build-budget.toml`; this checker i
 Measured in a folder of its own (`<target>/build-budget-<package>`), each rustc run straight through this same file
 as the rustc wrapper (no compile cache, so a compile is measured, not a cache hit): the build (through `cargo`, so
 the machine's build slots apply), then each rebuild after touching its file (through the toolchain's own cargo, so
-a slot's wait isn't timed; the file's time put back after). With `keep`, a crate not rebuilt keeps the peak its last
+a slot's wait isn't timed; the file's time put back after), timed while this checker holds every build slot of the
+machine's cargo shim, so no other compile shares the CPU (pitfall P10). With `keep`, a crate not rebuilt keeps the peak its last
 build measured. Fails, naming the number and its budget, on a graph over its ceiling, a forbidden package, a compile
 over the memory budget, a rebuild over its time, or a build that fails.
 """
+import fcntl
 import json
 import os
 import resource
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 from pathlib import Path
@@ -56,6 +59,10 @@ OPTIONAL = {"manifest": str, "build": list, "own": list, "forbidden": list, "for
 REBUILD_KEYS = {"touch": str, "budget_ms": int}
 # A rebuild may also cap its own compiles' memory, below the budget's (an edit is lighter than a cold build).
 REBUILD_OPTIONAL = {"peak_rss_mib": int}
+# The machine's cargo shim (~/.local/bin/cargo) runs a heavy cargo only while it holds one of these flock files; the
+# folder and count are the shim's own defaults, read from the same variables.
+SLOTS_DIR = Path(os.environ.get("CARGO_SLOTS_DIR", "/tmp/cargo-slots"))
+SLOTS = int(os.environ.get("CARGO_SLOTS", "2"))
 
 
 def wrap(args):
@@ -182,14 +189,37 @@ def build(budget, folder, log, cargo):
     return done.returncode == 0, round((time.monotonic() - began) * MS_PER_S), log.read_text(encoding="utf-8")
 
 
+def take_slots(folder, count, wait=True):
+    """Every build slot in `folder`, held exclusively (in order, as the shim tries them): their open files, closed to
+    release; None when one is busy and not `wait`; [] on a machine without the shim's folder."""
+    if not folder.is_dir():
+        return []
+    held = []
+    for i in range(1, count + 1):
+        handle = open(folder / f"slot{i}", "a", encoding="utf-8")  # noqa: SIM115 - held past this function
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            for h in held:
+                h.close()
+            return None
+        held.append(handle)
+    return held
+
+
 def touched(budget, folder, log, path):
-    """The rebuild after touching `path`, its time put back after; (wall ms or None when it failed, log text)."""
+    """The rebuild after touching `path`, its time put back after, timed holding every build slot (P10);
+    (wall ms or None when it failed, log text)."""
     before = (ROOT / path).stat()
+    held = take_slots(SLOTS_DIR, SLOTS)
     os.utime(ROOT / path)
     try:
         ok, ms, text = build(budget, folder, log, toolchain_cargo())
     finally:
         os.utime(ROOT / path, ns=(before.st_atime_ns, before.st_mtime_ns))
+        for handle in held:
+            handle.close()
     return (ms if ok else None), text
 
 
@@ -265,6 +295,22 @@ def check(only_graph):
     return failed
 
 
+def slot_answers():
+    """BG12: a fake busy slot (another process's compile) refuses the hold; once freed, both slots are taken."""
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        # Another open file's lock conflicts as another process's would (flock locks belong to the open file).
+        busy = open(folder / "slot2", "a", encoding="utf-8")  # noqa: SIM115 - the other compile's lock
+        fcntl.flock(busy, fcntl.LOCK_EX)
+        refused = take_slots(folder, 2, wait=False)
+        busy.close()
+        taken = take_slots(folder, 2, wait=False)
+        answers = [refused, len(taken) if taken else taken, take_slots(folder / "none", 2)]
+        for handle in taken or []:
+            handle.close()
+        return answers
+
+
 def self_test():
     package = lambda i, path="/elsewhere": {"id": i, "name": i, "manifest_path": f"{path}/{i}/Cargo.toml"}  # noqa: E731
     dep = lambda pkg, kind: {"pkg": pkg, "dep_kinds": [{"kind": kind}]}  # noqa: E731
@@ -306,6 +352,7 @@ def self_test():
         ("BG8 kept peaks: malformed lines skipped", remembered("p:a 5\nbad\np:b x\n"), {"p:a": 5}),
         ("BG9 the ceiling must be above 0", len(budgets('[[budget]]\npackage = "a"\ncrate_ceiling = 0\n'
                                                         'peak_rss_mib = 1\nrebuilds = []\n')[1]), 1),
+        ("BG12 the slots: busy one refused, all taken once free, none without the folder", slot_answers(), [None, 2, []]),
     ]
     bad = [f"{name}: got {got!r}, want {want!r}" for name, got, want in cases if got != want]
     for line in bad:
