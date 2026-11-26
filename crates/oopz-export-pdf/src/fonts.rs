@@ -136,7 +136,7 @@ pub struct Face {
     pub units_per_em: f32,
     pub ascender: f32,
     pub emoji: bool,
-    #[allow(dead_code)]
+    #[cfg_attr(not(test), expect(dead_code, reason = "only the tests' messages name a face"))]
     pub name: String,
 }
 
