@@ -42,11 +42,5 @@ oopz = { workspace = true, features = ["fixtures"] }
 oopz-gen = { path = "../oopz-gen" }
 tempfile.workspace = true
 
-# The workspace's lints (Cargo can't extend `workspace = true`), plus the generated Message enum's `head_last_message`
-# (msgkinds docs/messages.md row 30).
-[lints.rust]
-unsafe_code = "forbid"
-
-[lints.clippy]
-all = { level = "warn", priority = -1 }
-enum_variant_names = "allow"
+[lints]
+workspace = true
