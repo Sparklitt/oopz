@@ -162,7 +162,8 @@ touched_packages() {
 # Tracked .rs files under root $1 with a crate- or module-level #![allow(…)], as file:line: clippy's allow_attributes
 # reads outer attributes only.
 inner_allows() {
-  git grep -nE '^[[:space:]]*#!\[allow\(' -- ":(glob)$1/**/*.rs" | cut -d: -f1,2 || (($? == 1)) # 1: none found
+  # git grep exits 1 when nothing matches, the usual case: not a failure under set -euo pipefail.
+  git grep -nE '^[[:space:]]*#!\[allow\(' -- ":(glob)$1/**/*.rs" | cut -d: -f1,2 || (($? == 1))
 }
 quick_rust() {
   local r p pkgs found
