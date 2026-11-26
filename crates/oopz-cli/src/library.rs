@@ -715,7 +715,7 @@ pub fn run(lib_args: Lib) -> Result<()> {
 }
 
 #[cfg(feature = "pdf")]
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "one parameter per `lib export` PDF flag, passed through as parsed")]
 fn export_pdf(
     lib: &Library,
     selection: &Selection,
@@ -750,7 +750,7 @@ fn export_pdf(
 }
 
 #[cfg(not(feature = "pdf"))]
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "the same signature as the PDF build's `export_pdf`")]
 fn export_pdf(
     _: &Library,
     _: &Selection,

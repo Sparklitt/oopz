@@ -2,8 +2,8 @@
 
 import re
 import subprocess
-from collections import Counter
 
+import baseline
 from rules import number_value
 
 CONF = ".claude/literals.conf"
@@ -64,14 +64,7 @@ def read_conf(text):
 
 
 def read_baseline(text):
-    base = {}
-    for number, raw in enumerate(text.splitlines(), 1):
-        parts = raw.split(" ", 2)
-        if raw.strip() and not raw.startswith("#"):
-            if len(parts) != 3 or not parts[0].isdigit() or parts[1] not in HINTS:
-                raise ValueError(f"{BASELINE}:{number}: expected `<count> <rule> <file>`")
-            base[(parts[2], parts[1])] = int(parts[0])
-    return base
+    return baseline.read_baseline(text, BASELINE, HINTS)
 
 
 def show(rel, line, col, rule, literal):
@@ -81,24 +74,7 @@ def show(rel, line, col, rule, literal):
 
 def judge(found, allows, base):
     """(problems, counts): hits beyond the baseline, stale allow entries and stale baseline lines."""
-    used, rest = set(), []
-    for hit in found:
-        match = [a[0] for a in allows if a[1].fullmatch(hit[0]) and a[2] in ("*", hit[4])]
-        used.update(match)
-        if not match:
-            rest.append(hit)
-    counts = Counter((h[0], h[3]) for h in rest)
-    problems = []
-    for key in sorted(set(counts) | set(base)):
-        got, had = counts.get(key, 0), base.get(key, 0)
-        if got > had:
-            if had:
-                problems.append(f"{key[0]}: {key[1]}: {got} hits, the baseline allows {had}; the new ones are among:")
-            problems += [show(*h) for h in rest if (h[0], h[3]) == key]
-        elif got < had:
-            problems.append(f"{BASELINE}: {key[0]} {key[1]}: {got} hits, baseline {had}: lower it (--baseline)")
-    problems += [f"{CONF}:{a[0]}: stale allow entry (allows nothing)" for a in allows if a[0] not in used]
-    return problems, counts
+    return baseline.judge(found, allows, base, (CONF, BASELINE), show, lambda value, hit: value in ("*", hit[4]))
 
 
 def files(root):

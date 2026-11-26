@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Layering check: which manifests may not depend on what. Rules in <dir>/.claude/layers.conf, one per line:
-#   <glob of manifest files> !-> <ERE of dependency names> [+dev]
-# (format and examples: analyzer/layers.example.conf). Standalone use, exit 1 on a violation:
-#   bash analyzer/lib/layers.sh [dir]
-# project-report sources this file and calls check_layers.
+# `<glob of manifest files> !-> <ERE of dependency names> [+dev]` (examples: analyzer/layers.example.conf).
+# Standalone: `bash analyzer/lib/layers.sh [dir]`, exit 1 on a violation; project-report sources it (check_layers).
 
 # Dependency names a manifest declares, one per line. With dev=1 also dev-dependencies.
 manifest_deps() {

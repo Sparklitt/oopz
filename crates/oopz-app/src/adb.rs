@@ -200,7 +200,7 @@ fn line_value(line: Option<&str>) -> Value {
 }
 
 fn command(exe: &Path) -> Command {
-    #[cfg_attr(not(windows), allow(unused_mut))]
+    #[cfg_attr(not(windows), expect(unused_mut, reason = "only Windows changes the command (its creation flags)"))]
     let mut command = Command::new(exe);
     #[cfg(windows)]
     {

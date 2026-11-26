@@ -516,7 +516,7 @@ fn layout(
     Ok(done)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "the layout state one message draws with, each its own borrow")]
 fn message(
     w: &mut Writer<'_>,
     lib: &Library,
