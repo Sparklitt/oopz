@@ -35,12 +35,11 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the project's scripts: set before the imports below
 
+from baseline import write_baseline
 from config import BASELINE, CONF, HINTS, NUMBERS, files, glob_re, judge, read_baseline, read_conf
 from rules import file_hits, number_value
+from tokens import LANGS
 
-LANGS = {".rs": "rust", ".kt": "kotlin", ".kts": "kotlin", ".java": "java", ".py": "python", ".go": "go",
-         ".sh": "shell", ".bash": "shell", ".sql": "sql", ".js": "js", ".jsx": "js", ".mjs": "js", ".cjs": "js",
-         ".ts": "js", ".tsx": "js", ".mts": "js", ".cts": "js"}
 # Each language's convention for test code, never scanned. Rust's #[cfg(test)] and #[test] items too.
 TESTS = {
     "rust": ["**/tests/**", "**/benches/**"],
@@ -72,13 +71,6 @@ def scan(root, conf):
     return found
 
 
-def write_baseline(root, counts):
-    lines = [f"{n} {rule} {rel}" for (rel, rule), n in sorted(counts.items())]
-    (root / BASELINE).write_text("# Literal scan baseline (literals --baseline): hits per file and rule when it was"
-                                 " turned on. Counts only fall.\n" + "\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{BASELINE}: {sum(counts.values())} hits in {len(lines)} lines")
-
-
 def main(argv):
     if argv == ["--self-test"]:
         from selftest import self_test
@@ -101,7 +93,9 @@ def main(argv):
         return 2
     problems, counts = judge(scan(root, conf), conf["allow"], base)
     if write:
-        write_baseline(root, counts)
+        header = ("Literal scan baseline (literals --baseline): hits per file and rule when it was turned on."
+                  " Counts only fall.")
+        print(f"{BASELINE}: {write_baseline(root / BASELINE, counts, header)}")
         problems = [p for p in problems if p.startswith(CONF)]
     for p in problems:
         print(p)

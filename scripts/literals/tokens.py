@@ -1,7 +1,10 @@
-"""Per-language tokenisers: the strings, numbers, names and operators of a source, comments dropped."""
+"""Per-language tokenisers: the strings, numbers, names and operators of a source; comments kept apart."""
 
 import re
 
+LANGS = {".rs": "rust", ".kt": "kotlin", ".kts": "kotlin", ".java": "java", ".py": "python", ".go": "go",
+         ".sh": "shell", ".bash": "shell", ".sql": "sql", ".js": "js", ".jsx": "js", ".mjs": "js", ".cjs": "js",
+         ".ts": "js", ".tsx": "js", ".mts": "js", ".cts": "js"}
 LINE_COMMENT = {"python": "#", "shell": "#", "sql": "--"}
 NESTED_COMMENTS = {"rust", "kotlin"}
 CHARS = {"rust", "kotlin", "java", "go"}
@@ -97,11 +100,13 @@ def tokenize(src, lang):
 
 
 class Lexer:
-    """One pass over a source. Each step reads one construct at self.i and says whether it did."""
+    """One pass over a source. Each step reads one construct at self.i and says whether it did. The comments it
+    skips are kept in self.comments, for the comment scan."""
 
     def __init__(self, src, lang):
         self.src, self.lang, self.n = src, lang, len(src)
         self.i, self.line, self.depth, self.toks, self.heredocs = 0, 1, 0, [], []
+        self.comments = []
 
     def run(self):
         steps = (self.blank, self.comment, self.shell, self.char, self.quoted, self.backtick, self.js_regex,
@@ -145,6 +150,7 @@ class Lexer:
         if src.startswith(LINE_COMMENT.get(lang, "//"), i) and (
                 lang != "shell" or i == 0 or src[i - 1] in " \t\n;|&()"):
             self.i = until(src, i, "\n", False)
+            self.note(i, self.i)
             return True
         if lang in ("python", "shell") or not src.startswith("/*", i):
             return False
@@ -158,8 +164,13 @@ class Lexer:
                     break
             else:
                 j += 1
+        self.note(i, j)
         self.skip(j)
         return True
+
+    def note(self, start, stop):
+        col = start - self.src.rfind("\n", 0, start)
+        self.comments.append(Tok("comment", self.src[start:stop], self.line, col, start, stop, self.depth, None))
 
     def shell(self):
         src, i = self.src, self.i
