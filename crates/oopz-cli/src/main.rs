@@ -19,6 +19,10 @@ use zeroize::Zeroizing;
 
 mod library;
 mod pull;
+#[expect(
+    clippy::enum_variant_names,
+    reason = "the generated Message enum names messages as stored (msgkinds docs/messages.md row 30)"
+)]
 mod say;
 
 use say::{Message, count, say};
